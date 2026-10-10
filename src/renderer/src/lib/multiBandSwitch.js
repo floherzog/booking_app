@@ -1,5 +1,6 @@
-import { parseCsvText, serializeCsv } from '@core/csv'
-import { emptyManifest, fileForBand, routeRows, linkVenues, mergeRows } from '@core/multiBand'
+import { parseCsvText, parseCsvRaw, serializeCsv } from '@core/csv'
+import { emptyManifest, fileForBand, routeRows, linkVenues, mergeRows, inferBandFileSet } from '@core/multiBand'
+import { looksLikeAppCsv } from '@core/importMap'
 import { bandName } from '@core/bands'
 
 // Turning multi-band mode on (split one CSV into a file per band) and off
@@ -97,4 +98,116 @@ export async function disableMultiBand(settings, rows) {
     filePath: plan.target,
     multiBand: { enabled: false, dir: '', base: '', files: {}, unassigned: '', sourcePath: '' },
   }
+}
+
+// --- Open band files: use a set that already exists --------------------------
+// A second Mac, or a friend with a copy, has the files but not this Mac's list
+// of them. The user picks any one; the rest of the set is found in its folder.
+
+function storageFor(settings, manifest, sourcePath) {
+  return {
+    ...settings.storage,
+    adapter: 'file',
+    filePath: sourcePath,
+    multiBand: { enabled: true, ...manifest, sourcePath },
+  }
+}
+
+const distinctBands = rows => [...new Set(rows.map(r => String(r['Band'] || '').trim()).filter(Boolean))]
+
+// → { kind: 'open', dir, base, files: [{ name, band, count }], unassigned,
+//     skipped, missingUnassigned, manifest, sourcePath } — or throws with a
+//     message meant for the user.
+export async function planOpenBandFiles(pickedPath) {
+  const { dir, name } = splitPath(pickedPath)
+  const names = await window.bookingApi.listCsvFiles(dir)
+  const read = await window.bookingApi.readCsvFiles(names.map(n => `${dir}/${n}`))
+  const parsed = new Map()
+  for (const { path, text, missing } of read) {
+    if (missing) continue
+    parsed.set(fileName(path), await parseCsvText(text))
+  }
+  const entries = [...parsed].map(([n, rows]) => ({ name: n, bands: distinctBands(rows), rows: rows.length }))
+  const set = inferBandFileSet(name, entries)
+  if (set.error) throw new Error(set.error)
+  if (!Object.keys(set.files).length && !set.unassigned) throw new Error(`No band files found next to ${name}.`)
+
+  const unassigned = set.unassigned || `${set.base}-unassigned.csv`
+  const manifest = {
+    dir,
+    base: set.base,
+    files: Object.fromEntries(Object.entries(set.files).map(([band, n]) => [band, `${dir}/${n}`])),
+    unassigned: `${dir}/${unassigned}`,
+  }
+  const files = [
+    ...Object.entries(set.files).map(([band, n]) => ({ name: n, band, count: parsed.get(n)?.length || 0 })),
+    { name: unassigned, band: '', count: set.unassigned ? (parsed.get(unassigned)?.length || 0) : 0 },
+  ]
+  return {
+    kind: 'open', dir, base: set.base, files, skipped: set.skipped,
+    missingUnassigned: !set.unassigned, manifest, sourcePath: `${dir}/${set.base}.csv`,
+  }
+}
+
+// → the new `storage` section. The unassigned file is created if the set has
+// none yet, so the first load does not report it missing.
+export async function openBandFiles(settings, plan) {
+  if (plan.missingUnassigned) await window.bookingApi.createCsvFile(plan.manifest.unassigned)
+  return storageFor(settings, plan.manifest, plan.sourcePath)
+}
+
+// --- New set of band files: start empty somewhere else -----------------------
+
+// `savePath`: what the save dialog returned, e.g. ".../Tour 2027/booking.csv" —
+// its folder and name become the set's folder and prefix.
+export async function planNewBandSet(settings, savePath) {
+  const { dir, base } = splitPath(savePath)
+  let manifest = emptyManifest(dir, base)
+  for (const b of settings.bands || []) {
+    if (bandName(b).trim()) manifest = fileForBand(manifest, bandName(b)).manifest
+  }
+  const paths = [manifest.unassigned, ...Object.values(manifest.files)]
+  const clashes = []
+  for (const p of paths) if (await window.bookingApi.fileExists(p)) clashes.push(fileName(p))
+  const bandOf = new Map(Object.entries(manifest.files).map(([band, p]) => [p, band]))
+  return {
+    kind: 'newset', dir, base, manifest, clashes, sourcePath: `${dir}/${base}.csv`,
+    files: paths.map(p => ({ path: p, name: fileName(p), band: bandOf.get(p) || '', count: 0 })),
+  }
+}
+
+export async function createNewBandSet(settings, plan) {
+  if (plan.clashes.length) throw new Error(`Already in that folder: ${plan.clashes.join(', ')}. Pick another name or folder.`)
+  await window.bookingApi.writeCsvFiles({
+    files: plan.files.map(f => ({ path: f.path, text: serializeCsv([]), expectedMtimeMs: null })),
+  })
+  return storageFor(settings, plan.manifest, plan.sourcePath)
+}
+
+// --- Import band files: add the venues of several files ----------------------
+
+// → { kind: 'import', rows, files: [{ name, band, count }], venues }. Every file
+// has to be a booking CSV already (app columns): mapping foreign columns is what
+// the single-file Import CSV wizard is for. A venue keeps the Band its file says
+// — a row with an empty Band in a file of one band gets that band.
+export async function planImportBandFiles(paths) {
+  if (!paths?.length) return null
+  const read = await window.bookingApi.readCsvFiles(paths)
+  const rows = []
+  const files = []
+  for (const { path, text, missing } of read) {
+    const name = fileName(path)
+    if (missing) throw new Error(`${name} could not be read.`)
+    const { headers } = await parseCsvRaw(text)
+    if (!looksLikeAppCsv(headers)) {
+      throw new Error(`${name} doesn't have the app's columns. Import it on its own with Import CSV…, which lets you match its columns.`)
+    }
+    const fileRows = await parseCsvText(text)
+    const bands = distinctBands(fileRows)
+    const band = bands.length === 1 ? bands[0] : ''
+    for (const r of fileRows) rows.push(band && !r['Band'] ? { ...r, Band: band } : r)
+    files.push({ name, band: bands.length > 1 ? `${bands.length} bands` : band, count: fileRows.length })
+  }
+  const venues = new Set(linkVenues(rows).map(r => r._venueId)).size
+  return { kind: 'import', rows, files, venues }
 }

@@ -9,7 +9,8 @@ import {
 } from '@core/mailAccounts'
 import LanguagesEditor from './LanguagesEditor'
 import { mergeRows } from '@core/multiBand'
-import { planSplit, planMerge } from '../lib/multiBandSwitch'
+import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBandFiles } from '../lib/multiBandSwitch'
+import BandFilesPlan from './BandFilesPlan'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -30,7 +31,7 @@ const SECTIONS = [
   { id: 'mail', label: 'Mail settings' },
 ]
 
-export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onOpenLogic, onSave, onNewCsv, onSetMultiBand, unsavedEdits = 0, onPersist, onClose }) {
+export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onOpenLogic, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose }) {
   const [form, setForm] = useState(config)
   const [section, setSection] = useState('general')
   // Theme stays a per-Mac preference in localStorage (see the note in the
@@ -62,6 +63,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const [mbPlan, setMbPlan] = useState(null)
   const [mbBusy, setMbBusy] = useState(false)
   const [mbError, setMbError] = useState('')
+  // Data & storage ▸ Multi-band mode: open / new set / import band files. The
+  // plan being confirmed (see BandFilesPlan), and how it went.
+  const [bfPlan, setBfPlan] = useState(null)
+  const [bfBusy, setBfBusy] = useState(false)
+  const [bfError, setBfError] = useState('')
+  const [bfDone, setBfDone] = useState('')
 
   // The "Saved" confirmation is the only feedback now that Save no longer
   // closes the panel, so it has to fade on its own.
@@ -285,6 +292,57 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     }
   }
 
+  // Pick the file(s), then show what would happen. Nothing changes until the
+  // plan is confirmed.
+  async function prepareBandFiles(kind, fromPath = null) {
+    setBfError('')
+    setBfDone('')
+    setBfPlan(null)
+    try {
+      let plan = null
+      if (kind === 'open') {
+        const picked = fromPath || await window.bookingApi.pickCsvOpen()
+        if (picked) plan = await planOpenBandFiles(picked)
+      } else if (kind === 'newset') {
+        const target = await window.bookingApi.pickCsvSave('booking.csv', 'Name and place for the new band files')
+        if (target) plan = await planNewBandSet(config, target)
+      } else {
+        const paths = await window.bookingApi.pickCsvOpenMany('Choose the band files to import')
+        if (paths.length) plan = await planImportBandFiles(paths)
+      }
+      // Remember the mode as it was when asked: confirming may switch it on, and
+      // the box should keep describing what the user agreed to.
+      setBfPlan(plan && { ...plan, wasOn: multiBandOn })
+    } catch (e) {
+      setBfError(e.message)
+    }
+  }
+
+  async function confirmBandFiles() {
+    setBfError('')
+    setBfBusy(true)
+    try {
+      if (bfPlan.kind === 'import') {
+        const { saved, added } = await onImportBandFiles(bfPlan)
+        setForm(f => ({ ...f, storage: saved.storage }))
+        setBfDone(`Added ${added} venue entr${added !== 1 ? 'ies' : 'y'} — close Settings and press Save to write them to the band files.`)
+      } else {
+        const saved = await (bfPlan.kind === 'open' ? onOpenBandFiles : onNewBandSet)(bfPlan)
+        setForm(f => ({ ...f, storage: saved.storage }))
+        setBfDone(bfPlan.kind === 'open' ? 'Done — the app now uses these band files.' : 'Done — the new, empty band files are in use.')
+      }
+    } catch (e) {
+      setBfError(e.message)
+    } finally {
+      setBfBusy(false)
+    }
+  }
+
+  // Why the band-file actions can't run right now, if they can't.
+  const bfBlocked = storageDirty ? 'Save the storage change first.'
+    : unsavedEdits > 0 ? `Save or discard your ${unsavedEdits} unsaved venue edit${unsavedEdits !== 1 ? 's' : ''} first.`
+      : ''
+
   async function confirmMultiBand() {
     setMbError('')
     setMbBusy(true)
@@ -473,9 +531,25 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                               CSV</span> — they won’t see anything you change while this mode is on.
                             </p>
                             {mbPlan.clashes.length > 0 && (
-                              <p className="text-red-700 dark:text-red-400 font-medium">
-                                Already in that folder: {mbPlan.clashes.join(', ')}. Move {mbPlan.clashes.length === 1 ? 'it' : 'them'} away first.
-                              </p>
+                              <div className="space-y-1.5">
+                                <p className="text-red-700 dark:text-red-400 font-medium">
+                                  Band files are already in that folder: {mbPlan.clashes.join(', ')}.
+                                </p>
+                                {mbPlan.files.some(f => mbPlan.clashes.includes(f.name)) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const existing = mbPlan.files.find(f => mbPlan.clashes.includes(f.name))
+                                      setMbPlan(null)
+                                      setSection('storage')
+                                      prepareBandFiles('open', existing.path)
+                                    }}
+                                    className="font-semibold underline hover:no-underline"
+                                  >
+                                    Use the existing band files instead…
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </>
                         ) : (
@@ -700,6 +774,52 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       or add to it, and match your file's columns to the app's. Changes stay in the app until you
                       press Save.
                     </p>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <p className={lbl}>
+                      Band files
+                      <span className="ml-1.5 inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Multi-band mode</span>
+                    </p>
+                    <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                      One CSV per band, for booking several bands at the same venue.{' '}
+                      {multiBandOn
+                        ? 'Multi-band mode is on.'
+                        : <>Multi-band mode is off — <span className="font-medium">each of these switches it on</span>, after showing you what it will do.</>}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => prepareBandFiles('open')} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
+                        title="A set of band files that already exists — from another Mac, or a copy someone sent you">
+                        Open band files…
+                      </button>
+                      <button type="button" onClick={() => prepareBandFiles('import')} disabled={!!bfBlocked || bfBusy || (!multiBandOn && config.storage?.adapter === 'github')} className={outlineBtn}
+                        title="Add the venues of several band files to your list">
+                        Import band files…
+                      </button>
+                      <button type="button" onClick={() => prepareBandFiles('newset')} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
+                        title="Empty band files in a folder you choose; the current files stay as they are">
+                        New set of band files…
+                      </button>
+                    </div>
+                    <ul className="mt-2 space-y-0.5 text-xs text-gray-400 dark:text-gray-500">
+                      <li><span className="font-medium text-gray-500 dark:text-gray-400">Open</span> — use a set of band files that already exists, e.g. from your other Mac. Pick any one of them; the rest of the set is found in its folder.</li>
+                      <li><span className="font-medium text-gray-500 dark:text-gray-400">Import</span> — add the venues of several band files to your list{multiBandOn ? '' : ' (your current CSV is split into band files first)'}.</li>
+                      <li><span className="font-medium text-gray-500 dark:text-gray-400">New set</span> — start over with empty band files somewhere else. Your current files are not touched.</li>
+                    </ul>
+                    {bfBlocked && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{bfBlocked}</p>}
+                    {!multiBandOn && config.storage?.adapter === 'github' && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Import needs a local CSV to split first — Open and New set work from GitHub storage too.</p>
+                    )}
+                    <BandFilesPlan
+                      plan={bfPlan}
+                      multiBandOn={bfPlan?.wasOn ?? multiBandOn}
+                      busy={bfBusy}
+                      done={bfDone}
+                      error={bfError}
+                      onConfirm={confirmBandFiles}
+                      onCancel={() => { setBfPlan(null); setBfError('') }}
+                    />
+                    {!bfPlan && bfError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{bfError}</p>}
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">

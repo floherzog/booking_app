@@ -1,4 +1,4 @@
-import { readFile, writeFile, rename, stat, unlink, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, rename, stat, unlink, mkdir, readdir } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { APP_COLUMNS } from '../../core/constants.js'
@@ -86,6 +86,16 @@ export async function moveFile({ from, to }) {
   return { path: to }
 }
 
+// The CSV files directly in `dir` (not hidden, not in subfolders) — what
+// "Open band files…" looks through to find the rest of a set.
+export async function listCsvFiles(dir) {
+  const entries = await readdir(dir, { withFileTypes: true })
+  return entries
+    .filter(e => e.isFile() && !e.name.startsWith('.') && /\.csv$/i.test(e.name))
+    .map(e => e.name)
+    .sort()
+}
+
 export function registerStorageIpc() {
   ipcMain.handle('dialog:pickCsvOpen', async event => {
     const r = await dialog.showOpenDialog(parentWindow(event), {
@@ -96,9 +106,19 @@ export function registerStorageIpc() {
     return r.canceled ? null : r.filePaths[0]
   })
 
-  ipcMain.handle('dialog:pickCsvSave', async (event, defaultName) => {
+  // Several band files at once (multi-band mode's "Import band files…").
+  ipcMain.handle('dialog:pickCsvOpenMany', async (event, title) => {
+    const r = await dialog.showOpenDialog(parentWindow(event), {
+      title: title || 'Choose band files',
+      properties: ['openFile', 'multiSelections'],
+      filters: CSV_FILTERS,
+    })
+    return r.canceled ? [] : r.filePaths
+  })
+
+  ipcMain.handle('dialog:pickCsvSave', async (event, defaultName, title) => {
     const r = await dialog.showSaveDialog(parentWindow(event), {
-      title: 'Create a booking CSV',
+      title: title || 'Create a booking CSV',
       defaultPath: defaultName || 'booking.csv',
       filters: CSV_FILTERS,
     })
@@ -137,6 +157,7 @@ export function registerStorageIpc() {
   ipcMain.handle('storage:readCsvFiles', (_e, paths) => readCsvFiles(paths))
   ipcMain.handle('storage:writeCsvFiles', (_e, args) => writeCsvFiles(args))
   ipcMain.handle('storage:moveFile', (_e, args) => moveFile(args))
+  ipcMain.handle('storage:listCsvFiles', (_e, dir) => listCsvFiles(dir))
   ipcMain.handle('storage:fileExists', async (_e, path) => (await mtimeOf(path)) != null)
 
   // Export = "write a copy wherever you like", so it always asks.

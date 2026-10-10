@@ -8,7 +8,7 @@ import { computeNextBatch } from '@core/nextBatch'
 import { replyHealth } from '@core/replyStatus'
 import { computeDuplicates, dismissPair } from '@core/duplicates'
 import { linkVenues, reconcileShared, isMultiBand, isSharedField, SHARED_FIELDS } from '@core/multiBand'
-import { enableMultiBand, disableMultiBand } from './lib/multiBandSwitch'
+import { enableMultiBand, disableMultiBand, openBandFiles, createNewBandSet } from './lib/multiBandSwitch'
 import { mergeRules } from '@core/rules'
 import { RulesProvider } from './lib/rulesContext'
 import { getAdapter, isStorageConfigured } from './lib/storageAdapters'
@@ -120,7 +120,8 @@ export default function App() {
       const multi = isMultiBand(s)
       const classified = linkVenues(raw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, activeRules, { fillerBands: fillerBandSet(s.bands) }) })), multi)
       const nextBatchSet = computeNextBatch(classified, today, activeRules)
-      setRows(classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) })))
+      const loaded = classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) }))
+      setRows(loaded)
       // Band files that disagree about a venue's shared data (edited outside the
       // app, or separate rows before the split) are made to agree — staged, like
       // a mail sync, so nothing reaches the files before Save.
@@ -140,6 +141,10 @@ export default function App() {
         const seeded = bandsFromRows(raw).map(name => ({ name, tourDates: '', bookFiller: false }))
         if (seeded.length) await persist({ ...s, bands: seeded })
       }
+      // Handed back so a caller that loads and then adds to the list (importing
+      // band files right after switching multi-band on) builds on these rows,
+      // not on the state it captured before the load.
+      return loaded
     } catch (e) {
       if (/CSV_MISSING/.test(e.message)) {
         setMissingFile(s.storage?.filePath || '')
@@ -390,6 +395,44 @@ export default function App() {
     return saved
   }
 
+  // Settings ▸ Data & storage ▸ Multi-band mode, and the first-run screen. Each
+  // rewrites the storage section and reloads, so — like the switch — they wait
+  // for unsaved edits to be saved or discarded. All return the stored settings
+  // for the still-open panel to adopt.
+  async function switchStorage(storage) {
+    const saved = await persist({ ...settings, storage })
+    await load(saved)
+    return saved
+  }
+
+  // Use a set of band files that already exists (found from the one picked).
+  async function handleOpenBandFiles(plan) {
+    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    return switchStorage(await openBandFiles(settings, plan))
+  }
+
+  // Start a new, empty set of band files somewhere else; the current files stay.
+  async function handleNewBandSet(plan) {
+    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    return switchStorage(await createNewBandSet(settings, plan))
+  }
+
+  // Add the venues of several band files. With multi-band mode off it is
+  // switched on first (the current CSV is split, as in General), and the
+  // venues are added to the list that produced. Staged: they reach the band
+  // files on Save, like any import. → { saved, added }
+  async function handleImportBandFiles(plan) {
+    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    let saved = settings
+    let base = rows
+    if (!multiBand) {
+      saved = await persist({ ...settings, storage: await enableMultiBand(settings) })
+      base = (await load(saved)) || []
+    }
+    const added = appendImported(base, plan.rows, true)
+    return { saved, added }
+  }
+
   async function handleSettingsSave(form) {
     const bands = normalizeBands(form.bands)
     propagateBandChanges(settings.bands, bands)
@@ -519,15 +562,7 @@ export default function App() {
       setAdapter(getAdapter(saved))
     }
     if (mode === 'add') {
-      // Append imported rows as new venues with fresh _idx past the current max,
-      // keeping existing rows and any unsaved edits/deletions. Track them in
-      // `additions` so they show in — and enable — the Save flow.
-      const nextIdx = rows.reduce((max, r) => Math.max(max, r._idx), -1) + 1
-      const appended = importedRaw.map((r, i) => ({ ...r, _idx: nextIdx + i }))
-      const merged = linkVenues([...rows, ...appended], multiBand).map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
-      const nextBatchSet = computeNextBatch(merged, today, rules)
-      setRows(merged.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) })))
-      setAdditions(prev => new Set([...prev, ...appended.map(r => r._idx)]))
+      appendImported(rows, importedRaw, multiBand)
       return
     }
     // replace
@@ -540,6 +575,22 @@ export default function App() {
   }
 
   // The venue, with every band it has.
+  // Append imported rows as new venues with fresh _idx past the current max,
+  // keeping existing rows and any unsaved edits/deletions. Tracked in
+  // `additions` so they show in — and enable — the Save flow. `baseRows` and
+  // `multi` are explicit because a caller may have just reloaded or switched
+  // multi-band mode on, which this render's state does not know yet.
+  // → the number of venues added.
+  function appendImported(baseRows, importedRaw, multi) {
+    const nextIdx = baseRows.reduce((max, r) => Math.max(max, r._idx), -1) + 1
+    const appended = importedRaw.map((r, i) => ({ ...r, _idx: nextIdx + i }))
+    const merged = linkVenues([...baseRows, ...appended], multi).map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
+    const nextBatchSet = computeNextBatch(merged, today, rules)
+    setRows(merged.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) })))
+    setAdditions(prev => new Set([...prev, ...appended.map(r => r._idx)]))
+    return appended.length
+  }
+
   function handleDelete(rowIndex) {
     const row = rows.find(r => r._idx === rowIndex)
     const all = rows.filter(r => r._venueId === row?._venueId).map(r => r._idx)
@@ -1019,6 +1070,9 @@ export default function App() {
           onSave={handleSettingsSave}
           onNewCsv={handleNewCsv}
           onSetMultiBand={handleSetMultiBand}
+          onOpenBandFiles={handleOpenBandFiles}
+          onNewBandSet={handleNewBandSet}
+          onImportBandFiles={handleImportBandFiles}
           unsavedEdits={editCount}
           onPersist={form => persist({ ...settings, ...form })}
           onClose={() => setShowSettings(false)}

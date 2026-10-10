@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { parseCsvRaw } from '@core/csv'
 import { looksLikeAppCsv } from '@core/importMap'
+import { planOpenBandFiles, openBandFiles } from '../lib/multiBandSwitch'
+import BandFilesPlan from './BandFilesPlan'
 
 // Shown until a storage adapter is configured: pick an existing CSV, create a
 // fresh one with just the canonical header row, or point at a GitHub repo.
@@ -13,6 +15,8 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
   const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Multi-band mode: an existing set of band files, found from the one picked.
+  const [bandPlan, setBandPlan] = useState(null)
 
   async function run(fn) {
     setBusy(true)
@@ -57,6 +61,20 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
     return run(async () => {
       await window.bookingApi.createCsvFile(missingPath)
       await onConfigured({ adapter: 'file', filePath: missingPath })
+    })
+  }
+
+  function pickBandFiles() {
+    return run(async () => {
+      setBandPlan(null)
+      const picked = await window.bookingApi.pickCsvOpen()
+      if (picked) setBandPlan(await planOpenBandFiles(picked))
+    })
+  }
+
+  function useBandFiles() {
+    return run(async () => {
+      await onConfigured(await openBandFiles(settings, bandPlan))
     })
   }
 
@@ -119,6 +137,24 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
             <p className="text-xs text-gray-400 dark:text-gray-500">
               A new file starts with the app’s 22 column headers and no venues.
             </p>
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+              <div className="flex items-center gap-2">
+                <button onClick={pickBandFiles} disabled={busy} className={secondary}>Open band files…</button>
+                <span className="inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Multi-band mode</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                Already keeping one CSV per band (multi-band mode on another Mac)? Pick any one of the band
+                files — the rest of the set is found in its folder, and multi-band mode is switched on.
+              </p>
+              <BandFilesPlan
+                plan={bandPlan}
+                multiBandOn={false}
+                fresh
+                busy={busy}
+                onConfirm={useBandFiles}
+                onCancel={() => setBandPlan(null)}
+              />
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

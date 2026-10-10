@@ -19,7 +19,8 @@ const api = {
 
   // Native file pickers
   pickCsvOpen: () => ipcRenderer.invoke('dialog:pickCsvOpen'),
-  pickCsvSave: defaultName => ipcRenderer.invoke('dialog:pickCsvSave', defaultName),
+  pickCsvSave: (defaultName, title) => ipcRenderer.invoke('dialog:pickCsvSave', defaultName, title),
+  pickCsvOpenMany: title => ipcRenderer.invoke('dialog:pickCsvOpenMany', title),
 
   // The real path behind a <input type="file"> File. The renderer cannot get
   // this itself any more (File.path was removed), and the import wizard needs it
@@ -37,6 +38,7 @@ const api = {
   writeCsvFiles: args => ipcRenderer.invoke('storage:writeCsvFiles', args),
   moveFile: args => ipcRenderer.invoke('storage:moveFile', args),
   fileExists: path => ipcRenderer.invoke('storage:fileExists', path),
+  listCsvFiles: dir => ipcRenderer.invoke('storage:listCsvFiles', dir),
   exportCsv: (text, defaultName) => ipcRenderer.invoke('storage:exportCsv', text, defaultName),
 
   // GitHub storage

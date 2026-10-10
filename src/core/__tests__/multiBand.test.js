@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SHARED_FIELDS, venueKey, linkVenues, groupByVenue, reconcileShared,
-  bandSlug, emptyManifest, fileForBand, routeRows, mergeRows,
+  bandSlug, emptyManifest, fileForBand, routeRows, mergeRows, inferBandFileSet,
 } from '@core/multiBand'
 import { parseCsvText, serializeCsv } from '@core/csv'
 import { APP_COLUMNS } from '@core/constants'
@@ -144,5 +144,49 @@ describe('routeRows / mergeRows', () => {
     const sortLines = t => t.trim().split('\n').slice(1).sort()
     expect(merged.split('\n')[0]).toBe(text.split('\n')[0])
     expect(sortLines(merged)).toEqual(sortLines(text))
+  })
+})
+
+describe('inferBandFileSet', () => {
+  const e = (name, bands = [], rows = bands.length ? 3 : 0) => ({ name, bands, rows })
+  const folder = [
+    e('booking-Alpha.csv', ['Alpha']),
+    e('booking-Beta-Live.csv', ['Beta-Live']), // a dash inside the band name
+    e('booking-Gamma.csv'),                    // no venues yet: band from the name
+    e('booking-unassigned.csv'),
+    e('booking.before-multiband-2026-10-01.csv', ['Alpha', 'Beta-Live']),
+    e('booking-merged-2026-10-02.csv', ['Alpha', 'Beta-Live']),
+    e('other.csv', ['Alpha', 'Beta-Live']),
+  ]
+
+  it('finds the whole set from any one band file, band names from inside the files', () => {
+    for (const picked of ['booking-Alpha.csv', 'booking-Beta-Live.csv', 'booking-unassigned.csv']) {
+      expect(inferBandFileSet(picked, folder)).toEqual({
+        base: 'booking',
+        files: { Alpha: 'booking-Alpha.csv', 'Beta-Live': 'booking-Beta-Live.csv', Gamma: 'booking-Gamma.csv' },
+        unassigned: 'booking-unassigned.csv',
+        skipped: [],
+      })
+    }
+  })
+
+  it('uses the Band column over the file name, and copes with the " 2" suffix', () => {
+    const r = inferBandFileSet('my-list-band a 2.csv', [e('my-list-band a 2.csv', ['Band A']), e('my-list-unassigned.csv')])
+    expect(r.base).toBe('my-list')
+    expect(r.files).toEqual({ 'Band A': 'my-list-band a 2.csv' })
+  })
+
+  it('refuses a single booking CSV and backups, pointing at the right tool', () => {
+    expect(inferBandFileSet('other.csv', folder).error).toMatch(/Import CSV/)
+    expect(inferBandFileSet('booking.before-multiband-2026-10-01.csv', folder).error).toMatch(/backup/)
+  })
+
+  it('skips files that cannot be part of the set, saying why', () => {
+    const r = inferBandFileSet('b-Alpha.csv', [
+      e('b-Alpha.csv', ['Alpha']), e('b-alpha copy.csv', ['alpha']), e('b-Mixed.csv', ['Alpha', 'Beta']),
+    ])
+    expect(r.files).toEqual({ Alpha: 'b-Alpha.csv' })
+    expect(r.unassigned).toBeNull()
+    expect(r.skipped.map(s => s.name).sort()).toEqual(['b-Mixed.csv', 'b-alpha copy.csv'])
   })
 })

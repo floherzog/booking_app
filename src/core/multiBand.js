@@ -170,3 +170,66 @@ export function mergeRows(rows) {
 export function isMultiBand(settings) {
   return !!settings?.storage?.multiBand?.enabled && settings?.storage?.adapter !== 'github'
 }
+
+// --- Recognising an existing set of band files -------------------------------
+// The list of band files lives in this Mac's settings, not next to the files,
+// so a second Mac (or a friend with a copy) has to rediscover the set from the
+// folder. The user picks any one file of it; this works out the rest.
+
+const escapeRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Files the mode itself leaves behind that are not band files.
+const NOT_A_BAND_FILE = /\.before-multiband-|-merged-\d{4}-\d{2}-\d{2}\.csv$/i
+
+// `picked`: the name of the file the user chose. `entries`: every CSV in that
+// folder as { name, bands: [distinct non-empty Band values], rows: count }.
+// → { base, files: { band: name }, unassigned: name | null, skipped: [{ name, reason }] }
+//   or { error } when the picked file cannot belong to a set.
+//
+// The set's prefix comes from the band named INSIDE the picked file — band
+// names can contain dashes, so the file name alone cannot say where the prefix
+// ends. A file's band is likewise the Band column, not its name; only a file
+// with no venues yet falls back to its name.
+export function inferBandFileSet(picked, entries) {
+  const byName = new Map((entries || []).map(e => [e.name, e]))
+  const me = byName.get(picked)
+  if (!me) return { error: `${picked} could not be read.` }
+  if (NOT_A_BAND_FILE.test(picked)) return { error: `${picked} is a backup, not a band file.` }
+
+  let base = null
+  const unassignedMatch = picked.match(/^(.+)-unassigned( \d+)?\.csv$/i)
+  if (unassignedMatch) base = unassignedMatch[1]
+  else if (me.bands.length === 1) {
+    const m = picked.match(new RegExp(`^(.+)-${escapeRe(bandSlug(me.bands[0]))}( \\d+)?\\.csv$`, 'i'))
+    if (m) base = m[1]
+  } else if (me.bands.length > 1) {
+    return { error: `${picked} holds venues of several bands (${me.bands.slice(0, 3).join(', ')}…) — that is a single booking CSV, not a band file. Use Import CSV for it.` }
+  }
+  if (!base) {
+    const dash = picked.lastIndexOf('-')
+    if (dash <= 0) return { error: `${picked} isn't named like a band file (<name>-<band>.csv).` }
+    base = picked.slice(0, dash)
+  }
+
+  const prefix = new RegExp(`^${escapeRe(base)}-(.+?)( \\d+)?\\.csv$`, 'i')
+  const files = {}
+  const taken = new Map() // lower-cased band → file name
+  let unassigned = null
+  const skipped = []
+  // When two files claim one band, the picked file wins, then the file named
+  // exactly after its band, then the alphabetically first.
+  const exact = e => e.bands.length === 1 && e.name.toLowerCase() === `${base}-${bandSlug(e.bands[0])}.csv`.toLowerCase()
+  const rank = e => (e.name === picked ? 0 : exact(e) ? 1 : 2)
+  for (const e of [...entries].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))) {
+    const m = e.name.match(prefix)
+    if (!m || NOT_A_BAND_FILE.test(e.name)) continue
+    if (m[1].toLowerCase() === 'unassigned' && !e.bands.length) { unassigned = e.name; continue }
+    if (e.bands.length > 1) { skipped.push({ name: e.name, reason: 'holds venues of several bands' }); continue }
+    const band = e.bands[0] || m[1]
+    const key = band.trim().toLowerCase()
+    if (taken.has(key)) { skipped.push({ name: e.name, reason: `a second file for ${band} (${taken.get(key)} is used)` }); continue }
+    taken.set(key, e.name)
+    files[band] = e.name
+  }
+  return { base, files, unassigned, skipped }
+}

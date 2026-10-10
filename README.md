@@ -186,6 +186,23 @@ band and **+ Add band…**.
   account are told apart by the band's name in the subject, so put `{{band}}`
   in your subjects. A message that names no band counts for all of them.
 
+**Band files on another Mac, or starting over.** The list of band files lives
+in this Mac's settings, so another Mac has to be shown the set once. All of
+these are labelled *Multi-band mode* and switch it on if it is off, after
+showing what they will do:
+
+- **Open band files…** (start screen, or Settings ▸ Data & storage): pick any one
+  file of an existing set. The rest of the set is found in its folder, and each
+  file's band is read from its `Band` column, so band names may contain dashes.
+- **Import band files…** (Data & storage): add the venues of several band files
+  to your list, each to its own band, staged until Save. If the mode is off,
+  your current CSV is split first. Files without the app's columns go through
+  **Import CSV…** instead.
+- **New set of band files…** (Data & storage): empty band files, one per band,
+  in a folder and under a name you pick. The current files are not touched.
+- Switching the mode on while band files already sit in the folder offers to
+  use those instead.
+
 Switching it off merges everything back into one CSV, with one line per band
 for a venue that has several. The band files are moved into a
 `booking-bands-backup-<date>/` folder. Nothing is ever overwritten in either
