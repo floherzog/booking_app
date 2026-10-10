@@ -104,8 +104,9 @@ Other scripts:
 
 ```sh
 npm run clean:build   # delete the built .dmg/.zip once a release is published
-npm run check:drift   # diff src/core against the original web app (informational)
-npm run verify:csv    # prove the CSV format is still byte-compatible with it
+npm run dev:web       # the web build on a local dev server (see docs/WEB.md)
+npm run build:web     # the web build into dist-web/
+npm run verify:csv    # prove the CSV format still round-trips byte for byte
 npm run bench:core    # time the load pipeline at 250 / 1000 / 3000 venues
 npm run build:helper  # compile just the Swift on-device-model helper
 ```
@@ -566,7 +567,10 @@ src/
 ├── main/      Electron main process: settings, secrets, files, GitHub,
 │              geocoding, templates, MIME, IMAP, AppleScript
 ├── preload/   the contextBridge — the renderer never sees ipcRenderer
-└── renderer/  React UI
+└── renderer/  React UI — shared by the Mac app and the web app
+    └── src/platform/   the seam between the UI and what it runs on
+web/           the web build's entry and the files served next to it
+               (cookie login, settings store, icons, geo cache)
 ```
 
 `src/core` is the single implementation of the domain: classification, the
@@ -590,15 +594,34 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   `dependencies` — everything the renderer uses is bundled by Vite, and
   listing it as a dependency would only copy it into the .app for nothing.
 
-### Where this is heading
+## One UI, two builds: the Mac app and the web app
 
-`src/core` is intended to become a package shared with the original web app,
-which would then move into this repository as a second build target: a small
-Vite web entry consuming the same `src/core`, swapping the Electron IPC adapters
-for the browser ones. The layout — core / main / renderer, a `@core` alias, no
-cross-imports — was chosen to make that merge mechanical.
+The same React UI ships twice: as this Mac app, and as the web app at
+florianherzog.info/booking_app (the phone and any browser). Only the layer
+underneath differs, and all of it sits behind one seam,
+`src/renderer/src/platform/`:
 
-Until then the two are separate copies, so `npm run check:drift` diffs them and
-labels the divergences we introduced on purpose (the rules refactor, the removed
-server sync) so a genuine one stands out. `npm run verify:csv` round-trips a
-fixture through both implementations to prove the file format has not moved.
+- **`api`** — everything the UI needs from outside the browser sandbox. In the
+  Mac app that is the preload bridge (`electron.js`); in the web app it is the
+  GitHub API plus a small PHP store on the host (`web.js`). The `@platform`
+  alias picks one at build time, so neither build carries the other's code.
+- **`caps`** — what one build can do and the other cannot: local files and
+  multi-band mode, mail (templates, drafts, sending, sync, scheduled runs),
+  German articles, the update check. The UI shows or hides those parts by
+  checking `caps.x`, so `grep -rn "caps\." src/renderer` lists every difference
+  between the two apps. On the web, OpenClaw does the drafting and sending,
+  driven by the Draft/Auto flags; the web app warns when OpenClaw's hold logic
+  drifts from the Rules.
+
+**Adding a feature** therefore usually means adding it once, and both apps get
+it. If it needs something new from the platform:
+
+1. add the IPC call in `src/main` and expose it in `src/preload/index.js`;
+2. `npm test` now fails in `platform/__tests__/apiCoverage.test.js` until the web
+   build answers it — implement it in `web.js`, or list it in `UNSUPPORTED` with
+   the `caps` flag that hides its UI (adding the flag to both builds if it is
+   new);
+3. gate the UI on that flag.
+
+The web app deploys itself on every push to `main` that touches the shared
+code (`.github/workflows/deploy-web.yml`); see [docs/WEB.md](docs/WEB.md).

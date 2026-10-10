@@ -1,4 +1,5 @@
 import { serializeCsv } from '@core/csv'
+import { api } from '../platform'
 
 // Local YYYY-MM-DD stamp for the export filename (avoids UTC/locale surprises).
 function dateStamp(d = new Date()) {
@@ -10,7 +11,7 @@ function dateStamp(d = new Date()) {
 // write them wherever the user points the native save dialog.
 export async function exportCsv(rows, filename) {
   const text = serializeCsv(rows)
-  return window.bookingApi.exportCsv(text, filename || `booking_${dateStamp()}.csv`)
+  return api.exportCsv(text, filename || `booking_${dateStamp()}.csv`)
 }
 
 // Read a File/Blob as UTF-8 text (the import wizard's drag-and-drop path).

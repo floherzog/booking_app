@@ -11,6 +11,7 @@ import LanguagesEditor from './LanguagesEditor'
 import { mergeRows } from '@core/multiBand'
 import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBandFiles } from '../lib/multiBandSwitch'
 import BandFilesPlan from './BandFilesPlan'
+import { api, caps } from '../platform'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -20,16 +21,17 @@ const THEMES = [
 
 // `rules` is not a pane: it opens the Logic modal, where the same numbers are
 // edited next to the diagram that explains what they do.
+// Languages only pick a template's language, so they go with the mail sections.
 const SECTIONS = [
   { id: 'general', label: 'General' },
   { id: 'storage', label: 'Data & storage' },
   { id: 'rules', label: 'Rules', opens: 'logic' },
   { id: 'bands', label: 'Bands' },
   { id: 'venueTypes', label: 'Venue types' },
-  { id: 'languages', label: 'Languages' },
-  { id: 'templates', label: 'Mail templates' },
-  { id: 'mail', label: 'Mail settings' },
-]
+  { id: 'languages', label: 'Languages', needs: 'mail' },
+  { id: 'templates', label: 'Mail templates', needs: 'mail' },
+  { id: 'mail', label: 'Mail settings', needs: 'mail' },
+].filter(s => !s.needs || caps[s.needs])
 
 export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onOpenLogic, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose }) {
   const [form, setForm] = useState(config)
@@ -95,13 +97,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     || !!githubToken.trim() || Object.values(accountPasswords).some(v => v?.trim())
 
   useEffect(() => {
-    window.bookingApi.hasSecret('githubToken').then(setHasGithubToken).catch(() => {})
+    api.hasSecret('githubToken').then(setHasGithubToken).catch(() => {})
     normalizeAccounts(config?.mail).forEach(a => {
-      window.bookingApi.hasSecret(secretKeyFor(a.id))
+      api.hasSecret(secretKeyFor(a.id))
         .then(has => setHasPassword(p => ({ ...p, [a.id]: has })))
         .catch(() => {})
     })
-    window.bookingApi.getAppVersion().then(setVersion).catch(() => {})
+    api.getAppVersion().then(setVersion).catch(() => {})
   }, [])
 
   // The same check the "Check for Updates…" menu item runs; nothing installs
@@ -109,7 +111,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   async function checkUpdates() {
     setUpdateState({ checking: true })
     try {
-      setUpdateState(await window.bookingApi.checkForUpdates())
+      setUpdateState(await api.checkForUpdates())
     } catch (e) {
       setUpdateState({ error: e.message })
     }
@@ -128,7 +130,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setSaving(true)
     setError('')
     try {
-      if (githubToken.trim()) await window.bookingApi.setSecret('githubToken', githubToken.trim())
+      if (githubToken.trim()) await api.setSecret('githubToken', githubToken.trim())
       await savePasswords()
       const saved = await onSave(form)
       // Saving deliberately leaves the panel open — settings are usually
@@ -176,7 +178,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
       bands: normalizeBands(f.bands).map(b => (b.mailAccountId === id ? { ...b, mailAccountId: '' } : b)),
     }))
     setAccountPasswords(p => { const n = { ...p }; delete n[id]; return n })
-    try { await window.bookingApi.deleteSecret(secretKeyFor(id)) } catch { /* nothing stored */ }
+    try { await api.deleteSecret(secretKeyFor(id)) } catch { /* nothing stored */ }
     setHasPassword(p => ({ ...p, [id]: false }))
     if (openAccount === id) setOpenAccount(null)
   }
@@ -191,7 +193,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   async function savePasswords() {
     for (const [id, value] of Object.entries(accountPasswords)) {
       if (!value?.trim()) continue
-      await window.bookingApi.setSecret(secretKeyFor(id), value.trim())
+      await api.setSecret(secretKeyFor(id), value.trim())
       setHasPassword(p => ({ ...p, [id]: true }))
     }
     setAccountPasswords({})
@@ -202,7 +204,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   useEffect(() => {
     if (section !== 'templates' || articleState) return
     let alive = true
-    window.bookingApi.articleAvailability()
+    api.articleAvailability()
       .then(r => { if (alive) setArticleState(r || { ok: false, status: 'failed' }) })
       .catch(() => { if (alive) setArticleState({ ok: false, status: 'failed', error: 'Could not reach the language helper.' }) })
     return () => { alive = false }
@@ -222,7 +224,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
       await onPersist(form)
 
       if (kind === 'imap') {
-        const { mailboxes: boxes, suggestion, sentSuggestion } = await window.bookingApi.testMailConnection(id)
+        const { mailboxes: boxes, suggestion, sentSuggestion } = await api.testMailConnection(id)
         const account = normalizeAccounts(form.mail).find(a => a.id === id)
         if (!account?.draftsMailbox && suggestion) setAccount(id, { draftsMailbox: suggestion })
         if (!account?.sentMailbox && sentSuggestion) setAccount(id, { sentMailbox: sentSuggestion })
@@ -237,7 +239,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
         return
       }
 
-      const r = await window.bookingApi.verifySmtp(id)
+      const r = await api.verifySmtp(id)
       setAccountTests(t => ({
         ...t,
         [id]: r.ok
@@ -254,12 +256,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   async function chooseFile() {
-    const picked = await window.bookingApi.pickCsvOpen()
+    const picked = await api.pickCsvOpen()
     if (picked) setStorage({ filePath: picked })
   }
 
   async function forgetToken() {
-    await window.bookingApi.deleteSecret('githubToken')
+    await api.deleteSecret('githubToken')
     setHasGithubToken(false)
     setGithubToken('')
   }
@@ -271,6 +273,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   const multiBandOn = !!config.storage?.multiBand?.enabled
+  // Web build: a token baked in by the deploy needs no field to type one into.
+  const builtInToken = !!api.githubTokenBuiltIn?.()
   // Why the switch can't be flipped right now, if it can't.
   const mbBlocked = config.storage?.adapter === 'github' && !multiBandOn
     ? 'Only available with a local CSV file — GitHub storage keeps one file.'
@@ -301,13 +305,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     try {
       let plan = null
       if (kind === 'open') {
-        const picked = fromPath || await window.bookingApi.pickCsvOpen()
+        const picked = fromPath || await api.pickCsvOpen()
         if (picked) plan = await planOpenBandFiles(picked)
       } else if (kind === 'newset') {
-        const target = await window.bookingApi.pickCsvSave('booking.csv', 'Name and place for the new band files')
+        const target = await api.pickCsvSave('booking.csv', 'Name and place for the new band files')
         if (target) plan = await planNewBandSet(config, target)
       } else {
-        const paths = await window.bookingApi.pickCsvOpenMany('Choose the band files to import')
+        const paths = await api.pickCsvOpenMany('Choose the band files to import')
         if (paths.length) plan = await planImportBandFiles(paths)
       }
       // Remember the mode as it was when asked: confirming may switch it on, and
@@ -440,15 +444,15 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
         </div>
 
         <form onSubmit={handleSave} className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 flex">
-            {/* Section rail */}
-            <nav className="w-40 shrink-0 border-r border-gray-100 dark:border-gray-700 py-3 space-y-0.5 overflow-y-auto">
+          <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
+            {/* Section rail — a scrolling row of tabs on a phone */}
+            <nav className="sm:w-40 shrink-0 border-b sm:border-b-0 sm:border-r border-gray-100 dark:border-gray-700 py-2 sm:py-3 flex sm:block sm:space-y-0.5 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
               {SECTIONS.map(s => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => (s.opens === 'logic' ? onOpenLogic?.() : setSection(s.id))}
-                  className={`w-full text-left px-4 py-1.5 text-sm transition-colors ${section === s.id
+                  className={`shrink-0 whitespace-nowrap sm:w-full text-left px-4 py-1.5 text-sm transition-colors ${section === s.id
                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
                 >
@@ -460,7 +464,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               ))}
             </nav>
 
-            <div className="flex-1 min-w-0 overflow-y-auto px-6 py-5">
+            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto px-4 sm:px-6 py-5">
               {section === 'general' && (
                 <div className="space-y-4">
                   <div>
@@ -482,11 +486,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      Applies straight away and is remembered per Mac, so it isn’t part of the settings
-                      file you might sync between machines.
+                      {caps.localFiles
+                        ? 'Applies straight away and is remembered per Mac, so it isn’t part of the settings file you might sync between machines.'
+                        : 'Applies straight away and is remembered in this browser only.'}
                     </p>
                   </div>
 
+                  {caps.multiBand && (
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>Multi-band mode</p>
                     <label className={`flex items-start gap-2 ${mbBlocked || mbBusy ? 'opacity-60' : 'cursor-pointer'}`}>
@@ -577,14 +583,17 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     )}
                     {mbError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{mbError}</p>}
                   </div>
+                  )}
 
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>Version</p>
                     <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-800 dark:text-gray-200 font-mono">{version || '…'}</span>
-                      <button type="button" onClick={checkUpdates} disabled={updateState?.checking} className={outlineBtn}>
-                        {updateState?.checking ? 'Checking…' : 'Check for updates'}
-                      </button>
+                      {caps.updates && (
+                        <button type="button" onClick={checkUpdates} disabled={updateState?.checking} className={outlineBtn}>
+                          {updateState?.checking ? 'Checking…' : 'Check for updates'}
+                        </button>
+                      )}
                     </div>
                     {updateState && !updateState.checking && (
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -596,7 +605,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                 type="button"
                                 // The .dmg for this Mac when the release has one: the
                                 // browser downloads it straight away.
-                                onClick={() => window.bookingApi.openExternal(updateState.downloadUrl || updateState.url)}
+                                onClick={() => api.openExternal(updateState.downloadUrl || updateState.url)}
                                 className="text-indigo-600 dark:text-indigo-400 hover:underline"
                               >
                                 Download it
@@ -606,6 +615,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           ) : 'You are running the latest published version.'}
                       </p>
                     )}
+                    {caps.updates && (
                     <label className="mt-3 flex items-start gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -620,6 +630,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         </span>
                       </span>
                     </label>
+                    )}
+                    {!caps.updates && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                        The web app updates itself: every change to the app is deployed here automatically.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -678,6 +694,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
               {section === 'storage' && (
                 <div className="space-y-4">
+                  {caps.storageChoice && (
                   <div className="space-y-2">
                     {[
                       { value: 'file', label: 'Local CSV file', hint: 'Anywhere on this Mac — iCloud Drive keeps it in sync.' },
@@ -700,6 +717,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       </label>
                     ))}
                   </div>
+                  )}
 
                   {storage.adapter === 'github' ? (
                     <div className="space-y-3">
@@ -713,6 +731,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         <input className={monoInput} value={storage.github?.path || ''} placeholder="data/booking.csv"
                           onChange={e => setStorage({ github: { ...storage.github, path: e.target.value } })} />
                       </div>
+                      {!builtInToken && (
                       <div>
                         <label className={lbl}>Personal access token (repo scope)</label>
                         <input
@@ -724,7 +743,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         />
                         <div className="mt-1 flex items-center justify-between gap-3">
                           <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Kept in your macOS keychain, never in the settings file.
+                            {caps.localFiles ? 'Kept in your macOS keychain, never in the settings file.' : 'Kept in this browser, never in the settings.'}
                           </p>
                           {hasGithubToken && (
                             <button type="button" onClick={forgetToken} className="shrink-0 text-xs text-gray-400 hover:text-red-600 dark:hover:text-red-400 underline">
@@ -733,6 +752,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           )}
                         </div>
                       </div>
+                      )}
                     </div>
                   ) : (
                     multiBandOn ? (
@@ -759,6 +779,25 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     )
                   )}
 
+                  {caps.openclawPolicy && (
+                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                      <p className={lbl}>OpenClaw script</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 -mt-2">
+                        Read to warn when its hold keywords or override window differ from the Rules. Leave empty to skip the check.
+                      </p>
+                      <div>
+                        <label className={lbl}>Repository (owner/name)</label>
+                        <input className={monoInput} value={form.openclaw?.repo || ''} placeholder="you/openclaw-backup"
+                          onChange={e => setForm(f => ({ ...f, openclaw: { ...f.openclaw, repo: e.target.value } }))} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Script path in the repo</label>
+                        <input className={monoInput} value={form.openclaw?.path || ''} placeholder="scripts/create_booking_batch.py"
+                          onChange={e => setForm(f => ({ ...f, openclaw: { ...f.openclaw, path: e.target.value } }))} />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>Import and export</p>
                     <div className="flex gap-2">
@@ -770,12 +809,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       </button>
                     </div>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      Export writes a copy wherever you point it. Import opens a guided wizard — replace the table
+                      Export {caps.localFiles ? 'writes a copy wherever you point it' : 'downloads a copy'}. Import opens a guided wizard — replace the table
                       or add to it, and match your file's columns to the app's. Changes stay in the app until you
                       press Save.
                     </p>
                   </div>
 
+                  {caps.multiBand && (
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>
                       Band files
@@ -821,6 +861,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     />
                     {!bfPlan && bfError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{bfError}</p>}
                   </div>
+                  )}
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>Start over</p>
@@ -1121,7 +1162,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     {' '}section; everything else uses the first. Drafts go straight into that account's Drafts mailbox
                     over IMAP. iCloud needs an <span className="font-medium">app-specific password</span>, not your
                     Apple ID password.{' '}
-                    <button type="button" onClick={() => window.bookingApi.openExternal('https://appleid.apple.com')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                    <button type="button" onClick={() => api.openExternal('https://appleid.apple.com')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
                       Create one at appleid.apple.com
                     </button>
                   </p>

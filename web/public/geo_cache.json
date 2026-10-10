@@ -1,0 +1,528 @@
+{
+  "Salzburg||Austria": {
+    "lat": 47.7981346,
+    "lng": 13.0464806
+  },
+  "Vienna||Austria": {
+    "lat": 48.2083537,
+    "lng": 16.3725042
+  },
+  "||Belgium": {
+    "lat": 50.6402809,
+    "lng": 4.6667145
+  },
+  "Brussels||Belgium": {
+    "lat": 50.8467372,
+    "lng": 4.352493
+  },
+  "Eupen||Belgium": {
+    "lat": 50.6305665,
+    "lng": 6.0312717
+  },
+  "Liege||Belgium": {
+    "lat": 50.6450944,
+    "lng": 5.5736112
+  },
+  "Schaerbeek||Belgium": {
+    "lat": 50.8676041,
+    "lng": 4.3737121
+  },
+  "Copenhagen||Denmark": {
+    "lat": 55.6867243,
+    "lng": 12.5700724
+  },
+  "Paris||France": {
+    "lat": 48.8588897,
+    "lng": 2.320041
+  },
+  "Aachen||Germany": {
+    "lat": 50.776351,
+    "lng": 6.083862
+  },
+  "Aub||Germany": {
+    "lat": 49.5524989,
+    "lng": 10.0652861
+  },
+  "Berlin||Germany": {
+    "lat": 52.5173885,
+    "lng": 13.3951309
+  },
+  "Bielefeld||Germany": {
+    "lat": 52.0191005,
+    "lng": 8.531007
+  },
+  "Braunschweig||Germany": {
+    "lat": 52.2646577,
+    "lng": 10.5236066
+  },
+  "Bremen||Germany": {
+    "lat": 53.0758196,
+    "lng": 8.8071646
+  },
+  "Chemnitz||Germany": {
+    "lat": 50.8323531,
+    "lng": 12.918914
+  },
+  "Cologne||Germany": {
+    "lat": 50.938361,
+    "lng": 6.959974
+  },
+  "Dortmund||Germany": {
+    "lat": 51.5142273,
+    "lng": 7.4652789
+  },
+  "Dresden||Germany": {
+    "lat": 51.0493286,
+    "lng": 13.7381437
+  },
+  "Duisburg||Germany": {
+    "lat": 51.434999,
+    "lng": 6.759562
+  },
+  "Düsseldorf||Germany": {
+    "lat": 51.2254018,
+    "lng": 6.7763137
+  },
+  "Frankfurt||Germany": {
+    "lat": 50.1106444,
+    "lng": 8.6820917
+  },
+  "Freiberg||Germany": {
+    "lat": 50.9169415,
+    "lng": 13.3428889
+  },
+  "Gedelitz||Germany": {
+    "lat": 53.03148,
+    "lng": 11.3030424
+  },
+  "Gent||Belgium": {
+    "lat": 51.0538286,
+    "lng": 3.7250121
+  },
+  "Gschwend||Germany": {
+    "lat": 48.9341783,
+    "lng": 9.7432432
+  },
+  "Gütersloh||Germany": {
+    "lat": 51.9166621,
+    "lng": 8.4043282
+  },
+  "Hamburg||Germany": {
+    "lat": 53.5501721,
+    "lng": 10.0013165
+  },
+  "Heidelberg||Germany": {
+    "lat": 49.4093582,
+    "lng": 8.694724
+  },
+  "Heppenheim||Germany": {
+    "lat": 49.64999,
+    "lng": 8.66768
+  },
+  "Ilmenau||Germany": {
+    "lat": 50.6867695,
+    "lng": 10.9142385
+  },
+  "Ismaning||Germany": {
+    "lat": 48.2242434,
+    "lng": 11.6715263
+  },
+  "Jena||Germany": {
+    "lat": 50.9281717,
+    "lng": 11.5879359
+  },
+  "Kalchreuth||Germany": {
+    "lat": 49.561296,
+    "lng": 11.1386116
+  },
+  "Karlsruhe||Germany": {
+    "lat": 49.0068705,
+    "lng": 8.4034195
+  },
+  "Kassel||Germany": {
+    "lat": 51.3157833,
+    "lng": 9.4978479
+  },
+  "Kleve||Germany": {
+    "lat": 51.7895571,
+    "lng": 6.1376008
+  },
+  "Köln||Germany": {
+    "lat": 50.938361,
+    "lng": 6.959974
+  },
+  "Leipzig||Germany": {
+    "lat": 51.3406321,
+    "lng": 12.3747329
+  },
+  "Lüneburg||Germany": {
+    "lat": 53.248706,
+    "lng": 10.407855
+  },
+  "Magdeburg||Germany": {
+    "lat": 52.1314783,
+    "lng": 11.6400789
+  },
+  "Mainz||Germany": {
+    "lat": 49.9995205,
+    "lng": 8.2736253
+  },
+  "Mannheim||Germany": {
+    "lat": 49.4892913,
+    "lng": 8.4673098
+  },
+  "Marburg||Germany": {
+    "lat": 50.8090106,
+    "lng": 8.7704695
+  },
+  "Munich||Germany": {
+    "lat": 48.1371079,
+    "lng": 11.5753822
+  },
+  "Münster||Germany": {
+    "lat": 51.9625101,
+    "lng": 7.6251879
+  },
+  "Neuburg an der Donau||Germany": {
+    "lat": 48.745628,
+    "lng": 11.1879622
+  },
+  "Nürnberg||Germany": {
+    "lat": 49.453872,
+    "lng": 11.077298
+  },
+  "Plattling||Germany": {
+    "lat": 48.7766852,
+    "lng": 12.8733655
+  },
+  "Pohrsdorf||Germany": {
+    "lat": 50.9982532,
+    "lng": 13.5298087
+  },
+  "Regensburg||Germany": {
+    "lat": 49.0195333,
+    "lng": 12.0974869
+  },
+  "Rhein Neckar||Germany": null,
+  "Rüsselsheim||Germany": {
+    "lat": 49.9948491,
+    "lng": 8.411636
+  },
+  "Saarbrücken||Germany": {
+    "lat": 49.234362,
+    "lng": 6.996379
+  },
+  "Schifferstadt||Germany": {
+    "lat": 49.3865295,
+    "lng": 8.3713547
+  },
+  "Stadthagen||Germany": {
+    "lat": 52.3289688,
+    "lng": 9.2053496
+  },
+  "Stuttgart||Germany": {
+    "lat": 48.7784485,
+    "lng": 9.1800132
+  },
+  "Tosterglope||Germany": {
+    "lat": 53.2070843,
+    "lng": 10.8176289
+  },
+  "Ulm||Germany": {
+    "lat": 48.3984968,
+    "lng": 9.9912458
+  },
+  "Villingen||Germany": {
+    "lat": 48.0596619,
+    "lng": 8.4598995
+  },
+  "Weimar||Germany": {
+    "lat": 50.9793301,
+    "lng": 11.3297921
+  },
+  "Westerstede||Germany": {
+    "lat": 53.2575197,
+    "lng": 7.9273367
+  },
+  "Wiesbaden||Germany": {
+    "lat": 50.0820384,
+    "lng": 8.2416556
+  },
+  "Worms||Germany": {
+    "lat": 49.6302618,
+    "lng": 8.3620898
+  },
+  "Wuppertal||Germany": {
+    "lat": 51.264018,
+    "lng": 7.1780374
+  },
+  "Amsterdam||Netherlands": {
+    "lat": 52.3730796,
+    "lng": 4.8924534
+  },
+  "Eindhoven||Netherlands": {
+    "lat": 51.4485569,
+    "lng": 5.4501225
+  },
+  "Nijmegen||Netherlands": {
+    "lat": 51.8474946,
+    "lng": 5.8637771
+  },
+  "Rotterdam||Netherlands": {
+    "lat": 51.9244424,
+    "lng": 4.47775
+  },
+  "Tilburg||Netherlands": {
+    "lat": 51.5856185,
+    "lng": 5.0660616
+  },
+  "Utrecht||Netherlands": {
+    "lat": 52.0907006,
+    "lng": 5.1215634
+  },
+  "Basel||Switzerland": {
+    "lat": 47.5581077,
+    "lng": 7.5878261
+  },
+  "Bern||Switzerland": {
+    "lat": 46.9484742,
+    "lng": 7.4521749
+  },
+  "Chur||Switzerland": {
+    "lat": 46.854747,
+    "lng": 9.5264904
+  },
+  "Stockholm||Sweden": {
+    "lat": 59.3251172,
+    "lng": 18.0710935
+  },
+  "Muri||Switzerland": {
+    "lat": 46.9290477,
+    "lng": 7.4870909
+  },
+  "Schaffhausen||Switzerland": {
+    "lat": 47.6960491,
+    "lng": 8.634513
+  },
+  "Zürich||Switzerland": {
+    "lat": 47.3744489,
+    "lng": 8.5410422
+  },
+  "London||United Kingdom": {
+    "lat": 51.5074456,
+    "lng": -0.1277653
+  },
+  "Bezau||Austria": {
+    "lat": 47.3645859,
+    "lng": 10.0345728
+  },
+  "Saalfelden||Austria": {
+    "lat": 47.4266166,
+    "lng": 12.8481048
+  },
+  "Antwerp||Belgium": {
+    "lat": 51.2211097,
+    "lng": 4.3997081
+  },
+  "Liège||Belgium": {
+    "lat": 50.6450944,
+    "lng": 5.5736112
+  },
+  "Aarhus||Denmark": {
+    "lat": 56.1496278,
+    "lng": 10.2134046
+  },
+  "Federicia||Denmark": null,
+  "Helsinki||Finland": {
+    "lat": 60.1666204,
+    "lng": 24.9435408
+  },
+  "Tampere||Finland": {
+    "lat": 61.4977929,
+    "lng": 23.7616372
+  },
+  "Avignon||France": {
+    "lat": 43.9492493,
+    "lng": 4.8059012
+  },
+  "Le Mans||France": {
+    "lat": 48.0073849,
+    "lng": 0.1967849
+  },
+  "Mulhouse||France": {
+    "lat": 47.7467233,
+    "lng": 7.3389937
+  },
+  "Essen||Germany": {
+    "lat": 51.4582235,
+    "lng": 7.0158171
+  },
+  "Görlitz||Germany": {
+    "lat": 51.1563185,
+    "lng": 14.991018
+  },
+  "Moers||Germany": {
+    "lat": 51.451283,
+    "lng": 6.62843
+  },
+  "Peitz||Germany": {
+    "lat": 51.8584667,
+    "lng": 14.4110395
+  },
+  "Esslingen||Germany": {
+    "lat": 48.7427584,
+    "lng": 9.3071685
+  },
+  "Bologna||Italy": {
+    "lat": 44.4938203,
+    "lng": 11.3426327
+  },
+  "Cortona||Italy": {
+    "lat": 43.2752976,
+    "lng": 11.9850623
+  },
+  "Firenze||Italy": {
+    "lat": 43.7697955,
+    "lng": 11.2556404
+  },
+  "Sardinia||Italy": null,
+  "Torino||Italy": {
+    "lat": 45.0677551,
+    "lng": 7.6824892
+  },
+  "Seoul||Korea": {
+    "lat": 37.5666791,
+    "lng": 126.9782914
+  },
+  "Den Bosch||Netherlands": {
+    "lat": 51.6889387,
+    "lng": 5.303116
+  },
+  "Den Haag||Netherlands": {
+    "lat": 52.0799838,
+    "lng": 4.3113461
+  },
+  "Molde||Norway": {
+    "lat": 62.6016257,
+    "lng": 8.1386208
+  },
+  "Oslo||Norway": {
+    "lat": 59.9133301,
+    "lng": 10.7389701
+  },
+  "Bydgoszcz||Poland": {
+    "lat": 53.1219648,
+    "lng": 18.0002529
+  },
+  "Kraków||Poland": {
+    "lat": 50.0619474,
+    "lng": 19.9368564
+  },
+  "Warsaw||Poland": {
+    "lat": 52.2319581,
+    "lng": 21.0067249
+  },
+  "???||Poland": null,
+  "Lisbon||Portugal": {
+    "lat": 38.7077507,
+    "lng": -9.1365919
+  },
+  "Belgrade||Serbia": {
+    "lat": 44.8178131,
+    "lng": 20.4568974
+  },
+  "Cerkno||Slovenia": {
+    "lat": 46.1279639,
+    "lng": 13.9881168
+  },
+  "Lund/Malmö||Sweden": null,
+  "Ystad||Sweden": {
+    "lat": 55.4295203,
+    "lng": 13.8201171
+  },
+  "Willisau||Switzerland": {
+    "lat": 47.1215184,
+    "lng": 7.99659
+  },
+  "Utrecht||Netherlands ": {
+    "lat": 52.0907006,
+    "lng": 5.1215634
+  },
+  "Darmstadt||Germany": {
+    "lat": 49.872775,
+    "lng": 8.651177
+  },
+  "München||Germany": {
+    "lat": 48.1371079,
+    "lng": 11.5753822
+  },
+  "Graz||Austria": {
+    "lat": 47.0708678,
+    "lng": 15.4382786
+  },
+  "Reut||Germany": {
+    "lat": 48.297711,
+    "lng": 12.9324473
+  },
+  "Helmbrechts||Germany": {
+    "lat": 50.240005,
+    "lng": 11.6863669
+  },
+  "Erfurt||Germany": {
+    "lat": 50.9777974,
+    "lng": 11.0287364
+  },
+  "Bad Hersfeld||Germany": {
+    "lat": 50.8604177,
+    "lng": 9.6767709
+  },
+  "Gelsenkirchen||Germany": {
+    "lat": 51.5110321,
+    "lng": 7.0960124
+  },
+  "Köln||": {
+    "lat": 50.938361,
+    "lng": 6.959974
+  },
+  "Wien||Austria": {
+    "lat": 48.2083537,
+    "lng": 16.3725042
+  },
+  "Wie n||Austria": null,
+  "Bergisch Gladbach||Germany": {
+    "lat": 50.9929303,
+    "lng": 7.1277379
+  },
+  "Unterföhring||Germany": {
+    "lat": 48.1920628,
+    "lng": 11.6401877
+  },
+  "Bolzano||Italy": {
+    "lat": 46.4984781,
+    "lng": 11.3547399
+  },
+  "Lund||Sweden": {
+    "lat": 55.7029296,
+    "lng": 13.1929449
+  },
+  "Cloppenburg||Germany": {
+    "lat": 52.8461339,
+    "lng": 8.0438783
+  },
+  "Singen||Germany": {
+    "lat": 47.7617515,
+    "lng": 8.8348709
+  },
+  "Frankfurt am Main||Germany": {
+    "lat": 50.1106444,
+    "lng": 8.6820917
+  },
+  "Lübeck||Germany": {
+    "lat": 53.866444,
+    "lng": 10.684738
+  },
+  "Halle (Saale)||Germany": {
+    "lat": 51.4824354,
+    "lng": 11.9712985
+  }
+}

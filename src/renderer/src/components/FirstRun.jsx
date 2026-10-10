@@ -3,13 +3,15 @@ import { parseCsvRaw } from '@core/csv'
 import { looksLikeAppCsv } from '@core/importMap'
 import { planOpenBandFiles, openBandFiles } from '../lib/multiBandSwitch'
 import BandFilesPlan from './BandFilesPlan'
+import { api, caps } from '../platform'
 
 // Shown until a storage adapter is configured: pick an existing CSV, create a
 // fresh one with just the canonical header row, or point at a GitHub repo.
 // Also shown when the configured file has gone missing (`missingPath` set), with
 // one more choice: put an empty file back where the old one was.
 export default function FirstRun({ settings, missingPath = null, onConfigured, onNeedsMapping }) {
-  const [mode, setMode] = useState('file')
+  // The web build has no local files: GitHub is the only choice there.
+  const [mode, setMode] = useState(caps.localFiles ? 'file' : 'github')
   const [repo, setRepo] = useState(settings?.storage?.github?.repo || '')
   const [path, setPath] = useState(settings?.storage?.github?.path || '')
   const [token, setToken] = useState('')
@@ -32,13 +34,13 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
 
   function choose() {
     return run(async () => {
-      const picked = await window.bookingApi.pickCsvOpen()
+      const picked = await api.pickCsvOpen()
       if (!picked) return
       // A file the app, the webapp or the scripts wrote already uses the canonical
       // column names and can be adopted as-is. Anyone else's spreadsheet cannot:
       // pointing the adapter straight at it used to "work" and then show a table
       // of empty columns, so hand it to the import wizard's mapping step instead.
-      const { text } = await window.bookingApi.readCsvFile(picked)
+      const { text } = await api.readCsvFile(picked)
       const { headers } = await parseCsvRaw(text)
       if (!looksLikeAppCsv(headers) && onNeedsMapping) {
         onNeedsMapping({ text, name: picked.split('/').pop(), path: picked })
@@ -50,16 +52,16 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
 
   function create() {
     return run(async () => {
-      const picked = await window.bookingApi.pickCsvSave('booking.csv')
+      const picked = await api.pickCsvSave('booking.csv')
       if (!picked) return
-      await window.bookingApi.createCsvFile(picked)
+      await api.createCsvFile(picked)
       await onConfigured({ adapter: 'file', filePath: picked })
     })
   }
 
   function recreate() {
     return run(async () => {
-      await window.bookingApi.createCsvFile(missingPath)
+      await api.createCsvFile(missingPath)
       await onConfigured({ adapter: 'file', filePath: missingPath })
     })
   }
@@ -67,7 +69,7 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
   function pickBandFiles() {
     return run(async () => {
       setBandPlan(null)
-      const picked = await window.bookingApi.pickCsvOpen()
+      const picked = await api.pickCsvOpen()
       if (picked) setBandPlan(await planOpenBandFiles(picked))
     })
   }
@@ -81,8 +83,8 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
   function connectGithub() {
     return run(async () => {
       if (!repo.trim() || !path.trim()) throw new Error('Enter both a repository and a file path.')
-      if (token.trim()) await window.bookingApi.setSecret('githubToken', token.trim())
-      else if (!(await window.bookingApi.hasSecret('githubToken'))) {
+      if (token.trim()) await api.setSecret('githubToken', token.trim())
+      else if (!(await api.hasSecret('githubToken'))) {
         throw new Error('A personal access token with repo access is required.')
       }
       await onConfigured({ adapter: 'github', github: { repo: repo.trim(), path: path.trim() } })
@@ -118,15 +120,19 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Where is your booking list?</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            The app reads and writes one semicolon-delimited CSV. Put it in iCloud Drive to keep
-            it in sync across your Macs — just don’t edit it in two places at once.
+            {caps.localFiles
+              ? <>The app reads and writes one semicolon-delimited CSV. Put it in iCloud Drive to keep
+                it in sync across your Macs — just don’t edit it in two places at once.</>
+              : <>The web app reads and writes one semicolon-delimited CSV in a GitHub repository.</>}
           </p>
         </div>
 
-        <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden w-fit">
-          <button onClick={() => setMode('file')} className={tab(mode === 'file')}>Local file</button>
-          <button onClick={() => setMode('github')} className={`${tab(mode === 'github')} border-l border-gray-200 dark:border-gray-700`}>GitHub</button>
-        </div>
+        {caps.localFiles && (
+          <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden w-fit">
+            <button onClick={() => setMode('file')} className={tab(mode === 'file')}>Local file</button>
+            <button onClick={() => setMode('github')} className={`${tab(mode === 'github')} border-l border-gray-200 dark:border-gray-700`}>GitHub</button>
+          </div>
+        )}
 
         {mode === 'file' ? (
           <div className="space-y-3">
@@ -170,7 +176,9 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
               <label className={lbl}>Personal access token (repo scope)</label>
               <input type="password" className={input} value={token} onChange={e => setToken(e.target.value)} placeholder="ghp_…" />
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                Stored in your macOS keychain. It never leaves this Mac and is never shown again.
+                {caps.localFiles
+                  ? 'Stored in your macOS keychain. It never leaves this Mac and is never shown again.'
+                  : 'Kept in this browser only.'}
               </p>
             </div>
             <button onClick={connectGithub} disabled={busy} className={primary}>Connect</button>

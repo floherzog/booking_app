@@ -2,6 +2,7 @@ import { parseCsvText, parseCsvRaw, serializeCsv } from '@core/csv'
 import { emptyManifest, fileForBand, routeRows, linkVenues, mergeRows, inferBandFileSet } from '@core/multiBand'
 import { looksLikeAppCsv } from '@core/importMap'
 import { bandName } from '@core/bands'
+import { api } from '../platform'
 
 // Turning multi-band mode on (split one CSV into a file per band) and off
 // (merge them back). Both refuse rather than overwrite anything: the split never
@@ -30,7 +31,7 @@ export async function planSplit(settings) {
     throw new Error('Multi-band mode needs a local CSV file (Settings ▸ Data & storage).')
   }
   const { dir, name, base } = splitPath(source)
-  const { text } = await window.bookingApi.readCsvFile(source)
+  const { text } = await api.readCsvFile(source)
   const rows = await parseCsvText(text)
 
   // Every managed band gets a file, even one with no venues yet.
@@ -47,7 +48,7 @@ export async function planSplit(settings) {
 
   const clashes = []
   for (const f of [...files.map(x => x.path), backup]) {
-    if (await window.bookingApi.fileExists(f)) clashes.push(fileName(f))
+    if (await api.fileExists(f)) clashes.push(fileName(f))
   }
   return { dir, source: name, backup: fileName(backup), backupPath: backup, files, clashes, manifest: routed.manifest, routed, sourcePath: source }
 }
@@ -58,10 +59,10 @@ export async function enableMultiBand(settings) {
   if (plan.clashes.length) {
     throw new Error(`These files already exist in that folder: ${plan.clashes.join(', ')}. Move them away first.`)
   }
-  await window.bookingApi.writeCsvFiles({
+  await api.writeCsvFiles({
     files: [...plan.routed.files].map(([path, rows]) => ({ path, text: serializeCsv(rows), expectedMtimeMs: null })),
   })
-  await window.bookingApi.moveFile({ from: plan.sourcePath, to: plan.backupPath })
+  await api.moveFile({ from: plan.sourcePath, to: plan.backupPath })
   return {
     ...settings.storage,
     multiBand: { enabled: true, ...plan.manifest, sourcePath: plan.sourcePath },
@@ -73,7 +74,7 @@ export async function planMerge(settings, rows) {
   const mb = settings.storage.multiBand
   let target = mb.sourcePath || `${mb.dir}/${mb.base}.csv`
   // Never write over a file that turned up there in the meantime.
-  if (await window.bookingApi.fileExists(target)) target = `${mb.dir}/${mb.base}-merged-${stamp()}.csv`
+  if (await api.fileExists(target)) target = `${mb.dir}/${mb.base}-merged-${stamp()}.csv`
   const backupDir = `${mb.dir}/${mb.base}-bands-backup-${stamp()}`
   const venues = new Set(rows.map(r => r._venueId)).size
   return { target, targetName: fileName(target), backupDir, backupName: fileName(backupDir), venues, lines: rows.length }
@@ -85,12 +86,12 @@ export async function disableMultiBand(settings, rows) {
   const mb = settings.storage.multiBand
   const plan = await planMerge(settings, rows)
   const merged = mergeRows(rows[0]?._venueId ? rows : linkVenues(rows))
-  await window.bookingApi.writeCsvFiles({
+  await api.writeCsvFiles({
     files: [{ path: plan.target, text: serializeCsv(merged), expectedMtimeMs: null }],
   })
   for (const path of [mb.unassigned, ...Object.values(mb.files || {})]) {
-    if (!path || !(await window.bookingApi.fileExists(path))) continue
-    await window.bookingApi.moveFile({ from: path, to: `${plan.backupDir}/${fileName(path)}` })
+    if (!path || !(await api.fileExists(path))) continue
+    await api.moveFile({ from: path, to: `${plan.backupDir}/${fileName(path)}` })
   }
   return {
     ...settings.storage,
@@ -120,8 +121,8 @@ const distinctBands = rows => [...new Set(rows.map(r => String(r['Band'] || '').
 //     message meant for the user.
 export async function planOpenBandFiles(pickedPath) {
   const { dir, name } = splitPath(pickedPath)
-  const names = await window.bookingApi.listCsvFiles(dir)
-  const read = await window.bookingApi.readCsvFiles(names.map(n => `${dir}/${n}`))
+  const names = await api.listCsvFiles(dir)
+  const read = await api.readCsvFiles(names.map(n => `${dir}/${n}`))
   const parsed = new Map()
   for (const { path, text, missing } of read) {
     if (missing) continue
@@ -152,7 +153,7 @@ export async function planOpenBandFiles(pickedPath) {
 // → the new `storage` section. The unassigned file is created if the set has
 // none yet, so the first load does not report it missing.
 export async function openBandFiles(settings, plan) {
-  if (plan.missingUnassigned) await window.bookingApi.createCsvFile(plan.manifest.unassigned)
+  if (plan.missingUnassigned) await api.createCsvFile(plan.manifest.unassigned)
   return storageFor(settings, plan.manifest, plan.sourcePath)
 }
 
@@ -168,7 +169,7 @@ export async function planNewBandSet(settings, savePath) {
   }
   const paths = [manifest.unassigned, ...Object.values(manifest.files)]
   const clashes = []
-  for (const p of paths) if (await window.bookingApi.fileExists(p)) clashes.push(fileName(p))
+  for (const p of paths) if (await api.fileExists(p)) clashes.push(fileName(p))
   const bandOf = new Map(Object.entries(manifest.files).map(([band, p]) => [p, band]))
   return {
     kind: 'newset', dir, base, manifest, clashes, sourcePath: `${dir}/${base}.csv`,
@@ -178,7 +179,7 @@ export async function planNewBandSet(settings, savePath) {
 
 export async function createNewBandSet(settings, plan) {
   if (plan.clashes.length) throw new Error(`Already in that folder: ${plan.clashes.join(', ')}. Pick another name or folder.`)
-  await window.bookingApi.writeCsvFiles({
+  await api.writeCsvFiles({
     files: plan.files.map(f => ({ path: f.path, text: serializeCsv([]), expectedMtimeMs: null })),
   })
   return storageFor(settings, plan.manifest, plan.sourcePath)
@@ -192,7 +193,7 @@ export async function createNewBandSet(settings, plan) {
 // — a row with an empty Band in a file of one band gets that band.
 export async function planImportBandFiles(paths) {
   if (!paths?.length) return null
-  const read = await window.bookingApi.readCsvFiles(paths)
+  const read = await api.readCsvFiles(paths)
   const rows = []
   const files = []
   for (const { path, text, missing } of read) {

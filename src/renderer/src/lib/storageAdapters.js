@@ -1,5 +1,6 @@
 import { parseCsvText, serializeCsv } from '@core/csv'
 import { routeRows, isMultiBand } from '@core/multiBand'
+import { api } from '../platform'
 
 // A storage adapter is the only thing that knows where the CSV lives:
 //   { kind, label, configured, load(): { rows }, save(rows, message) }
@@ -17,13 +18,13 @@ function fileAdapter(storage) {
     detail: path,
     configured: !!path,
     async load() {
-      const { text, mtimeMs } = await window.bookingApi.readCsvFile(path)
+      const { text, mtimeMs } = await api.readCsvFile(path)
       loadedMtimeMs = mtimeMs
       return { rows: await parseCsvText(text) }
     },
     async save(rows, _message, { force = false } = {}) {
       const text = serializeCsv(rows)
-      const { mtimeMs } = await window.bookingApi.writeCsvFile({
+      const { mtimeMs } = await api.writeCsvFile({
         path, text, expectedMtimeMs: loadedMtimeMs, force,
       })
       loadedMtimeMs = mtimeMs
@@ -41,13 +42,13 @@ function githubAdapter(storage) {
     detail: repo && path ? `${repo} · ${path}` : '',
     configured: !!(repo && path),
     async load() {
-      const { text, sha } = await window.bookingApi.githubFetchCsv({ repo, path })
+      const { text, sha } = await api.githubFetchCsv({ repo, path })
       loadedSha = sha
       return { rows: await parseCsvText(text) }
     },
     async save(rows, message, { force = false } = {}) {
       const text = serializeCsv(rows)
-      const { sha } = await window.bookingApi.githubPushCsv({
+      const { sha } = await api.githubPushCsv({
         repo, path, text, message, expectedSha: force ? null : loadedSha,
       })
       loadedSha = sha ?? loadedSha
@@ -85,7 +86,7 @@ function multiBandAdapter(storage) {
     },
     async load() {
       const bandOf = new Map(Object.entries(manifest.files || {}).map(([band, path]) => [path, band]))
-      const results = await window.bookingApi.readCsvFiles(paths())
+      const results = await api.readCsvFiles(paths())
       const rows = []
       const missing = []
       for (const { path, text, mtimeMs, missing: gone } of results) {
@@ -114,7 +115,7 @@ function multiBandAdapter(storage) {
       const files = [...routed.files].map(([path, fileRows]) => ({
         path, text: serializeCsv(fileRows), expectedMtimeMs: mtimes[path] ?? null,
       }))
-      const result = await window.bookingApi.writeCsvFiles({ files, force })
+      const result = await api.writeCsvFiles({ files, force })
       Object.assign(mtimes, result.mtimes)
       manifest = routed.manifest
     },

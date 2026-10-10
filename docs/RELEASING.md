@@ -8,6 +8,14 @@ version.
 
 The repo is public, so the update check needs no token.
 
+**Which commits need a release.** This repository also builds the web app, which
+deploys itself on push (docs/WEB.md). A commit needs a Mac release when it
+changes what the Mac app ships: `src/core`, `src/main`, `src/preload`,
+`src/renderer` (except `src/renderer/src/platform/web.js`), `resources/`,
+`package.json` or the build config. A commit that only touches the web side —
+`web/`, `platform/web.js`, `vite.web.config.mjs`, `.github/workflows/`,
+`scripts/update-geo-cache.mjs`, docs — goes out with the web deploy alone.
+
 ## 1. Commit and push
 
 Everything the release contains has to be on `main` first:

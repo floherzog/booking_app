@@ -1,0 +1,92 @@
+name: Deploy web app
+
+# The web build of the shared UI, deployed to the webspace on every push to
+# main that touches it. Mac-only changes (src/main, src/preload, resources) do
+# not trigger it; Mac releases are published separately (docs/RELEASING.md).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/core/**'
+      - 'src/renderer/**'
+      - 'web/**'
+      - 'vite.web.config.mjs'
+      - 'tailwind.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/update-geo-cache.mjs'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+concurrency: deploy-web
+
+jobs:
+  build-and-deploy:
+    # Off until the repository variable WEB_BASE is set (e.g. /booking_app/),
+    # which is also the folder on the webspace it deploys to. See docs/WEB.md.
+    if: vars.WEB_BASE != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      WEB_BASE: ${{ vars.WEB_BASE }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Update geo cache
+        env:
+          VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
+          CSV_REPO: ${{ vars.CSV_REPO }}
+          CSV_PATH: ${{ vars.CSV_PATH }}
+        run: node scripts/update-geo-cache.mjs
+
+      - name: Commit updated geo cache
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add web/public/geo_cache.json
+          git diff --staged --quiet || (git commit -m "Update geo cache [skip ci]" && git push)
+
+      - run: npm run build:web
+        env:
+          VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
+          VITE_CSV_REPO: ${{ vars.CSV_REPO }}
+          VITE_CSV_PATH: ${{ vars.CSV_PATH }}
+          VITE_OPENCLAW_REPO: ${{ vars.OPENCLAW_REPO }}
+          VITE_OPENCLAW_PATH: ${{ vars.OPENCLAW_PATH }}
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy via tar over SSH
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_WEBROOT: ${{ secrets.SFTP_WEBROOT }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          APP_COOKIE_SECRET: ${{ secrets.APP_COOKIE_SECRET }}
+        run: |
+          case "$WEB_BASE" in /*/) ;; *) echo "WEB_BASE must look like /folder/"; exit 1 ;; esac
+          DEPLOY_PATH="${SFTP_WEBROOT%/}${WEB_BASE%/}"
+          export SSHPASS="$SFTP_PASSWORD"
+          SSH="sshpass -e ssh -p ${SFTP_PORT:-22} -o StrictHostKeyChecking=accept-new $SFTP_USER@$SFTP_HOST"
+          tar -C dist-web -cf - . | $SSH "mkdir -p $DEPLOY_PATH && tar -C $DEPLOY_PATH -xf -"
+          $SSH "find $DEPLOY_PATH -type d -exec chmod 755 {} + && find $DEPLOY_PATH -type f -exec chmod 644 {} +"
+          # Cookie-session auth: bake the folder and the secret into .htaccess and
+          # write the server-only auth_secret.php (base64 avoids quoting issues).
+          $SSH "sed -i -e 's|__BASE__|${WEB_BASE}|g' -e 's/__COOKIE_SECRET__/${APP_COOKIE_SECRET}/g' $DEPLOY_PATH/.htaccess"
+          PW_B64=$(printf '%s' "$APP_PASSWORD" | base64 | tr -d '\n')
+          SECRET_B64=$(printf '%s' "$APP_COOKIE_SECRET" | base64 | tr -d '\n')
+          printf '<?php\n$AUTH_PASSWORD = base64_decode("%s");\n$COOKIE_SECRET = base64_decode("%s");\n' \
+            "$PW_B64" "$SECRET_B64" | \
+            $SSH "cat > $DEPLOY_PATH/auth_secret.php && chmod 644 $DEPLOY_PATH/auth_secret.php"

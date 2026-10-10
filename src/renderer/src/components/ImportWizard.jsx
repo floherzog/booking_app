@@ -3,6 +3,7 @@ import { APP_COLUMNS } from '@core/constants'
 import { parseCsvRaw } from '@core/csv'
 import { readFileText } from '../lib/csvFile'
 import { guessMapping, applyMapping, mappedCount } from '@core/importMap'
+import { api } from '../platform'
 
 const NONE = '' // sentinel: "don't import this app column"
 const REQUIRED = ['Venue', 'Band', 'Email']
@@ -23,7 +24,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
 
   async function handleFile(file) {
     if (!file) return
-    await ingest({ text: await readFileText(file), name: file.name, path: window.bookingApi.filePathFor(file) })
+    await ingest({ text: await readFileText(file), name: file.name, path: api.filePathFor(file) })
   }
 
   // Shared by the drop/pick path and by `preloaded`, which first-run uses to hand

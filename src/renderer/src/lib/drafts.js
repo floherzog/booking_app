@@ -2,6 +2,7 @@ import { resolveTemplate, substituteTemplate, contactOptionsFor } from '@core/te
 import { renderEmailHtml } from '@core/emailHtml'
 import { genderOf } from './genders'
 import { accountForRow } from '@core/mailAccounts'
+import { api } from '../platform'
 
 // The key a created draft is logged under. Venue+City+Band identifies a venue
 // row independently of its position in the CSV, so the log survives re-sorting
@@ -57,7 +58,7 @@ export function prepareDraft(row, templates, languages, settings) {
 export async function createDraft(row, templates, languages, settings) {
   const prepared = prepareDraft(row, templates, languages, settings)
   if (!prepared.ok) throw new Error(prepared.reason)
-  const result = await window.bookingApi.appendDraft(prepared.draft)
+  const result = await api.appendDraft(prepared.draft)
   return { ...result, prepared }
 }
 
@@ -66,15 +67,15 @@ export async function createDraft(row, templates, languages, settings) {
 export async function sendEmail(row, templates, languages, settings) {
   const prepared = prepareDraft(row, templates, languages, settings)
   if (!prepared.ok) throw new Error(prepared.reason)
-  const result = await window.bookingApi.sendMail(prepared.draft)
+  const result = await api.sendMail(prepared.draft)
   return { ...result, prepared }
 }
 
 // One prepared message, delivered the way the run's mode asked for.
 export function deliverPrepared(prepared, delivery) {
   return delivery === 'send'
-    ? window.bookingApi.sendMail(prepared.draft)
-    : window.bookingApi.appendDraft(prepared.draft)
+    ? api.sendMail(prepared.draft)
+    : api.appendDraft(prepared.draft)
 }
 
 // The AppleScript fallback: no server configuration, but it drives Mail's UI, so
@@ -82,6 +83,6 @@ export function deliverPrepared(prepared, delivery) {
 export async function createDraftViaAppleScript(row, templates, languages, settings) {
   const prepared = prepareDraft(row, templates, languages, settings)
   if (!prepared.ok) throw new Error(prepared.reason)
-  await window.bookingApi.appleScriptDraft(prepared.draft)
+  await api.appleScriptDraft(prepared.draft)
   return { prepared }
 }

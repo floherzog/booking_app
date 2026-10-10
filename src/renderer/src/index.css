@@ -59,3 +59,37 @@
     margin-top: 6px;
   }
 }
+
+/* --- Phones (the web build): ported from the old web app ------------------ */
+
+@layer base {
+  /* Stop Safari's automatic font inflation from resizing text on rotation. */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* Safari on iOS auto-zooms when a focused form control computes to less than
+   16px, which shifts the whole mobile layout out of view. Force 16px on touch
+   devices so the zoom never triggers; desktop keeps the smaller Tailwind sizes.
+   Deliberately outside @layer and using [class] so it outranks text-xs/text-sm
+   utilities on the controls themselves. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  input[class],
+  select[class],
+  textarea[class] {
+    font-size: 16px;
+  }
+
+  /* Checkboxes/radios carry no text, and file inputs are hidden — leave their
+     box metrics to the utility classes. */
+  input[type='checkbox'][class],
+  input[type='radio'][class],
+  input[type='file'][class],
+  input[type='range'][class] {
+    font-size: inherit;
+  }
+}

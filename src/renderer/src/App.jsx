@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import { classifyBooking } from '@core/classify'
 import { getSettings, saveSettings } from './lib/config'
 import { ACTION_STATUSES, APP_COLUMNS, getMissingFields, getMissingSeverity } from '@core/constants'
@@ -14,8 +14,6 @@ import { RulesProvider } from './lib/rulesContext'
 import { getAdapter, isStorageConfigured } from './lib/storageAdapters'
 import FirstRun from './components/FirstRun'
 import { syncFromMail, mailSyncEnabled } from './lib/mailSync'
-import TemplatesManager from './components/TemplatesManager'
-import BulkDraftModal from './components/BulkDraftModal'
 import { listTemplates } from './lib/templates'
 import { draftKey, draftedAt, createDraft, prepareDraft, deliverPrepared } from './lib/drafts'
 import { selectRows, deliveryForRow } from '@core/delivery'
@@ -34,6 +32,13 @@ import BulkEditBar from './components/BulkEditBar'
 import { useInlinePrompt } from './components/InlinePrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
+import { api, caps } from './platform'
+import { checkOpenclawPolicy } from './lib/policySync'
+
+// Mail-only views, loaded when first opened: they carry the template editor
+// (TipTap), which the web build never shows and so never downloads.
+const TemplatesManager = lazy(() => import('./components/TemplatesManager'))
+const BulkDraftModal = lazy(() => import('./components/BulkDraftModal'))
 
 const SEARCH_FIELDS = ['Venue', 'City', 'Country', 'Contact', 'Band', 'Email', 'Note', 'Status', 'Text', 'Time Frame', 'Dates']
 
@@ -47,6 +52,11 @@ export default function App() {
   // The configured CSV file is gone (deleted, moved, renamed). Set to its path,
   // which sends the user back to the first-run screen to recreate or replace it.
   const [missingFile, setMissingFile] = useState(null)
+  // Web build: no GitHub token in the bundle or this browser yet. Shows the
+  // first-run screen, which asks for one.
+  const [needsToken, setNeedsToken] = useState(false)
+  // Web build: how OpenClaw's hold logic differs from the Rules, if it does.
+  const [policyDrift, setPolicyDrift] = useState([])
   const [lastFetched, setLastFetched] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [promptNode, ask] = useInlinePrompt()
@@ -117,6 +127,7 @@ export default function App() {
       const activeRules = mergeRules(s.rules)
       const { rows: raw, missing = [] } = await a.load()
       setMissingFile(null)
+      setNeedsToken(false)
       const multi = isMultiBand(s)
       const classified = linkVenues(raw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, activeRules, { fillerBands: fillerBandSet(s.bands) }) })), multi)
       const nextBatchSet = computeNextBatch(classified, today, activeRules)
@@ -146,7 +157,9 @@ export default function App() {
       // not on the state it captured before the load.
       return loaded
     } catch (e) {
-      if (/CSV_MISSING/.test(e.message)) {
+      if (/GITHUB_TOKEN_MISSING/.test(e.message)) {
+        setNeedsToken(true)
+      } else if (/CSV_MISSING/.test(e.message)) {
         setMissingFile(s.storage?.filePath || '')
         setRows([])
         setLastFetched(null)
@@ -161,8 +174,8 @@ export default function App() {
   // The macOS menu bar drives the same panels as the in-app buttons. These are
   // the only channels main is allowed to push (see the preload's allowlist).
   useEffect(() => {
-    const offSettings = window.bookingApi.onMenu('menu:openSettings', () => setShowSettings(true))
-    const offTemplates = window.bookingApi.onMenu('menu:openTemplates', () => setShowTemplates(true))
+    const offSettings = api.onMenu('menu:openSettings', () => setShowSettings(true))
+    const offTemplates = api.onMenu('menu:openTemplates', () => setShowTemplates(true))
     return () => { offSettings(); offTemplates() }
   }, [])
 
@@ -174,7 +187,7 @@ export default function App() {
   async function runScheduledRecipe(job) {
     if (!settings || rows.length === 0) {
       // Right after launch the table is still loading; put it back in the queue.
-      await window.bookingApi.reportScheduledRun(job.id, { deferred: true })
+      await api.reportScheduledRun(job.id, { deferred: true })
       return
     }
     const picked = selectRows(job.recipe.source, { rows, filteredRows })
@@ -196,7 +209,7 @@ export default function App() {
         results.push({ key, delivery, ok: false, error: e.message, local: true })
       }
     }
-    await window.bookingApi.reportScheduledRun(job.id, { results })
+    await api.reportScheduledRun(job.id, { results })
   }
 
   const onScheduleDone = useRef(null)
@@ -220,7 +233,7 @@ export default function App() {
     if (failures.length) setError(`Scheduled run: ${failures.length} message${failures.length !== 1 ? 's' : ''} failed — ${failures[0]}`)
   }
   // Subscribed once; the ref keeps the handler looking at the current rows.
-  useEffect(() => window.bookingApi.onScheduleUpdate(p => onScheduleDone.current?.(p)), [])
+  useEffect(() => api.onScheduleUpdate(p => onScheduleDone.current?.(p)), [])
 
   // Updates: once per launch when Settings ▸ General asks for it, quietly — the
   // banner appears only for something newer, and not again for a version the
@@ -229,14 +242,14 @@ export default function App() {
   useEffect(() => {
     if (!settings || updateChecked.current) return
     updateChecked.current = true
-    if (!settings.general?.autoCheckUpdates) return
-    window.bookingApi.checkForUpdates().then(r => {
+    if (!caps.updates || !settings.general?.autoCheckUpdates) return
+    api.checkForUpdates().then(r => {
       let dismissed = null
       try { dismissed = localStorage.getItem('dismissedUpdate') } catch { /* storage unavailable */ }
       if (r?.newer && r.latest !== dismissed) setUpdate(r)
     }).catch(() => { /* offline: say nothing */ })
   }, [settings])
-  useEffect(() => window.bookingApi.onUpdateAvailable(r => setUpdate(r)), [])
+  useEffect(() => api.onUpdateAvailable(r => setUpdate(r)), [])
 
   function dismissUpdate() {
     try { localStorage.setItem('dismissedUpdate', update?.latest || '') } catch { /* storage unavailable */ }
@@ -265,7 +278,7 @@ export default function App() {
   // Staged, not written: the edits land in the same `edits` map a hand edit uses,
   // so they show as pending changes and go to the CSV only when Save is pressed.
   const runMailSync = useCallback(async ({ silent = false } = {}) => {
-    if (!mailSyncEnabled(settings)) return
+    if (!caps.mail || !mailSyncEnabled(settings)) return
     setSyncing(true)
     if (!silent) setSyncNote('')
     try {
@@ -297,12 +310,13 @@ export default function App() {
   const syncedOnOpen = useRef(false)
   useEffect(() => {
     if (syncedOnOpen.current || loading || rows.length === 0) return
-    if (!settings?.mail?.sync?.onOpen || !mailSyncEnabled(settings)) return
+    if (!caps.mail || !settings?.mail?.sync?.onOpen || !mailSyncEnabled(settings)) return
     syncedOnOpen.current = true
     runMailSync({ silent: true })
   }, [loading, rows.length, settings, runMailSync])
 
   const refreshTemplates = useCallback(() => {
+    if (!caps.mail) return
     listTemplates().then(setTemplates).catch(() => {})
   }, [])
 
@@ -323,6 +337,14 @@ export default function App() {
       return reclassified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) }))
     })
   }, [rules, today, classifyCtx])
+
+  // Web build: compare the Rules with OpenClaw's script (read once per session),
+  // again whenever the Rules change.
+  const openclawKey = JSON.stringify(settings?.openclaw || null)
+  useEffect(() => {
+    if (!caps.openclawPolicy || openclawKey === 'null') return
+    checkOpenclawPolicy({ openclaw: JSON.parse(openclawKey) }, rules).then(setPolicyDrift).catch(() => {})
+  }, [openclawKey, rules])
 
   // When a band's touring dates or filler flag change in Settings, offer to push
   // those values onto that band's venue rows (Dates / filler columns). Applied as
@@ -811,7 +833,7 @@ export default function App() {
 
   // No storage configured yet, or the configured file has disappeared: point
   // the user at a CSV before anything else.
-  if (!isStorageConfigured(settings) || missingFile !== null) {
+  if (!isStorageConfigured(settings) || missingFile !== null || needsToken) {
     return (
       <>
         <FirstRun
@@ -869,7 +891,7 @@ export default function App() {
           Save <span className="bg-amber-400 text-amber-900 font-bold px-1 py-0.5 rounded-full leading-none">{editCount}</span>
         </button>
       )}
-      <button onClick={() => setShowBulkDraft(true)} className={iconBtn} title="Create drafts in Mail">✉</button>
+      {caps.mail && <button onClick={() => setShowBulkDraft(true)} className={iconBtn} title="Create drafts in Mail">✉</button>}
       <button onClick={() => setShowLogic(true)} className={iconBtn} title="How venues are classified">ⓘ</button>
       <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : '↻'}</button>
       <button onClick={() => setShowSettings(true)} className={iconBtn} title="Settings">{SlidersIcon}</button>
@@ -915,7 +937,7 @@ export default function App() {
                 )}
               </>
             )}
-            <button onClick={() => setShowBulkDraft(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Create drafts in Mail for several venues">✉ Drafts</button>
+            {caps.mail && <button onClick={() => setShowBulkDraft(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Create drafts in Mail for several venues">✉ Drafts</button>}
             <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="How venues are classified">ⓘ Logic</button>
             <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? 'Reload the CSV and check the mail account' : 'Reload the CSV'} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? 'Loading…' : syncing ? 'Checking mail…' : '↻'}</button>
             <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Settings">⚙</button>
@@ -924,6 +946,18 @@ export default function App() {
 
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
+        )}
+
+        {policyDrift.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md px-4 py-3 flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">OpenClaw’s hold logic differs from the Rules — update them in ⓘ Logic</p>
+              {policyDrift.map((d, i) => (
+                <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{d}</p>
+              ))}
+            </div>
+            <button onClick={() => setPolicyDrift([])} className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-200 text-lg leading-none shrink-0">&times;</button>
+          </div>
         )}
 
         {syncNote && (
@@ -1028,7 +1062,7 @@ export default function App() {
                   templates={templates}
                   languages={settings.languages}
                   settings={settings}
-                  onQuickDraft={handleQuickDraft}
+                  onQuickDraft={caps.mail ? handleQuickDraft : null}
                   draftingIdx={draftingIdx}
                   draftResults={draftResults}
                 />
@@ -1078,15 +1112,18 @@ export default function App() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      {showTemplates && (
+      {showTemplates && caps.mail && (
+        <Suspense fallback={null}>
         <TemplatesManager
           settings={settings}
           rows={rows}
           onBack={cameFromSettings ? () => { setShowTemplates(false); setCameFromSettings(false); setShowSettings(true); refreshTemplates() } : null}
           onClose={() => { setShowTemplates(false); setCameFromSettings(false); refreshTemplates() }}
         />
+        </Suspense>
       )}
-      {showBulkDraft && (
+      {showBulkDraft && caps.mail && (
+        <Suspense fallback={null}>
         <BulkDraftModal
           rows={rows}
           filteredRows={filteredRows}
@@ -1098,6 +1135,7 @@ export default function App() {
           onClearDraftFlags={clearDraftFlags}
           onClose={() => setShowBulkDraft(false)}
         />
+        </Suspense>
       )}
       {showImport && (
         <ImportWizard

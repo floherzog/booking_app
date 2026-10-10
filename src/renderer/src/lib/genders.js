@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { api } from '../platform'
+
 // Renderer-side mirror of the main process's venue-gender cache.
 //
 // {{article}} has to be resolved inside prepareDraft, which is synchronous and
@@ -26,7 +28,7 @@ export async function ensureGenders(venues = []) {
   const unknown = names.filter(n => !(n in registry))
   if (unknown.length === 0) return { ok: true, status: 'available', added: 0 }
   try {
-    const result = await window.bookingApi.resolveGenders(unknown)
+    const result = await api.resolveGenders(unknown)
     if (result?.genders) registry = { ...registry, ...result.genders }
     return {
       ok: !!result?.ok,
@@ -41,7 +43,7 @@ export async function ensureGenders(venues = []) {
 
 export async function overrideGender(venue, gender) {
   const key = String(venue || '').trim()
-  const result = await window.bookingApi.setGenderOverride(key, gender)
+  const result = await api.setGenderOverride(key, gender)
   if (result?.ok) {
     if (gender) registry = { ...registry, [key]: gender }
     else { const next = { ...registry }; delete next[key]; registry = next }

@@ -7,6 +7,7 @@ import { prepareDraft, deliverPrepared, draftKey } from '../lib/drafts'
 import { useGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import { api } from '../platform'
 
 function whenLabel(iso) {
   const d = new Date(iso)
@@ -31,11 +32,11 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
   // The scheduler lives in main; this is the queue it will actually run.
   useEffect(() => {
     let alive = true
-    const refresh = () => window.bookingApi.listScheduledRuns()
+    const refresh = () => api.listScheduledRuns()
       .then(jobs => { if (alive) setQueue(pendingJobs(jobs)) })
       .catch(() => {})
     refresh()
-    const off = window.bookingApi.onScheduleUpdate(payload => {
+    const off = api.onScheduleUpdate(payload => {
       if (payload?.jobs) setQueue(pendingJobs(payload.jobs))
       else refresh()
     })
@@ -116,7 +117,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
   async function schedule() {
     setError('')
     try {
-      await window.bookingApi.scheduleRun({
+      await api.scheduleRun({
         runAt: scheduledAt.toISOString(),
         mode,
         repeat,
@@ -140,7 +141,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
 
   async function cancelJob(id) {
     try {
-      setQueue(pendingJobs(await window.bookingApi.cancelScheduledRun(id)))
+      setQueue(pendingJobs(await api.cancelScheduledRun(id)))
     } catch (e) {
       setError(e.message)
     }

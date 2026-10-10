@@ -1,10 +1,12 @@
+import { api } from '../platform'
+
 // A newer release, said once at the top of the window instead of in a dialog
 // that has to be dismissed before anything else works. Download fetches the
 // .dmg for this Mac (or the release page when there is none); What's new opens
 // the release notes. × hides it for this version — the next one shows again.
 export default function UpdateBanner({ update, onDismiss }) {
   if (!update?.newer) return null
-  const open = url => window.bookingApi.openExternal(url)
+  const open = url => api.openExternal(url)
   const link = 'font-medium text-indigo-700 dark:text-indigo-300 hover:underline'
   return (
     <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl">

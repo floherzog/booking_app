@@ -31,6 +31,8 @@ export default defineConfig({
       alias: {
         '@core': resolve(__dirname, 'src/core'),
         '@renderer': resolve(__dirname, 'src/renderer/src'),
+        // The Mac side of the platform seam; vite.web.config.mjs points it at web.js.
+        '@platform': resolve(__dirname, 'src/renderer/src/platform/electron.js'),
       },
     },
     build: {

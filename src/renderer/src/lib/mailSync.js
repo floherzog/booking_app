@@ -1,4 +1,5 @@
 import { accountForRow } from '@core/mailAccounts'
+import { api } from '../platform'
 
 // Bridge to the main process's IMAP scan. Only the fields the matcher needs
 // cross the boundary — sending 3000 full rows through structured clone to read
@@ -15,7 +16,7 @@ export async function syncFromMail(rows, settings) {
     'Last emailed': r['Last emailed'] || '',
     Status: r['Status'] || '',
   }))
-  return window.bookingApi.syncMail(slim)
+  return api.syncMail(slim)
 }
 
 // Is any part of the mail sync actually turned on?

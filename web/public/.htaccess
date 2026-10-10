@@ -1,0 +1,16 @@
+# Cookie-session auth gate. The deploy Action substitutes __COOKIE_SECRET__ with
+# the real APP_COOKIE_SECRET, and __BASE__ with the folder it deploys to.
+# Anyone without the matching booking_auth cookie is bounced to login.php
+# (which sets the cookie after a correct password).
+# Apache can only string-match the cookie, so the cookie value IS the shared
+# secret — fine for a single-user app over HTTPS (cookie is HttpOnly).
+RewriteEngine On
+RewriteBase __BASE__
+
+# Let the login endpoint itself through.
+RewriteCond %{REQUEST_URI} !/login\.php$ [NC]
+# Keep Home-Screen icons public so they load without auth.
+RewriteCond %{REQUEST_URI} !/(apple-touch-icon|favicon-16x16|favicon-32x32|icon-192)\.png$ [NC]
+# No valid auth cookie → send to login.
+RewriteCond %{HTTP_COOKIE} !booking_auth=__COOKIE_SECRET__ [NC]
+RewriteRule ^ login.php [R=302,L]

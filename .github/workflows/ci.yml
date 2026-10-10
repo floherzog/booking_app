@@ -1,0 +1,23 @@
+name: Tests
+
+# Both builds come from this one source, so every push checks both: the test
+# suite (including the platform-seam check in
+# src/renderer/src/platform/__tests__/apiCoverage.test.js) and the web build.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:web

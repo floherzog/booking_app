@@ -3,7 +3,10 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
-    alias: { '@core': resolve(process.cwd(), 'src/core') },
+    alias: {
+      '@core': resolve(process.cwd(), 'src/core'),
+      '@platform': resolve(process.cwd(), 'src/renderer/src/platform/electron.js'),
+    },
   },
   test: {
     environment: 'node',

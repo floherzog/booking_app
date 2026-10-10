@@ -7,6 +7,7 @@ import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
 import StatusBadge from './StatusBadge'
 import RelDate from './RelDate'
 import DraftVenueButton from './DraftVenueButton'
+import { caps } from '../platform'
 import { lastEmailedColor, followUpColor, lastPlayedColor } from '@core/dateColors'
 import { healthMeta } from '../lib/health'
 import { isSharedField } from '@core/multiBand'
@@ -520,16 +521,18 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
             </div>
           )}
           <div className="flex items-center gap-3">
-            <DraftVenueButton
-              row={effective}
-              templates={templates}
-              languages={languages}
-              settings={settings}
-              draftedAtIso={draftedAtIso}
-              onDraftCreated={onDraftCreated}
-              onSent={onSent}
-              showSend
-            />
+            {caps.mail && (
+              <DraftVenueButton
+                row={effective}
+                templates={templates}
+                languages={languages}
+                settings={settings}
+                draftedAtIso={draftedAtIso}
+                onDraftCreated={onDraftCreated}
+                onSent={onSent}
+                showSend
+              />
+            )}
           {editCount > 0 ? (
             <button
               onClick={onSave}
