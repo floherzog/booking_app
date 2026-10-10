@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { fromInputValue } from '@core/parseDate'
+import { normalizeDateText } from '@core/parseDate'
+import DateInput from './DateInput'
 
 // Fields safe to set across many venues at once. Venue/Email and the read-only
 // email counts are intentionally excluded (they're per-venue unique / derived).
@@ -52,7 +53,7 @@ export default function BulkEditBar({
 
   function apply() {
     if (none) return
-    const out = field.type === 'date' ? fromInputValue(value) : value
+    const out = field.type === 'date' ? normalizeDateText(value) : value
     onBulkEdit(field.key, out)
     setNote(`Applied to ${selectedCount} venue${selectedCount !== 1 ? 's' : ''}`)
   }
@@ -107,7 +108,9 @@ export default function BulkEditBar({
               {FREQ_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
             </select>
           ) : field.type === 'date' ? (
-            <input type="date" value={value} onChange={e => setValue(e.target.value)} className={ctrl} />
+            <div className="w-40">
+              <DateInput key={field.key} value={value} onCommit={setValue} onTextChange={setValue} className={ctrl} />
+            </div>
           ) : (
             <input
               type="text" value={value} onChange={e => setValue(e.target.value)}

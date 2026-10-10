@@ -4,6 +4,7 @@ import { buildLogicNodes, describeWindow, describeBatchRule } from '@core/logicT
 import { validateRules } from '@core/rules'
 import { useRules } from '../lib/rulesContext'
 import RulesEditor from './RulesEditor'
+import { useBackdropClose } from '../lib/useBackdropClose'
 
 // A leaf: either a status outcome (blue-ish status pill) or a "keep going" fall-through.
 function Outcome({ value }) {
@@ -109,6 +110,7 @@ function Gate({ node, isLast }) {
 }
 
 export default function LogicModal({ onClose, onSaveRules, fromSettings = false }) {
+  const backdrop = useBackdropClose(onClose)
   const rules = useRules()
   const [tab, setTab] = useState('flow')
   // The diagram renders from the draft, so editing a number redraws the gates it
@@ -155,7 +157,7 @@ export default function LogicModal({ onClose, onSaveRules, fromSettings = false 
       // Closing on a stray backdrop click is fine while only reading, but it must
       // never throw away unsaved rule edits. Opened as a Settings page, it behaves
       // like the other Settings pages and ignores the backdrop altogether.
-      onClick={dirty || fromSettings ? undefined : onClose}
+      {...(dirty || fromSettings ? {} : backdrop)}
     >
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-4">

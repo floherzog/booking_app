@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBackdropClose } from '../lib/useBackdropClose'
 
 const FIELDS = [
   { key: 'Venue', label: 'Venue' },
@@ -20,6 +21,7 @@ const FIELDS = [
 ]
 
 export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClose }) {
+  const backdrop = useBackdropClose(onClose)
   const effA = { ...rowA, ...(editsA[rowA._idx] || {}) }
   const effB = { ...rowB, ...(editsB[rowB._idx] || {}) }
 
@@ -47,7 +49,7 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
   const nameB = effB['Venue'] || 'Venue B'
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" {...backdrop}>
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
         {/* Header */}

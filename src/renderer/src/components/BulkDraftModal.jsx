@@ -6,6 +6,7 @@ import {
 import { prepareDraft, deliverPrepared, draftKey } from '../lib/drafts'
 import { useGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
+import { useBackdropClose } from '../lib/useBackdropClose'
 
 function whenLabel(iso) {
   const d = new Date(iso)
@@ -13,6 +14,7 @@ function whenLabel(iso) {
 }
 
 export default function BulkDraftModal({ rows, filteredRows, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
+  const backdrop = useBackdropClose(onClose)
   const [source, setSource] = useState('nextBatch')
   const [mode, setMode] = useState('draft')          // 'draft' | 'auto' | 'send'
   const [timing, setTiming] = useState('now')        // 'now' | 'later'
@@ -169,7 +171,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
   })()
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" onClick={phase === 'running' ? undefined : onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" {...(phase === 'running' ? {} : backdrop)}>
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <div>

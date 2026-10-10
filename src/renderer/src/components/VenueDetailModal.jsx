@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getMissingFields, STATUS_META } from '@core/constants'
-import { toInputValue, fromInputValue } from '@core/parseDate'
+import { normalizeDateText } from '@core/parseDate'
+import DateInput from './DateInput'
 import { geocodeCity } from '../lib/geocode'
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
 import StatusBadge from './StatusBadge'
@@ -9,6 +10,7 @@ import DraftVenueButton from './DraftVenueButton'
 import { lastEmailedColor, followUpColor, lastPlayedColor } from '@core/dateColors'
 import { healthMeta } from '../lib/health'
 import { isSharedField } from '@core/multiBand'
+import { useBackdropClose } from '../lib/useBackdropClose'
 
 function MiniMap({ city, country, status, onOpenMap }) {
   const [pos, setPos] = useState(null)
@@ -90,7 +92,7 @@ const SECTIONS = [
       { key: 'Last emailed', label: 'Last Emailed', type: 'date', colorFn: lastEmailedColor },
       { key: 'Follow Up Date', label: 'Follow Up Date', type: 'date', colorFn: followUpColor },
       { key: 'frequency', label: 'Follow-up frequency', type: 'frequency', span: 2, hint: '· how often to re-contact (default 1 month)' },
-      { key: 'Last played', label: 'Last Played', type: 'text', colorFn: lastPlayedColor },
+      { key: 'Last played', label: 'Last Played', type: 'date', colorFn: lastPlayedColor },
       { key: 'Status', label: 'Status', type: 'text' },
       { key: 'Note', label: 'Internal Note', type: 'textarea', span: 2, rows: 3 },
     ],
@@ -104,35 +106,14 @@ const SECTIONS = [
   },
 ]
 
+// Typed ("September 2026") or picked from the calendar; see DateInput.
 function DateField({ inputId, value, base, onChange }) {
-  const [local, setLocal] = useState(() => toInputValue(value))
-  const committed = useRef(value)
-
-  useEffect(() => {
-    if (value !== committed.current) {
-      setLocal(toInputValue(value))
-      committed.current = value
-    }
-  }, [value])
-
   return (
-    <input
+    <DateInput
       id={inputId}
-      type="date"
-      value={local}
-      onChange={e => {
-        setLocal(e.target.value)
-      }}
-      onBlur={e => {
-        if (e.target.value) {
-          const formatted = fromInputValue(e.target.value)
-          committed.current = formatted
-          onChange(formatted)
-        } else {
-          setLocal(toInputValue(committed.current))
-        }
-      }}
+      value={value}
       className={base}
+      onCommit={v => { if (v !== normalizeDateText(value)) onChange(v) }}
     />
   )
 }
@@ -355,6 +336,7 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
 
 export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand }) {
   const [confirmDelete, setConfirmDelete] = useState(false) // false | 'band' | 'venue'
+  const backdrop = useBackdropClose(onClose)
   const severalBands = multiBand && entries.length > 1
   const rowEdits = edits[rowIndex] || {}
   const effective = { ...row, ...rowEdits }
@@ -370,7 +352,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" {...backdrop}>
       <div
         className="bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}

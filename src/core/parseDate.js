@@ -42,6 +42,39 @@ export function parseDate(str) {
   return null
 }
 
+// Formats that name a day, as opposed to "September 2026" or "2027".
+const DAY_FORMATS = FORMATS.filter(f => /d/.test(f))
+
+function parseDay(s) {
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s) && isValid(new Date(s))) return new Date(s)
+  for (const fmt of DAY_FORMATS) {
+    for (const opts of [undefined, { locale: de }]) {
+      try {
+        const d = parse(s, fmt, REF, opts)
+        if (isValid(d)) return d
+      } catch {
+        // try next format / locale
+      }
+    }
+  }
+  return null
+}
+
+// What a typed date field stores: a day in any format becomes dd.MM.yy, like a
+// picked one; anything else ("September 2026", "2027", "tba") is kept as typed.
+export function normalizeDateText(str) {
+  const s = (str || '').trim()
+  if (!s) return ''
+  const d = parseDay(s)
+  return d ? formatDateDDMMYY(d) : s
+}
+
+// How a date field shows its value: a day as dd.MM.yy, anything vaguer as
+// written — "September 2026" must not turn into 01.09.26.
+export function displayDateText(str) {
+  return normalizeDateText(str)
+}
+
 export function formatDateDDMMYY(d) {
   if (!d || !isValid(d)) return ''
   return format(d, 'dd.MM.yy')

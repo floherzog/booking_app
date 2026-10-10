@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBackdropClose } from '../lib/useBackdropClose'
 
 const FIELD_LABELS = {
   'Last emailed': 'Last Emailed',
@@ -14,6 +15,7 @@ function venueLabel(row, idx) {
 }
 
 export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose }) {
+  const backdrop = useBackdropClose(onClose)
   const [pushing, setPushing] = useState(false)
   const [error, setError] = useState('')
   // Set when the underlying file changed since we loaded it — the user has to
@@ -65,7 +67,7 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" {...backdrop}>
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">

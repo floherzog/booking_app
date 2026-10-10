@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { parseDate, formatDateDDMMYY, toInputValue, fromInputValue } from '@core/parseDate'
+import { displayDateText, normalizeDateText } from '@core/parseDate'
+import DateInput from './DateInput'
 
 const MULTILINE_FIELDS = ['Note', 'Text', 'Time Frame']
 
@@ -11,17 +12,16 @@ export default function EditableCell({ value, rowIndex, field, edits, onEdit, cl
   const inputRef = useRef(null)
 
   const displayValue = isDate
-    ? (formatDateDDMMYY(parseDate(rawValue)) || rawValue)
+    ? displayDateText(rawValue)
     : rawValue
 
   useEffect(() => {
     if (editing && inputRef.current) inputRef.current.focus()
   }, [editing])
 
-  function commitDate(e) {
+  function commitDate(text) {
     setEditing(false)
-    const formatted = fromInputValue(e.target.value)
-    onEdit(rowIndex, field, formatted)
+    if (text !== normalizeDateText(rawValue)) onEdit(rowIndex, field, text)
   }
 
   function commitText(val) {
@@ -42,12 +42,12 @@ export default function EditableCell({ value, rowIndex, field, edits, onEdit, cl
   if (editing) {
     if (isDate) {
       return (
-        <input
-          ref={inputRef}
-          type="date"
-          defaultValue={toInputValue(rawValue)}
-          onBlur={commitDate}
-          className="rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        <DateInput
+          value={rawValue}
+          autoFocus
+          onCommit={commitDate}
+          onCancel={() => setEditing(false)}
+          className="w-24 rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
       )
     }

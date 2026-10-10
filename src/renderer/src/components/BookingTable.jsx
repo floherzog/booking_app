@@ -14,7 +14,8 @@ import SelectCell from './SelectCell'
 import RelDate from './RelDate'
 import { lastEmailedColor, followUpColor, lastPlayedColor, lastReplyColor } from '@core/dateColors'
 import { ADVANCED_COLUMNS, STATUS_META, HEALTH_RANK, getMissingFields, getMissingSeverity } from '@core/constants'
-import { parseDate, formatDateDDMMYY, toInputValue, fromInputValue } from '@core/parseDate'
+import { parseDate, displayDateText, normalizeDateText } from '@core/parseDate'
+import DateInput from './DateInput'
 import { parseReplyStatus, composeReplyStatus, replyHealth } from '@core/replyStatus'
 import { healthMeta, HEALTH_META } from '../lib/health'
 import { prepareDraft } from '../lib/drafts'
@@ -452,26 +453,23 @@ function buildExtraColumnDef(field) {
   return mkEditable(field, { header: col.label, cellClass: 'text-sm text-gray-600' })
 }
 
-// Last-reply editor: the reply date (date-picker) with its countdown on top, the
+// Last-reply editor: the reply date (typed or picked) with its countdown on top, the
 // reply kind (dropdown) underneath. Both recompose the single `Status` CSV field.
-// iOS-safe: the date input commits on blur only, never on per-scroll onChange.
 function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
   const raw = edits[rowIndex]?.['Status'] ?? value ?? ''
-  const { kind, dateStr, date } = parseReplyStatus(raw)
+  const { kind, dateStr } = parseReplyStatus(raw)
   const isEdited = edits[rowIndex]?.['Status'] !== undefined
   const [editingDate, setEditingDate] = useState(false)
   const [editingKind, setEditingKind] = useState(false)
-  const dateRef = useRef(null)
   const kindRef = useRef(null)
-  useEffect(() => { if (editingDate && dateRef.current) dateRef.current.focus() }, [editingDate])
   useEffect(() => { if (editingKind && kindRef.current) kindRef.current.focus() }, [editingKind])
 
-  function commitDate(e) {
+  function commitDate(text) {
     setEditingDate(false)
-    const formatted = fromInputValue(e.target.value)
+    if (text === normalizeDateText(dateStr)) return
     // Setting a date on an uncategorised row implies a real reply.
-    const nextKind = kind === 'none' && formatted ? 'reply' : kind
-    onEdit(rowIndex, 'Status', composeReplyStatus(nextKind, formatted))
+    const nextKind = kind === 'none' && text ? 'reply' : kind
+    onEdit(rowIndex, 'Status', composeReplyStatus(nextKind, text))
   }
   function commitKind(e) {
     setEditingKind(false)
@@ -482,13 +480,12 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
   return (
     <div className={`space-y-1 min-w-[8rem] rounded px-1 -mx-1 ${isEdited ? 'bg-amber-50 ring-1 ring-amber-300 dark:bg-amber-900/20 dark:ring-amber-700' : ''}`}>
       {editingDate ? (
-        <input
-          ref={dateRef}
-          type="date"
-          defaultValue={toInputValue(dateStr)}
-          onBlur={commitDate}
-          onClick={e => e.stopPropagation()}
-          className="rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        <DateInput
+          value={dateStr}
+          autoFocus
+          onCommit={commitDate}
+          onCancel={() => setEditingDate(false)}
+          className="w-24 rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
       ) : (
         <div
@@ -496,9 +493,9 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
           className="cursor-text hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 -mx-1"
           title="Click to set the reply date"
         >
-          {date ? (
+          {dateStr ? (
             <div className="leading-tight">
-              <span className="text-xs text-gray-600 dark:text-gray-300">{formatDateDDMMYY(date)}</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">{displayDateText(dateStr)}</span>
               <div><RelDate raw={dateStr} colorFn={colorFn} /></div>
             </div>
           ) : (

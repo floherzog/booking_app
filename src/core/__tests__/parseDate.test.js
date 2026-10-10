@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDate, formatDateDDMMYY, toInputValue, fromInputValue, parseMonthsFromTimeFrame } from '@core/parseDate'
+import { parseDate, formatDateDDMMYY, toInputValue, fromInputValue, parseMonthsFromTimeFrame, normalizeDateText, displayDateText } from '@core/parseDate'
 
 function ymd(d) {
   return [d.getFullYear(), d.getMonth() + 1, d.getDate()]
@@ -66,5 +66,28 @@ describe('parseMonthsFromTimeFrame', () => {
   it('returns [] when nothing matches', () => {
     expect(parseMonthsFromTimeFrame('')).toEqual([])
     expect(parseMonthsFromTimeFrame('whenever')).toEqual([])
+  })
+})
+
+describe('typed date fields', () => {
+  it('stores a day in any format as dd.MM.yy', () => {
+    expect(normalizeDateText('1.9.2026')).toBe('01.09.26')
+    expect(normalizeDateText(' 2026-09-14 ')).toBe('14.09.26')
+    expect(normalizeDateText('14.09.26')).toBe('14.09.26')
+  })
+
+  it('keeps anything vaguer than a day as typed', () => {
+    expect(normalizeDateText('September 2026')).toBe('September 2026')
+    expect(normalizeDateText('Juni 2027')).toBe('Juni 2027')
+    expect(normalizeDateText('2027')).toBe('2027')
+    expect(normalizeDateText('tba')).toBe('tba')
+    expect(normalizeDateText('   ')).toBe('')
+  })
+
+  it('shows a month as a month, not as its first day', () => {
+    expect(displayDateText('september 2026')).toBe('september 2026')
+    expect(displayDateText('1.9.26')).toBe('01.09.26')
+    // Still a date for the colours and the countdown.
+    expect(parseDate('september 2026')).toEqual(new Date(2026, 8, 1))
   })
 })
