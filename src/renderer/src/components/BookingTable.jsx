@@ -537,7 +537,7 @@ function FlagPill({ label, active, activeClass, onToggle }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); onToggle() }}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap border transition-colors
         ${active ? activeClass : 'bg-transparent text-gray-400 border-gray-200 dark:border-gray-700 dark:text-gray-500'}`}
     >
       <span className="leading-none">{active ? '✓' : '+'}</span>{label}
@@ -719,12 +719,32 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
   // state, not a ref: on the first render the node does not exist yet, and
   // nothing else would re-render to pick up the real value.
   const [scrollMargin, setScrollMargin] = useState(0)
+  const [listWidth, setListWidth] = useState(0)
   useLayoutEffect(() => {
-    const update = () => setScrollMargin(listRef.current?.offsetTop ?? 0)
+    const update = () => {
+      setScrollMargin(listRef.current?.offsetTop ?? 0)
+      setListWidth(listRef.current?.clientWidth ?? 0)
+    }
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [isDesktop])
+
+  // Column widths are measured once and then frozen (table-layout: fixed). Left
+  // to the browser, they follow whichever rows happen to be drawn: a long venue
+  // name scrolling into the window widened its column, narrowed the others, made
+  // every row wrap a line taller — and taller rows meant fewer drawn, the long
+  // name dropped out again, and the list flipped between the two layouts every
+  // frame. Measured again only when the columns or the window width change.
+  const tableRef = useRef(null)
+  const layoutKey = `${listWidth}|${columns.map(c => c.id ?? c.accessorKey).join(',')}|${groups.length > 0}`
+  const [frozen, setFrozen] = useState(null)
+  const colWidths = frozen?.key === layoutKey ? frozen.widths : null
+  useLayoutEffect(() => {
+    if (!isDesktop || colWidths || !groups.length || !tableRef.current) return
+    const ths = tableRef.current.querySelectorAll('thead th')
+    setFrozen({ key: layoutKey, widths: [...ths].map(th => th.getBoundingClientRect().width) })
+  })
 
   const virtualizer = useWindowVirtualizer({
     count: sortedRows.length,
@@ -784,13 +804,18 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
   return (
     // overflow-anchor: see the mobile list above.
     <div ref={listRef} style={{ overflowAnchor: 'none' }} className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+      <table
+        ref={tableRef}
+        className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm ${colWidths ? 'table-fixed' : ''}`}
+        style={colWidths ? { width: colWidths.reduce((a, b) => a + b, 0) } : undefined}
+      >
         <thead className="bg-gray-50 dark:bg-gray-800">
           {table.getHeaderGroups().map(hg => (
             <tr key={hg.id}>
-              {hg.headers.map(h => (
+              {hg.headers.map((h, i) => (
                 <th
                   key={h.id}
+                  style={colWidths ? { width: colWidths[i] } : undefined}
                   className={`px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide select-none
                     ${h.column.getCanSort() ? 'cursor-pointer hover:text-gray-800 dark:hover:text-gray-200' : ''}`}
                   onClick={h.column.getToggleSortingHandler()}
@@ -831,7 +856,9 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
                     }}
                   >
                     {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-3 py-2 align-top">
+                      // break-words: with frozen widths a long address wraps
+                      // instead of spilling into the next column.
+                      <td key={cell.id} className="px-3 py-2 align-top break-words">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
