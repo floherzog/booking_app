@@ -524,5 +524,143 @@
   "Halle (Saale)||Germany": {
     "lat": 51.4824354,
     "lng": 11.9712985
+  },
+  "13. - 17.10.27 & 30.3. - 9.4.28;;;;;;;||": null,
+  "Lörrach||Germany": {
+    "lat": 47.6120896,
+    "lng": 7.6607218
+  },
+  "Wittlich||Germany": {
+    "lat": 49.9850353,
+    "lng": 6.88844
+  },
+  "Kirchheim||Germany": {
+    "lat": 48.6480545,
+    "lng": 9.4510227
+  },
+  "Bonn||Germany": {
+    "lat": 50.7352621,
+    "lng": 7.1024635
+  },
+  "Kalisz||Poland": {
+    "lat": 51.7624752,
+    "lng": 18.0895358
+  },
+  "Dübendorf||Switzerland": {
+    "lat": 47.3969942,
+    "lng": 8.6185666
+  },
+  "Biel||Switzerland": {
+    "lat": 47.1402077,
+    "lng": 7.2439029
+  },
+  "Reutlingen||Germany": {
+    "lat": 48.4919508,
+    "lng": 9.2114144
+  },
+  "Porto Ferraio||Italy": null,
+  "Treviso||Italy": {
+    "lat": 45.6658505,
+    "lng": 12.2455414
+  },
+  "Milano||Italy": {
+    "lat": 45.4641943,
+    "lng": 9.1896346
+  },
+  "Dorking||United Kingdom": {
+    "lat": 51.2325184,
+    "lng": -0.3306724
+  },
+  "Groningen||Netherlands": {
+    "lat": 53.2190652,
+    "lng": 6.5680077
+  },
+  "Wrocław||Poland": {
+    "lat": 51.1089776,
+    "lng": 17.0326689
+  },
+  "Schwerin||Germany": {
+    "lat": 53.6288297,
+    "lng": 11.4148038
+  },
+  "Baden||Switzerland": {
+    "lat": 47.4736827,
+    "lng": 8.3086822
+  },
+  "Osnabrück||Germany": {
+    "lat": 52.2719595,
+    "lng": 8.047635
+  },
+  "Viersen||Germany": {
+    "lat": 51.2562118,
+    "lng": 6.3905476
+  },
+  "Rýmařov||Czech Republic": {
+    "lat": 49.9320352,
+    "lng": 17.2714574
+  },
+  "Łódź||Poland": {
+    "lat": 51.7687323,
+    "lng": 19.4569911
+  },
+  "Warszawa||Poland": {
+    "lat": 52.2319581,
+    "lng": 21.0067249
+  },
+  "Feldafing||Germany": {
+    "lat": 47.9466714,
+    "lng": 11.2905374
+  },
+  "Trostberg||Germany": {
+    "lat": 48.0321101,
+    "lng": 12.5654359
+  },
+  "Marktoberdorf||Germany": {
+    "lat": 47.7780871,
+    "lng": 10.6188796
+  },
+  "Bayreuth||Germany": {
+    "lat": 49.9446345,
+    "lng": 11.5743543
+  },
+  "Gera||Germany": {
+    "lat": 50.8765528,
+    "lng": 12.0832674
+  },
+  "Villingen-Schwenningen||Germany": {
+    "lat": 48.063152,
+    "lng": 8.4929618
+  },
+  "Hameln||Germany": {
+    "lat": 52.1039941,
+    "lng": 9.3561569
+  },
+  "Nordhausen||Germany": {
+    "lat": 51.5051574,
+    "lng": 10.7925317
+  },
+  "Eberswalde||Germany": {
+    "lat": 52.8350807,
+    "lng": 13.7996542
+  },
+  "Hannover||Germany": {
+    "lat": 52.3744779,
+    "lng": 9.7385532
+  },
+  "Madrid||Spain": {
+    "lat": 40.416782,
+    "lng": -3.703507
+  },
+  "Seixal||Portugal": {
+    "lat": 38.6422246,
+    "lng": -9.1072662
+  },
+  "Hradec Králové||Czech Republic": {
+    "lat": 50.2092113,
+    "lng": 15.8327512
+  },
+  "||United Kingdom": {
+    "lat": 54.7023545,
+    "lng": -3.2765753
   }
 }
