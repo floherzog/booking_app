@@ -77,6 +77,19 @@ describe('web settings', () => {
     expect(server.settings.storage.adapter).toBe('github')
   })
 
+  it('seeds an empty server with this browser’s copy', async () => {
+    const server = {}
+    vi.stubGlobal('fetch', fakeServer(server))
+    vi.stubGlobal('localStorage', memoryStorage({
+      booking_settings: JSON.stringify({ storage: { github: { repo: 'me/list', path: 'l.csv' } }, venueTypes: ['main', 'bar'] }),
+      booking_app_config: JSON.stringify({ csvRepo: 'old/list' }),
+    }))
+    const { api } = await freshWeb()
+    const s = await api.getSettings()
+    expect(s.storage.github.repo).toBe('me/list')
+    expect(server.settings.venueTypes).toEqual(['main', 'bar'])
+  })
+
   it('works without a server (the dev server runs no PHP)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, headers: { get: () => 'text/html' } })))
     const storage = memoryStorage()

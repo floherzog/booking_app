@@ -150,8 +150,13 @@ async function getSettings() {
   const stored = await serverGet('settings')
   serverStore = stored !== undefined
   if (stored) return forWeb(stored)
+  // This browser's copy seeds a server that has none yet (a fresh deploy folder).
   const cached = local(SETTINGS_KEY)
-  if (cached) return forWeb(cached)
+  if (cached) {
+    const settings = forWeb(cached)
+    if (serverStore) await serverPut('settings', settings).catch(() => {})
+    return settings
+  }
   const migrated = forWeb(await legacySettings())
   local(SETTINGS_KEY, migrated)
   if (serverStore) await serverPut('settings', migrated).catch(() => {})
