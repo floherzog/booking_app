@@ -3,8 +3,8 @@ import { ipcMain, app } from 'electron'
 // The app is distributed as a file you hand someone, so there is no auto-update
 // feed. Instead we ask GitHub for the latest release of the public source repo
 // and, when it is newer than the running build, point the user at the download.
-const RELEASES_API = 'https://api.github.com/repos/floherzog/booking_app_mac/releases/latest'
-const RELEASES_PAGE = 'https://github.com/floherzog/booking_app_mac/releases/latest'
+const RELEASES_API = 'https://api.github.com/repos/floherzog/booking_app/releases/latest'
+const RELEASES_PAGE = 'https://github.com/floherzog/booking_app/releases/latest'
 
 // "v0.2.0" / "0.2.0-beta.1" → [0, 2, 0]. Pre-release suffixes are ignored: a
 // tagged pre-release is treated as its base version, which is good enough for a

@@ -1,12 +1,17 @@
 # Releasing
 
 The app does not update itself. **Booking → Check for Updates…** asks GitHub for
-the latest release of `floherzog/booking_app_mac`, compares its tag with the
+the latest release of `floherzog/booking_app`, compares its tag with the
 running version, and offers to open the download page. So "shipping an update"
 means: bump the version, build, and publish a GitHub release whose tag is that
 version.
 
 The repo is public, so the update check needs no token.
+
+The repo was called `booking_app_mac` until 0.7.1, and copies up to that version
+still ask for that name; GitHub redirects them. **Never create a new repository
+named `booking_app_mac`** — it would replace the redirect, and those copies
+would stop finding updates.
 
 **Which commits need a release.** This repository also builds the web app, which
 deploys itself on push (docs/WEB.md). A commit needs a Mac release when it

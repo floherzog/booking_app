@@ -9,7 +9,7 @@ the private repositories, tokens and servers the original depended on.
 
 ## Download
 
-**[Download the latest release →](https://github.com/floherzog/booking_app_mac/releases/latest)**
+**[Download the latest release →](https://github.com/floherzog/booking_app/releases/latest)**
 
 Take `Booking-<version>-arm64.dmg` for Apple Silicon or `Booking-<version>-x64.dmg`
 for an Intel Mac. **Before you install it, run this on the downloaded file:**
