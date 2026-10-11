@@ -662,5 +662,21 @@
   "||United Kingdom": {
     "lat": 54.7023545,
     "lng": -3.2765753
+  },
+  "Gapyeong||Korea": {
+    "lat": 37.825338,
+    "lng": 127.5166062
+  },
+  "Chuncheon||Korea": {
+    "lat": 37.8810569,
+    "lng": 127.7297641
+  },
+  "Ulsan||Korea": {
+    "lat": 35.5391697,
+    "lng": 129.3119136
+  },
+  "Sejong||Korea": {
+    "lat": 36.4799999,
+    "lng": 127.289
   }
 }
