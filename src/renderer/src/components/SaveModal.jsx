@@ -135,11 +135,11 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3">
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            Writes to <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded">{adapter?.label || 'no storage configured'}</code>
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="min-w-0 text-xs text-gray-400 dark:text-gray-500">
+            Writes to <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded break-all">{adapter?.label || 'no storage configured'}</code>
           </p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 shrink-0 justify-end">
             <button onClick={onClose} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-4 py-2">
               Cancel
             </button>
