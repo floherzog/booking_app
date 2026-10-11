@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { ADVANCED_COLUMNS } from '@core/constants'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import EditableCell from './EditableCell'
 
 const FIELD_LABELS = {
   'Last emailed': 'Last Emailed',
@@ -7,6 +9,7 @@ const FIELD_LABELS = {
   'Time Frame': 'Time Frame',
 }
 function label(f) { return FIELD_LABELS[f] || f }
+const DATE_FIELDS = new Set(ADVANCED_COLUMNS.filter(c => c.type === 'date').map(c => c.key))
 // "Kulturfabrik · Band A": in multi-band mode one venue has a line per band, and
 // the list has to say which one changed. Harmless in normal mode.
 function venueLabel(row, idx) {
@@ -14,10 +17,18 @@ function venueLabel(row, idx) {
   return row['Band'] ? `${name} · ${row['Band']}` : name
 }
 
-export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose }) {
+// The last look before writing: every value can still be changed (onEdit, the
+// table's own edit path), any one change taken back (onRevert), or all of them
+// dropped (onDiscard).
+export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose, onEdit, onRevert, onDiscard }) {
   const backdrop = useBackdropClose(onClose)
   const [pushing, setPushing] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  // Every edited cell seen while the dialog is open. One edited back to what
+  // was loaded stops being a change but keeps its line, so the field being
+  // typed in does not vanish mid-word.
+  const seen = useRef(new Map())
   // Set when the underlying file changed since we loaded it — the user has to
   // decide whether their edits win.
   const [conflict, setConflict] = useState(false)
@@ -33,13 +44,19 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
     if (row) changes.push({ idx, venue: venueLabel(row, idx), field: '—', oldVal: '', newVal: 'added', isAdd: true })
   })
   Object.entries(edits).forEach(([idx, fields]) => {
-    const row = rows.find(r => r._idx === Number(idx))
-    if (!row) return
-    Object.entries(fields).forEach(([field, newVal]) => {
-      changes.push({ idx: Number(idx), venue: venueLabel(row, idx), field, oldVal: row[field] || '', newVal })
-    })
+    if (deletions.has(Number(idx))) return
+    Object.keys(fields).forEach(field => seen.current.set(`${idx}\u0000${field}`, { idx: Number(idx), field }))
   })
-  changes.sort((a, b) => a.venue.localeCompare(b.venue) || a.field.localeCompare(b.field))
+  const lines = [...changes]
+  seen.current.forEach(({ idx, field }) => {
+    const row = rows.find(r => r._idx === idx)
+    if (!row || deletions.has(idx)) return
+    const newVal = edits[idx]?.[field]
+    const change = { idx, venue: venueLabel(row, idx), field, oldVal: row[field] || '', newVal, reverted: newVal === undefined }
+    lines.push(change)
+    if (!change.reverted) changes.push(change)
+  })
+  lines.sort((a, b) => a.venue.localeCompare(b.venue) || a.field.localeCompare(b.field))
 
   async function handlePush(force = false) {
     setPushing(true)
@@ -77,7 +94,7 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-4">
-          {changes.length === 0 ? (
+          {lines.length === 0 ? (
             <p className="text-gray-400 dark:text-gray-500 text-sm">No changes to save.</p>
           ) : (
             <table className="w-full text-sm">
@@ -86,12 +103,13 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
                   <th className="text-left pb-2 font-medium w-1/4">Venue</th>
                   <th className="text-left pb-2 font-medium w-1/5">Field</th>
                   <th className="text-left pb-2 font-medium w-[30%]">Before</th>
-                  <th className="text-left pb-2 font-medium w-[30%]">After</th>
+                  <th className="text-left pb-2 font-medium w-[30%]">After{onEdit && <span className="normal-case tracking-normal font-normal"> · tap to edit</span>}</th>
+                  <th className="pb-2 w-6"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                {changes.map((c, i) => (
-                  <tr key={i} className={c.isDelete ? 'bg-red-50 dark:bg-red-900/10' : c.isAdd ? 'bg-emerald-50 dark:bg-emerald-900/10' : ''}>
+                {lines.map(c => (
+                  <tr key={`${c.idx}-${c.field}`} className={c.isDelete ? 'bg-red-50 dark:bg-red-900/10' : c.isAdd ? 'bg-emerald-50 dark:bg-emerald-900/10' : c.reverted ? 'opacity-50' : ''}>
                     <td className="py-2 pr-3 text-gray-700 dark:text-gray-300 font-medium align-top">{c.venue}</td>
                     <td className="py-2 pr-3 align-top">
                       {c.isDelete
@@ -100,11 +118,23 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
                           ? <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs uppercase tracking-wide">Added</span>
                           : <span className="text-gray-500 dark:text-gray-400">{label(c.field)}</span>}
                     </td>
-                    <td className="py-2 pr-3 text-red-500 dark:text-red-400 align-top break-words">
+                    <td className={`py-2 pr-3 align-top break-words ${c.reverted ? 'text-gray-400 dark:text-gray-500' : 'text-red-500 dark:text-red-400'}`}>
                       {c.isDelete || c.isAdd ? '' : (c.oldVal || <span className="text-gray-300 dark:text-gray-600 italic">empty</span>)}
                     </td>
-                    <td className="py-2 text-green-700 dark:text-green-400 font-medium align-top break-words">
-                      {c.isDelete ? '' : c.isAdd ? <span className="text-emerald-600 dark:text-emerald-400">new</span> : (c.newVal || <span className="text-gray-300 dark:text-gray-600 italic">empty</span>)}
+                    <td className="py-2 pr-2 text-green-700 dark:text-green-400 font-medium align-top break-words">
+                      {c.isDelete ? '' : c.isAdd ? <span className="text-emerald-600 dark:text-emerald-400">new</span>
+                        : c.reverted ? <span className="text-gray-400 dark:text-gray-500 font-normal italic">no change</span>
+                        : onEdit ? <EditableCell value={c.oldVal} rowIndex={c.idx} field={c.field} edits={edits} onEdit={onEdit} isDate={DATE_FIELDS.has(c.field)} className="text-sm" />
+                        : (c.newVal || <span className="text-gray-300 dark:text-gray-600 italic">empty</span>)}
+                    </td>
+                    <td className="py-2 align-top text-right w-6">
+                      {onRevert && !c.reverted && (
+                        <button
+                          onClick={() => onRevert(c)}
+                          title={c.isDelete ? 'Keep this venue' : c.isAdd ? 'Leave this venue out' : 'Take back this change'}
+                          className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 leading-none px-1"
+                        >↺</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -135,10 +165,23 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
           <p className="min-w-0 text-xs text-gray-400 dark:text-gray-500">
             Writes to <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded break-all">{adapter?.label || 'no storage configured'}</code>
           </p>
+          <div className="flex items-center justify-between gap-3">
+          <div>
+            {onDiscard && changes.length > 0 && (confirmDiscard ? (
+              <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-1.5 whitespace-nowrap">
+                <span className="text-xs text-red-700 dark:text-red-400">Discard all?</span>
+                <button onClick={() => { onDiscard(); onClose() }} className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900">Yes</button>
+                <span className="text-red-300">·</span>
+                <button onClick={() => setConfirmDiscard(false)} className="text-xs text-red-500 hover:text-red-700">No</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDiscard(true)} disabled={pushing} className="text-sm text-gray-400 hover:text-red-600 px-2 py-1.5 -ml-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">Discard</button>
+            ))}
+          </div>
           <div className="flex gap-3 shrink-0 justify-end">
             <button onClick={onClose} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-4 py-2">
               Cancel
@@ -150,6 +193,7 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
             >
               {pushing ? 'Saving…' : 'Save'}
             </button>
+          </div>
           </div>
         </div>
       </div>

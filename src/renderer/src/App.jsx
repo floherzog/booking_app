@@ -704,6 +704,20 @@ export default function App() {
     setConfirmDiscard(false)
   }
 
+  // One line of the save dialog taken back: a deletion kept, an added venue
+  // left out, or a field put back to what was loaded.
+  function revertChange(c) {
+    if (c.isDelete) {
+      setDeletions(prev => { const next = new Set(prev); next.delete(c.idx); return next })
+    } else if (c.isAdd) {
+      setRows(prev => prev.filter(r => r._idx !== c.idx))
+      setAdditions(prev => { const next = new Set(prev); next.delete(c.idx); return next })
+      setEdits(prev => { const next = { ...prev }; delete next[c.idx]; return next })
+    } else {
+      applyEdits([[c.idx, c.field, rows.find(r => r._idx === c.idx)?.[c.field] ?? '']])
+    }
+  }
+
   function handleNewVenue() {
     // Past the highest _idx, not rows.length: indices have gaps after deletions,
     // and reusing one would make two rows share their edits.
@@ -891,6 +905,17 @@ export default function App() {
           Save <span className="bg-amber-400 text-amber-900 font-bold px-1 py-0.5 rounded-full leading-none">{editCount}</span>
         </button>
       )}
+      {editCount > 0 && (confirmDiscard ? (
+        <div className="flex flex-col rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-xs overflow-hidden">
+          <span className="text-center text-red-700 dark:text-red-400 py-1">Sure?</span>
+          <div className="flex border-t border-red-200 dark:border-red-800">
+            <button onClick={handleDiscard} className="flex-1 py-1.5 font-semibold text-red-700 dark:text-red-400">Yes</button>
+            <button onClick={() => setConfirmDiscard(false)} className="flex-1 py-1.5 text-red-500 border-l border-red-200 dark:border-red-800">No</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">Discard</button>
+      ))}
       {caps.mail && <button onClick={() => setShowBulkDraft(true)} className={iconBtn} title="Create drafts in Mail">✉</button>}
       <button onClick={() => setShowLogic(true)} className={iconBtn} title="How venues are classified">ⓘ</button>
       <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : '↻'}</button>
@@ -1146,7 +1171,7 @@ export default function App() {
           onClose={() => { setShowImport(false); setCameFromSettings(false) }}
         />
       )}
-      {showSave && <SaveModal rows={rows} edits={edits} deletions={deletions} additions={additions} adapter={adapter} onSuccess={handleSaveSuccess} onClose={() => setShowSave(false)} />}
+      {showSave && <SaveModal rows={rows} edits={edits} deletions={deletions} additions={additions} adapter={adapter} onSuccess={handleSaveSuccess} onClose={() => setShowSave(false)} onEdit={handleEdit} onRevert={revertChange} onDiscard={handleDiscard} />}
       {mergeTarget && (
         <MergeModal
           rowA={mergeTarget.rowA}
