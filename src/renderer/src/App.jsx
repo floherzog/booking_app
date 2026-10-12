@@ -7,6 +7,7 @@ import { effectiveTypeOptions } from '@core/venueTypes'
 import { computeNextBatch } from '@core/nextBatch'
 import { replyHealth } from '@core/replyStatus'
 import { computeDuplicates, dismissPair } from '@core/duplicates'
+import { bandDateGaps, gapsKey } from '@core/bandDates'
 import { linkVenues, reconcileShared, isMultiBand, isSharedField, SHARED_FIELDS } from '@core/multiBand'
 import { enableMultiBand, disableMultiBand, openBandFiles, createNewBandSet } from './lib/multiBandSwitch'
 import { mergeRules } from '@core/rules'
@@ -32,6 +33,7 @@ import BulkEditBar from './components/BulkEditBar'
 import { useInlinePrompt } from './components/InlinePrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
+import BandDatesBanner from './components/BandDatesBanner'
 import { api, caps } from './platform'
 import { checkOpenclawPolicy } from './lib/policySync'
 
@@ -832,6 +834,21 @@ export default function App() {
     })
   }, [rows, filters, deletions, duplicateSet, venueRep])
 
+  // Venues whose Dates have fallen out of step with their band's touring dates —
+  // judged on what the table shows, so a fix (or any edit) clears it at once.
+  const dateGaps = useMemo(
+    () => bandDateGaps(rows.filter(r => !deletions.has(r._idx)).map(r => ({ ...r, ...(edits[r._idx] || {}) })), settings?.bands),
+    [rows, edits, deletions, settings],
+  )
+  const dateGapsKey = gapsKey(dateGaps)
+  const [dismissedDateGaps, setDismissedDateGaps] = useState(() => {
+    try { return localStorage.getItem('dismissedBandDates') } catch { return null }
+  })
+  function dismissDateGaps() {
+    try { localStorage.setItem('dismissedBandDates', dateGapsKey) } catch { /* storage unavailable */ }
+    setDismissedDateGaps(dateGapsKey)
+  }
+
   const filteredVenueCount = useMemo(() => new Set(filteredRows.map(r => r._venueId)).size, [filteredRows])
 
   // Sorting runs through the table itself, so the sorted column stays visible
@@ -927,7 +944,17 @@ export default function App() {
     <RulesProvider rules={rules}>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {promptNode}
-      <UpdateBanner update={update} onDismiss={dismissUpdate} />
+      <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl space-y-2">
+        <UpdateBanner update={update} onDismiss={dismissUpdate} />
+        {!loading && dateGapsKey !== dismissedDateGaps && (
+          <BandDatesBanner
+            gaps={dateGaps}
+            onApply={gaps => applyEdits(gaps.map(g => [g.idx, 'Dates', g.want]))}
+            onOpenVenue={setVenueDetail}
+            onDismiss={dismissDateGaps}
+          />
+        )}
+      </div>
       <div className="max-w-[1700px] mx-auto px-4 py-6 space-y-5">
 
         {/* Desktop header — original layout */}

@@ -148,7 +148,17 @@ const COLUMNS = [
     enableSorting: true,
   }),
   helper.accessor('_status', {
-    header: 'Status',
+    // Every badge, invisible and zero-height: the column widths are frozen from
+    // the rows drawn first (see colWidths below), and when those all said
+    // "Send", a "Filler (not booking)" further down spilled into the Venue column.
+    header: () => (
+      <>
+        <div aria-hidden className="h-0 overflow-hidden invisible normal-case tracking-normal">
+          {Object.keys(STATUS_META).map(s => <div key={s}><StatusBadge status={s} /></div>)}
+        </div>
+        Status
+      </>
+    ),
     cell: i => <StatusBadge status={i.getValue()} />,
     sortingFn: (a, b) =>
       (STATUS_META[a.original._status]?.priority ?? 9) -
