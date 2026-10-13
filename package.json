@@ -1,7 +1,7 @@
 {
   "name": "booking_app_mac",
   "productName": "Booking",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Booking outreach manager for macOS",
   "private": true,
   "type": "module",

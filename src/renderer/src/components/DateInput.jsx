@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { normalizeDateText, toInputValue, fromInputValue } from '@core/parseDate'
 
+// About as wide as the browser's own calendar (Chromium's is the widest).
+const PICKER_WIDTH = 260
+
 // A date you can type — "12.03.26", "12.3.2026", "September 2026", "2027" — or
 // pick from the calendar behind the button. A day is stored as dd.MM.yy, just
 // as the picker would; anything vaguer is stored as typed.
@@ -15,6 +18,7 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
   const committed = useRef(value || '')
   const textRef = useRef(null)
   const pickerRef = useRef(null)
+  const boxRef = useRef(null)
 
   useEffect(() => {
     if ((value || '') !== committed.current) {
@@ -38,12 +42,23 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
     const el = pickerRef.current
     if (!el) return
     el.value = toInputValue(text)
+    // Safari opens its calendar from the hidden input's left edge rightwards and
+    // never pulls it back on screen — beside the window's right edge it ran off.
+    // So the input moves under the field's left edge, or as far left as it takes
+    // for the calendar to fit the window. Set here, not rendered: it has to be in
+    // place before showPicker() below.
+    const box = boxRef.current?.getBoundingClientRect()
+    if (box) {
+      const left = Math.max(8, Math.min(box.left, window.innerWidth - PICKER_WIDTH - 8))
+      el.style.left = `${left - box.left}px`
+    }
     el.focus()
     try { el.showPicker() } catch { /* not supported: the field still takes typing */ }
   }
 
   return (
     <div
+      ref={boxRef}
       className="relative flex items-center gap-1"
       onClick={e => e.stopPropagation()}
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) commit(text) }}
@@ -86,7 +101,7 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
         tabIndex={-1}
         aria-hidden="true"
         onChange={e => { if (e.target.value) commit(fromInputValue(e.target.value)) }}
-        className="absolute right-0 bottom-0 w-6 h-6 opacity-0 pointer-events-none"
+        className="absolute bottom-0 w-6 h-6 opacity-0 pointer-events-none"
       />
     </div>
   )
