@@ -718,5 +718,17 @@
   "Strasbourg||France": {
     "lat": 48.584614,
     "lng": 7.7507127
+  },
+  "Tübingen||Germany": {
+    "lat": 48.5203263,
+    "lng": 9.053596
+  },
+  "Trieste||Italy": {
+    "lat": 45.6496485,
+    "lng": 13.7772781
+  },
+  "Correzzola||Italy": {
+    "lat": 45.2173171,
+    "lng": 12.0779036
   }
 }
