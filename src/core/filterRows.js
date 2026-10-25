@@ -1,7 +1,7 @@
 import { ACTION_STATUSES, STATUS_META, getMissingFields } from './constants.js'
 import { replyHealth } from './replyStatus.js'
 
-// What the filter bar, the chips and the Filter / Sort panel together decide:
+// What the filter bar, the chips and the Filter / Chips panel together decide:
 // one plain object, so a custom chip can store a whole filter set and the
 // table, the chip counts and the "is this chip on?" check all read it the same.
 
@@ -79,7 +79,7 @@ export function isEmptyFilters(f) {
 }
 
 // What a filter set keeps, as a chip's tooltip. columnLabel maps a field key
-// to its label in the Filter / Sort panel.
+// to its label in the Filter / Chips panel.
 export function describeFilters(filters, columnLabel = k => k) {
   const f = { ...EMPTY_FILTERS, ...filters }
   const parts = []

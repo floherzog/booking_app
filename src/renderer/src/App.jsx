@@ -771,7 +771,7 @@ export default function App() {
     return name
   }
 
-  // Settings ▸ the chips above the list (Filter / Sort ▸ Chips).
+  // Settings ▸ the chips above the list (Filter / Chips ▸ Chips / saved filters).
   const filterChips = useMemo(() => normalizeFilterChips(settings?.filterChips), [settings])
   function handleChipsChange(next) {
     persist({ ...settings, filterChips: next }).catch(e => setError(e.message))
@@ -1120,7 +1120,6 @@ export default function App() {
           rows={rows}
           onOpenImport={() => { setShowSettings(false); setCameFromSettings(true); setShowImport(true) }}
           onOpenTemplates={() => { setShowSettings(false); setCameFromSettings(true); setShowTemplates(true) }}
-          onOpenLogic={() => { setShowSettings(false); setCameFromSettings(true); setShowLogic(true) }}
           onSave={handleSettingsSave}
           onNewCsv={handleNewCsv}
           onSetMultiBand={handleSetMultiBand}
@@ -1180,11 +1179,7 @@ export default function App() {
       {showLogic && (
         <LogicModal
           onSaveRules={handleRulesSave}
-          fromSettings={cameFromSettings}
-          onClose={() => {
-            setShowLogic(false)
-            if (cameFromSettings) { setCameFromSettings(false); setShowSettings(true) }
-          }}
+          onClose={() => setShowLogic(false)}
         />
       )}
       {venueDetail !== null && rows.find(r => r._idx === venueDetail) && (

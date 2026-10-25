@@ -109,7 +109,32 @@ function Gate({ node, isLast }) {
   )
 }
 
-export default function LogicModal({ onClose, onSaveRules, fromSettings = false }) {
+// The diagram on its own: every venue at the top, then each gate in order.
+// Settings ▸ Rules shows it too, drawn from the numbers being edited there.
+export function LogicFlow({ rules }) {
+  const nodes = buildLogicNodes(rules)
+  return (
+    <>
+      {/* Root */}
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center shrink-0">
+          <span className="mt-1 w-4 h-4 rounded-full bg-gray-700 dark:bg-gray-200 ring-4 ring-gray-200 dark:ring-gray-700 z-10" aria-hidden />
+          <div className="flex-1 w-px bg-gray-300 dark:bg-gray-600 my-1 min-h-[14px]" />
+        </div>
+        <div className="flex-1 min-w-0 pb-6">
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">Every venue</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Evaluated top to bottom.</p>
+        </div>
+      </div>
+
+      {nodes.map((node, i) => (
+        <Gate key={i} node={node} isLast={i === nodes.length - 1} />
+      ))}
+    </>
+  )
+}
+
+export default function LogicModal({ onClose, onSaveRules }) {
   const backdrop = useBackdropClose(onClose)
   const rules = useRules()
   const [tab, setTab] = useState('flow')
@@ -146,7 +171,6 @@ export default function LogicModal({ onClose, onSaveRules, fromSettings = false 
     }
   }
 
-  const NODES = buildLogicNodes(draft)
   const tabBtn = active => `px-3 py-1 text-sm rounded-md transition-colors ${active
     ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`
@@ -155,9 +179,8 @@ export default function LogicModal({ onClose, onSaveRules, fromSettings = false 
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1100] p-4"
       // Closing on a stray backdrop click is fine while only reading, but it must
-      // never throw away unsaved rule edits. Opened as a Settings page, it behaves
-      // like the other Settings pages and ignores the backdrop altogether.
-      {...(dirty || fromSettings ? {} : backdrop)}
+      // never throw away unsaved rule edits.
+      {...(dirty ? {} : backdrop)}
     >
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-4">
@@ -188,23 +211,7 @@ export default function LogicModal({ onClose, onSaveRules, fromSettings = false 
           {tab === 'rules' ? (
             <RulesEditor rules={draft} onChange={setDraft} />
           ) : (
-            <>
-              {/* Root */}
-              <div className="flex gap-3">
-                <div className="flex flex-col items-center shrink-0">
-                  <span className="mt-1 w-4 h-4 rounded-full bg-gray-700 dark:bg-gray-200 ring-4 ring-gray-200 dark:ring-gray-700 z-10" aria-hidden />
-                  <div className="flex-1 w-px bg-gray-300 dark:bg-gray-600 my-1 min-h-[14px]" />
-                </div>
-                <div className="flex-1 min-w-0 pb-6">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">Every venue</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Evaluated top to bottom.</p>
-                </div>
-              </div>
-
-              {NODES.map((node, i) => (
-                <Gate key={i} node={node} isLast={i === NODES.length - 1} />
-              ))}
-            </>
+            <LogicFlow rules={draft} />
           )}
         </div>
 

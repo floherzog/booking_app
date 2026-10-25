@@ -140,9 +140,22 @@ function ChipSettings({ chips, filters, onChipsChange }) {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+        aria-expanded={open}
+        className={`w-full flex items-center gap-2.5 rounded-md border px-3 py-2 text-left transition-colors
+          ${open
+            ? 'border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30'
+            : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:border-gray-600 dark:hover:bg-gray-900/70'}`}
       >
-        {open ? '▾' : '▸'} Chips above the list
+        <svg viewBox="0 0 16 16" className="w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400" fill="currentColor" aria-hidden="true">
+          <path d="M4 2h8a1 1 0 0 1 1 1v11l-5-3-5 3V3a1 1 0 0 1 1-1z" />
+        </svg>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">Chips / saved filters</span>
+          <span className="block text-xs text-gray-400 dark:text-gray-500">Show or hide the chips above the list, and save filters as chips of your own</span>
+        </span>
+        <svg viewBox="0 0 16 16" className={`ml-auto w-4 h-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M6 3l5 5-5 5" />
+        </svg>
       </button>
 
       {open && (

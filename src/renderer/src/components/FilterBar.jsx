@@ -37,14 +37,14 @@ export default function FilterBar({ rows, filters, onChange, onNewVenue, bandOpt
         />
         <button
           onClick={() => setAdvancedOpen(o => !o)}
-          title="Advanced filter & sort"
+          title="Column filters, sort, and the chips above the list"
           className={`shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border transition-colors
             ${advancedOpen || advCount > 0
               ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300'
               : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500'}`}
         >
           {FilterIcon}
-          <span className="hidden sm:inline">Filter / Sort</span>
+          <span className="hidden sm:inline">Filter / Chips</span>
           {advCount > 0 && (
             <span className="bg-indigo-600 text-white text-[10px] font-bold rounded-full px-1.5 leading-tight">{advCount}</span>
           )}

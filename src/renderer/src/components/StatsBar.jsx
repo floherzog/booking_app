@@ -3,7 +3,7 @@ import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, descr
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
 import { useRules } from '../lib/rulesContext'
 
-// Three kinds of chip, three shapes (Filter / Sort ▸ Chips explains them too):
+// Three kinds of chip, three shapes (Filter / Chips ▸ Chips / saved filters explains them too):
 // - status pills (round): one per status. Every venue has exactly one status,
 //   so the pills split the list and their counts add up to all venues.
 // - shortcut chips (square): lists that cut across the statuses — a venue can

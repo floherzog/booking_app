@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getStoredTheme, setTheme } from '../lib/theme'
 import { exportCsv } from '../lib/csvFile'
-import { validateRules } from '@core/rules'
+import { validateRules, mergeRules } from '@core/rules'
+import RulesEditor from './RulesEditor'
+import { LogicFlow } from './LogicModal'
 import { normalizeBands } from '@core/bands'
 import {
   normalizeAccounts, accountLabel, nextAccountId, secretKeyFor,
@@ -19,13 +21,11 @@ const THEMES = [
   { value: 'dark',   label: 'Dark' },
 ]
 
-// `rules` is not a pane: it opens the Logic modal, where the same numbers are
-// edited next to the diagram that explains what they do.
 // Languages only pick a template's language, so they go with the mail sections.
 const SECTIONS = [
   { id: 'general', label: 'General' },
   { id: 'storage', label: 'Data & storage' },
-  { id: 'rules', label: 'Rules', opens: 'logic' },
+  { id: 'rules', label: 'Rules' },
   { id: 'bands', label: 'Bands' },
   { id: 'venueTypes', label: 'Venue types' },
   { id: 'languages', label: 'Languages', needs: 'mail' },
@@ -33,9 +33,10 @@ const SECTIONS = [
   { id: 'mail', label: 'Mail settings', needs: 'mail' },
 ].filter(s => !s.needs || caps[s.needs])
 
-export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onOpenLogic, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose }) {
+export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose }) {
   const [form, setForm] = useState(config)
   const [section, setSection] = useState('general')
+  const [rulesView, setRulesView] = useState('numbers')
   // Theme stays a per-Mac preference in localStorage (see the note in the
   // General section) and applies immediately rather than on Save.
   const [theme, setThemeState] = useState(getStoredTheme)
@@ -126,7 +127,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // is the exception — it goes straight to the keychain, never into settings.
   async function handleSave(e) {
     e.preventDefault()
-    if (ruleErrors.length) { onOpenLogic?.(); return }
+    if (ruleErrors.length) { setSection('rules'); setRulesView('numbers'); return }
     setSaving(true)
     setError('')
     try {
@@ -437,7 +438,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     // Above the venue view (1100) — the menu can open Settings while a venue is
     // open — and below the pages Settings itself opens (Templates, Import).
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1150] p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      {/* One size for every section — sized to its content, the window jumped
+          on every click in the rail. Long sections scroll inside it. */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[90vh] sm:h-[min(90vh,48rem)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
           <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
@@ -451,7 +454,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => (s.opens === 'logic' ? onOpenLogic?.() : setSection(s.id))}
+                  onClick={() => setSection(s.id)}
                   className={`shrink-0 whitespace-nowrap sm:w-full text-left px-4 py-1.5 text-sm transition-colors ${section === s.id
                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
@@ -637,6 +640,35 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       </p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {section === 'rules' && (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {rulesView === 'flow'
+                        ? 'How a venue gets its status: the first gate that matches wins, the trunk continues on "no". Drawn from the numbers as they stand here.'
+                        : 'The numbers behind the statuses. Change one and the flow follows; Save applies them.'}
+                    </p>
+                    <div className="flex gap-1 bg-gray-50 dark:bg-gray-900 rounded-lg p-0.5 shrink-0">
+                      {[['numbers', 'Numbers'], ['flow', 'Flow']].map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setRulesView(id)}
+                          className={`px-3 py-1 text-sm rounded-md transition-colors ${rulesView === id
+                            ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
+                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {rulesView === 'flow'
+                    ? <LogicFlow rules={mergeRules(form.rules)} />
+                    : <RulesEditor rules={form.rules} onChange={next => setForm(f => ({ ...f, rules: next }))} />}
                 </div>
               )}
 
