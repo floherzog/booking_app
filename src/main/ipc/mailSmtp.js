@@ -66,7 +66,7 @@ export async function sendMailNow(payload) {
   try {
     return await sendMailWith(transport, account, payload)
   } catch (e) {
-    throw new Error(friendlyMailError(e))
+    throw new Error(friendlyMailError(e, account))
   } finally {
     transport.close()
   }
@@ -94,7 +94,7 @@ export async function verifySmtp(accountId) {
       derived: !account.smtpHost,
     }
   } catch (e) {
-    return { ok: false, error: friendlyMailError(e), host: config.host, port: config.port }
+    return { ok: false, error: friendlyMailError(e, account), host: config.host, port: config.port }
   } finally {
     transport.close()
   }

@@ -12,13 +12,29 @@ import { htmlToText } from '../../core/htmlText.js'
 // AppleScript path (mailAppleScript.js) is a zero-config fallback for one draft.
 
 const APPLE_ID_URL = 'https://appleid.apple.com'
+const GOOGLE_APP_PASSWORDS_URL = 'https://myaccount.google.com/apppasswords'
 
-// iCloud rejects the account password outright — only an app-specific password
-// works — and the raw IMAP response is not something to show a user.
-export function friendlyMailError(e) {
-  const msg = String(e?.responseText || e?.message || e)
-  if (/AUTHENTICATIONFAILED|Invalid credentials|LOGIN failed/i.test(msg)) {
+// What to do about a rejected login depends on whose server it is: iCloud and
+// Gmail both refuse the account's normal password outright and only take an
+// app password, made in different places. The raw IMAP/SMTP response is not
+// something to show a user.
+function credentialsHint(account) {
+  const host = `${account?.host || ''} ${account?.smtpHost || ''} ${account?.user || ''}`.toLowerCase()
+  if (/gmail|googlemail|google\.com/.test(host)) {
+    return `Google rejected that password. Gmail only accepts an app password here, not your Google password: turn on 2-Step Verification for the Google account, create an app password at ${GOOGLE_APP_PASSWORDS_URL}, and paste its 16 letters into the Password field in Settings → Mail.`
+  }
+  if (/icloud|me\.com|mac\.com/.test(host)) {
     return `The mail server rejected those credentials. iCloud needs an app-specific password (not your Apple ID password) — create one at ${APPLE_ID_URL} under Sign-In and Security, then paste it into Settings → Mail.`
+  }
+  return 'The mail server rejected that username and password. Check both in Settings → Mail. Many providers (iCloud, Gmail, Yahoo, GMX…) only accept an app password made in the account\'s security settings, not the normal password.'
+}
+
+// account, when known, picks the provider's own advice for a rejected login.
+export function friendlyMailError(e, account) {
+  const msg = String(e?.responseText || e?.message || e)
+  // IMAP says AUTHENTICATIONFAILED; SMTP (nodemailer) says EAUTH / "Invalid login: 535 …".
+  if (/AUTHENTICATIONFAILED|Invalid credentials|LOGIN failed|Invalid login|EAUTH|Username and Password not accepted|\b535\b/i.test(msg) || e?.code === 'EAUTH') {
+    return credentialsHint(account)
   }
   if (/ENOTFOUND|EAI_AGAIN/i.test(msg)) return 'Could not find that mail server — check the host name in Settings → Mail.'
   if (/ECONNREFUSED/i.test(msg)) return 'The mail server refused the connection — check the host and port in Settings → Mail.'
@@ -160,7 +176,7 @@ export async function withImapClient(accountOrFn, maybeFn) {
     await client.connect()
     return await fn(client, account)
   } catch (e) {
-    throw new Error(friendlyMailError(e))
+    throw new Error(friendlyMailError(e, account))
   } finally {
     try { await client.logout() } catch { /* already gone */ }
   }

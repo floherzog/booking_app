@@ -1165,6 +1165,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     <button type="button" onClick={() => api.openExternal('https://appleid.apple.com')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
                       Create one at appleid.apple.com
                     </button>
+                    . Gmail needs an <span className="font-medium">app password</span> too, which Google only offers once
+                    2-Step Verification is on.{' '}
+                    <button type="button" onClick={() => api.openExternal('https://myaccount.google.com/apppasswords')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                      Create one at myaccount.google.com
+                    </button>
                   </p>
 
                   {accounts.map((acct, i) => {

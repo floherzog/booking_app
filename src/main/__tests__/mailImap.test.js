@@ -109,10 +109,29 @@ describe('mailboxes on servers without SPECIAL-USE', () => {
 
 describe('friendlyMailError', () => {
   it('explains an iCloud authentication failure and links the right page', () => {
-    const msg = friendlyMailError({ responseText: 'NO [AUTHENTICATIONFAILED] Authentication failed' })
+    const msg = friendlyMailError({ responseText: 'NO [AUTHENTICATIONFAILED] Authentication failed' }, { host: 'imap.mail.me.com' })
     expect(msg).toMatch(/app-specific password/i)
     expect(msg).toContain('https://appleid.apple.com')
     expect(msg).not.toContain('AUTHENTICATIONFAILED')
+  })
+
+  it('gives Gmail its own app-password advice, for IMAP and SMTP rejections alike', () => {
+    const gmail = { host: 'imap.gmail.com', user: 'someone@gmail.com' }
+    for (const e of [
+      { responseText: 'NO [AUTHENTICATIONFAILED] Invalid credentials (Failure)' },
+      Object.assign(new Error('Invalid login: 535-5.7.8 Username and Password not accepted.'), { code: 'EAUTH' }),
+    ]) {
+      const msg = friendlyMailError(e, gmail)
+      expect(msg).toContain('https://myaccount.google.com/apppasswords')
+      expect(msg).toMatch(/2-Step Verification/)
+      expect(msg).not.toMatch(/iCloud/)
+    }
+  })
+
+  it('falls back to general advice for a rejected login on another provider', () => {
+    const msg = friendlyMailError({ responseText: 'NO LOGIN failed' }, { host: 'imap.example.net' })
+    expect(msg).toMatch(/rejected that username and password/)
+    expect(msg).not.toContain('appleid')
   })
 
   it('explains the common connection failures', () => {

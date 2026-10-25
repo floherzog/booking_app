@@ -3,8 +3,23 @@
 // web build never bundles this file and this build never bundles web.js.
 // Looked up on each use rather than captured at import, so modules that import
 // it can still be loaded (and tested) where there is no preload.
+//
+// A failed ipcRenderer.invoke arrives as "Error invoking remote method
+// 'mail:testConnection': Error: <message>"; only the message is for the user.
+const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:\w*Error: )?/
+export function cleanIpcError(e) {
+  return e?.message && IPC_PREFIX.test(e.message) ? new Error(e.message.replace(IPC_PREFIX, '')) : e
+}
+
 export const api = new Proxy({}, {
-  get: (_target, name) => globalThis.window?.bookingApi?.[name],
+  get: (_target, name) => {
+    const fn = globalThis.window?.bookingApi?.[name]
+    if (typeof fn !== 'function') return fn
+    return (...args) => {
+      const r = fn(...args)
+      return typeof r?.then === 'function' ? r.catch(e => { throw cleanIpcError(e) }) : r
+    }
+  },
 })
 
 export const caps = {
