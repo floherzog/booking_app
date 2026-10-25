@@ -7,24 +7,25 @@ import { DEFAULT_RULES, mergeRules } from '@core/rules'
 describe('buildLogicNodes', () => {
   it('matches classifyBooking gate-for-gate, in order', () => {
     const nodes = buildLogicNodes()
-    expect(nodes).toHaveLength(10)
+    expect(nodes).toHaveLength(11)
     expect(nodes[0].yes).toBe('DEAD')
     expect(nodes[1].yes).toBe('FILLER_OFF')
     expect(nodes[2].yes).toBe('MISSING_INFO')
-    expect(nodes[3].yes).toBe('RECENTLY_PLAYED')
-    expect(nodes[4].sub.no).toBe('ON_HOLD')
-    expect(nodes[5].yes).toBe('FESTIVAL_INELIGIBLE')
-    expect(nodes[8].yes).toBe('NEVER_CONTACTED')
-    expect(nodes[9].terminal).toBe(true)
+    expect(nodes[3].yes).toBe('CONFIRMED')
+    expect(nodes[4].yes).toBe('RECENTLY_PLAYED')
+    expect(nodes[5].sub.no).toBe('ON_HOLD')
+    expect(nodes[6].yes).toBe('FESTIVAL_INELIGIBLE')
+    expect(nodes[9].yes).toBe('NEVER_CONTACTED')
+    expect(nodes[10].terminal).toBe(true)
   })
 
   it('interpolates the default rule values', () => {
     const nodes = buildLogicNodes()
-    expect(nodes[3].q).toContain('365 days')
-    expect(nodes[4].sub.q).toContain('365 days')
-    expect(nodes[5].note).toContain('>3 months out')
-    expect(nodes[5].note).toContain('>2 months past')
-    expect(nodes[4].note).toContain('anrufen')
+    expect(nodes[4].q).toContain('365 days')
+    expect(nodes[5].sub.q).toContain('365 days')
+    expect(nodes[6].note).toContain('>3 months out')
+    expect(nodes[6].note).toContain('>2 months past')
+    expect(nodes[5].note).toContain('anrufen')
   })
 
   it('re-interpolates when the rules change', () => {
@@ -37,11 +38,11 @@ describe('buildLogicNodes', () => {
       holdKeywords: ['xyz'],
     })
     const nodes = buildLogicNodes(rules)
-    expect(nodes[3].q).toContain('100 days')
-    expect(nodes[4].sub.q).toContain('30 days')
-    expect(nodes[4].note).toBe('xyz')
-    expect(nodes[5].note).toContain('>6 months out')
-    expect(nodes[5].note).toContain('>1 months past')
+    expect(nodes[4].q).toContain('100 days')
+    expect(nodes[5].sub.q).toContain('30 days')
+    expect(nodes[5].note).toBe('xyz')
+    expect(nodes[6].note).toContain('>6 months out')
+    expect(nodes[6].note).toContain('>1 months past')
   })
 })
 

@@ -1,5 +1,6 @@
 import { useMemo, useState, useTransition } from 'react'
 import AdvancedPanel from './AdvancedPanel'
+import { EMPTY_FILTERS, isEmptyFilters } from '@core/filterRows'
 
 const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
 
@@ -9,7 +10,7 @@ const FilterIcon = (
   </svg>
 )
 
-export default function FilterBar({ rows, filters, onChange, onNewVenue, bandOptions, typeOptions }) {
+export default function FilterBar({ rows, filters, onChange, onNewVenue, bandOptions, typeOptions, chips, onChipsChange }) {
   const [, startTransition] = useTransition()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const bands     = bandOptions ?? []
@@ -20,8 +21,8 @@ export default function FilterBar({ rows, filters, onChange, onNewVenue, bandOpt
   const types     = typeOptions ?? rowTypes
 
   const advCount = (filters.advanced || []).filter(r => r.field && r.value).length + (filters.sort?.field ? 1 : 0)
-  const hasFilters = filters.band || filters.country || filters.type || filters.actionOnly || filters.nextBatch || filters.missingInfo || filters.duplicate || filters.autoSend || filters.search || advCount > 0
-  const clear = () => onChange({ band: '', country: '', type: '', status: '', actionOnly: false, nextBatch: false, missingInfo: false, duplicate: false, autoSend: false, search: '', advanced: [], sort: null })
+  const hasFilters = !isEmptyFilters(filters)
+  const clear = () => onChange(EMPTY_FILTERS)
 
   return (
     <div className="space-y-2">
@@ -58,7 +59,7 @@ export default function FilterBar({ rows, filters, onChange, onNewVenue, bandOpt
       </div>
 
       {/* Advanced filter & sort panel */}
-      {advancedOpen && <AdvancedPanel rows={rows} filters={filters} onChange={onChange} />}
+      {advancedOpen && <AdvancedPanel rows={rows} filters={filters} onChange={onChange} chips={chips} onChipsChange={onChipsChange} />}
 
       {/* Row 2: dropdowns + clear */}
       <div className="flex flex-wrap gap-2 items-center">

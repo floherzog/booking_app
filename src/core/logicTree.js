@@ -21,8 +21,12 @@ export function buildLogicNodes(rules = DEFAULT_RULES) {
       note: 'Hidden from every send/follow-up list until the flagged fields are filled in.',
     },
     {
+      col: 'Last Played', q: 'Last Played is a date still to come', yes: 'CONFIRMED',
+      note: 'A confirmed gig — not an outreach target right now.',
+    },
+    {
       col: 'Last Played', q: `Played within the last ${rules.recentlyPlayedDays} days`, yes: 'RECENTLY_PLAYED',
-      note: 'A recent or upcoming gig — not an outreach target right now.',
+      note: 'A recent gig — not an outreach target right now.',
     },
     {
       col: 'Note', q: 'Note contains a hold keyword',

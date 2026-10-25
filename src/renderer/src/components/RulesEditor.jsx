@@ -5,7 +5,7 @@ import { DEFAULT_RULES, BATCH_SORT_KEY_OPTIONS, validateRules } from '@core/rule
 // writes into one rules object; App persists it and reclassifies on the spot.
 const NUMBERS = [
   { key: 'defaultFrequencyDays', label: 'Default re-contact window', unit: 'days', hint: 'Used when a venue has no Frequency of its own.' },
-  { key: 'recentlyPlayedDays', label: 'Recently played', unit: 'days', hint: 'A gig this recent (or upcoming) takes the venue out of outreach.' },
+  { key: 'recentlyPlayedDays', label: 'Recently played', unit: 'days', hint: 'A gig this recent takes the venue out of outreach. An upcoming one is Confirmed.' },
   { key: 'holdOverrideDays', label: 'Hold expires after', unit: 'days', hint: 'A note with a hold keyword stops blocking once you last emailed this long ago.' },
   { key: 'festivalFutureMonths', label: 'Festival: too soon if within', unit: 'months', hint: 'A festival is bookable only when it is further out than this…' },
   { key: 'festivalPastMonths', label: 'Festival: still fresh for', unit: 'months', hint: '…or already further past than this.' },

@@ -101,7 +101,7 @@ const SECTIONS = [
   {
     title: 'Outreach actions',
     fields: [
-      { key: 'Draft', label: 'Auto-draft', type: 'checkbox', hint: 'OpenClaw drafts this venue next' },
+      { key: 'Draft', label: 'Next batch', type: 'checkbox', hint: 'OpenClaw drafts this venue in its next batch' },
       { key: 'Auto', label: 'Auto-send', type: 'checkbox', hint: 'OpenClaw sends without review' },
     ],
   },

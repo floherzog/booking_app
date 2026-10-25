@@ -56,6 +56,8 @@ describe('followUpColor keeps the differenceInDays sign semantics', () => {
 describe('lastPlayedColor / lastReplyColor', () => {
   it('use their rule thresholds', () => {
     expect(lastPlayedColor(daysAgo(30))).toBe('text-red-500')
+    // A confirmed gig still to come is good news.
+    expect(lastPlayedColor(daysAgo(-30))).toBe('text-green-500')
     expect(lastPlayedColor(daysAgo(200))).toBe('text-orange-500')
     expect(lastPlayedColor(daysAgo(400))).toBe('text-green-500')
     expect(lastPlayedColor(daysAgo(200), null, mergeRules({ dateColors: { lastPlayedRedDays: 300 } }))).toBe('text-red-500')

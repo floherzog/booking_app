@@ -177,7 +177,7 @@ band and **+ Add band…**.
 - **Shared across bands:** Venue, Type, City, Country, Contact, Email, Website,
   Time Frame. Editing these on one band edits them on all of them.
 - **Per band:** everything else (dates, reply status, notes, outreach text,
-  Auto-draft/Auto-send, email counts).
+  Next batch/Auto-send, email counts).
 - **Same venue:** same name and city in different band files. Renaming a venue
   in only one file outside the app splits it into two venues. The duplicate
   detector then flags them, and Merge joins them again.

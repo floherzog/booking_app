@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import { classifyBooking } from '@core/classify'
 import { getSettings, saveSettings } from './lib/config'
-import { ACTION_STATUSES, APP_COLUMNS, getMissingFields, getMissingSeverity } from '@core/constants'
+import { APP_COLUMNS, getMissingSeverity } from '@core/constants'
 import { effectiveBandOptions, bandsFromRows, normalizeBands, fillerBandSet } from '@core/bands'
 import { effectiveTypeOptions } from '@core/venueTypes'
 import { computeNextBatch } from '@core/nextBatch'
-import { replyHealth } from '@core/replyStatus'
 import { computeDuplicates, dismissPair } from '@core/duplicates'
 import { bandDateGaps, gapsKey } from '@core/bandDates'
+import { EMPTY_FILTERS, matchesFilters, normalizeFilterChips } from '@core/filterRows'
 import { linkVenues, reconcileShared, isMultiBand, isSharedField, SHARED_FIELDS } from '@core/multiBand'
 import { enableMultiBand, disableMultiBand, openBandFiles, createNewBandSet } from './lib/multiBandSwitch'
 import { mergeRules } from '@core/rules'
@@ -42,7 +42,6 @@ import { checkOpenclawPolicy } from './lib/policySync'
 const TemplatesManager = lazy(() => import('./components/TemplatesManager'))
 const BulkDraftModal = lazy(() => import('./components/BulkDraftModal'))
 
-const SEARCH_FIELDS = ['Venue', 'City', 'Country', 'Contact', 'Band', 'Email', 'Note', 'Status', 'Text', 'Time Frame', 'Dates']
 
 export default function App() {
   // The whole persisted config lives in the main process (userData/settings.json);
@@ -82,7 +81,7 @@ export default function App() {
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [venueDetail, setVenueDetail] = useState(null)
   const [update, setUpdate] = useState(null) // a newer release, for the banner
-  const [filters, setFilters] = useState({ band: '', country: '', type: '', status: '', actionOnly: false, nextBatch: false, missingInfo: false, duplicate: false, autoSend: false, search: '', advanced: [], sort: null })
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [edits, setEdits] = useState({})
   const [deletions, setDeletions] = useState(new Set())
   const [additions, setAdditions] = useState(new Set()) // _idx of imported/new rows (no edits of their own)
@@ -772,6 +771,12 @@ export default function App() {
     return name
   }
 
+  // Settings ▸ the chips above the list (Filter / Sort ▸ Chips).
+  const filterChips = useMemo(() => normalizeFilterChips(settings?.filterChips), [settings])
+  function handleChipsChange(next) {
+    persist({ ...settings, filterChips: next }).catch(e => setError(e.message))
+  }
+
   function handleDismiss(r1, r2) {
     const next = dismissPair(dismissed, r1, r2)
     setDismissed(next)
@@ -806,33 +811,12 @@ export default function App() {
     setVenueDetail(null)
   }
 
-  const filteredRows = useMemo(() => {
-    const q = (filters.search || '').toLowerCase().trim()
-    return rows.filter(r => {
-      if (deletions.has(r._idx)) return false
-      if (filters.nextBatch && !(r._nextBatch || r['Draft'] === 'TRUE')) return false
-      if (filters.autoSend && r['Auto'] !== 'TRUE') return false
-      if (filters.missingInfo && getMissingFields(r).length === 0) return false
-      if (filters.duplicate && !duplicateSet.has(venueRep.get(r._venueId))) return false
-      if (filters.actionOnly && !ACTION_STATUSES.has(r._status)) return false
-      if (filters.status && r._status !== filters.status) return false
-      if (filters.band && r['Band'] !== filters.band) return false
-      if (filters.country && r['Country'] !== filters.country) return false
-      if (filters.type && r['Type'] !== filters.type) return false
-      if (q && !SEARCH_FIELDS.some(f => (r[f] || '').toLowerCase().includes(q))) return false
-      for (const rule of filters.advanced || []) {
-        if (!rule.field || !rule.value) continue
-        if (rule.field === '_status') {
-          if (r._status !== rule.value) return false
-        } else if (rule.field === '_health') {
-          if (replyHealth(r) !== rule.value) return false
-        } else if (!String(r[rule.field] || '').toLowerCase().includes(rule.value.toLowerCase())) {
-          return false
-        }
-      }
-      return true
-    })
-  }, [rows, filters, deletions, duplicateSet, venueRep])
+  const isDuplicate = useCallback(r => duplicateSet.has(venueRep.get(r._venueId)), [duplicateSet, venueRep])
+  const liveRows = useMemo(() => rows.filter(r => !deletions.has(r._idx)), [rows, deletions])
+  const filteredRows = useMemo(
+    () => liveRows.filter(r => matchesFilters(r, filters, { isDuplicate })),
+    [liveRows, filters, isDuplicate],
+  )
 
   // Venues whose Dates have fallen out of step with their band's touring dates —
   // judged on what the table shows, so a fix (or any edit) clears it at once.
@@ -1036,20 +1020,12 @@ export default function App() {
             <div className="sm:hidden flex gap-2 items-start">
               <div className="flex-1 min-w-0">
                 <StatsBar
-                  rows={rows}
-                  activeStatus={filters.status}
-                  onStatusClick={status => setFilters(f => ({ ...f, status, actionOnly: false, nextBatch: false, autoSend: false }))}
-                  actionOnly={filters.actionOnly}
-                  nextBatch={filters.nextBatch}
-                  onActionOnlyToggle={() => setFilters(f => ({ ...f, actionOnly: !f.actionOnly, status: '', nextBatch: false, missingInfo: false, autoSend: false }))}
-                  onNextBatchToggle={() => setFilters(f => ({ ...f, nextBatch: !f.nextBatch, actionOnly: false, status: '', missingInfo: false, autoSend: false }))}
-                  missingInfo={filters.missingInfo}
-                  onMissingInfoToggle={() => setFilters(f => ({ ...f, missingInfo: !f.missingInfo, actionOnly: false, nextBatch: false, status: '', autoSend: false }))}
-                  duplicate={filters.duplicate}
+                  rows={liveRows}
+                  filters={filters}
+                  onChange={setFilters}
                   duplicateCount={duplicateSet.size}
-                  onDuplicateToggle={() => setFilters(f => ({ ...f, duplicate: !f.duplicate, actionOnly: false, nextBatch: false, missingInfo: false, status: '', autoSend: false }))}
-                  autoSend={filters.autoSend}
-                  onAutoSendToggle={() => setFilters(f => ({ ...f, autoSend: !f.autoSend, actionOnly: false, nextBatch: false, missingInfo: false, duplicate: false, status: '' }))}
+                  isDuplicate={isDuplicate}
+                  chips={filterChips}
                 />
               </div>
               <div className="shrink-0 pt-0.5">{mobileControls}</div>
@@ -1058,24 +1034,16 @@ export default function App() {
             {/* Desktop: StatsBar full width */}
             <div className="hidden sm:block">
               <StatsBar
-                rows={rows}
-                activeStatus={filters.status}
-                onStatusClick={status => setFilters(f => ({ ...f, status, actionOnly: false, nextBatch: false, autoSend: false }))}
-                actionOnly={filters.actionOnly}
-                nextBatch={filters.nextBatch}
-                onActionOnlyToggle={() => setFilters(f => ({ ...f, actionOnly: !f.actionOnly, status: '', nextBatch: false, missingInfo: false, autoSend: false }))}
-                onNextBatchToggle={() => setFilters(f => ({ ...f, nextBatch: !f.nextBatch, actionOnly: false, status: '', missingInfo: false, autoSend: false }))}
-                missingInfo={filters.missingInfo}
-                onMissingInfoToggle={() => setFilters(f => ({ ...f, missingInfo: !f.missingInfo, actionOnly: false, nextBatch: false, status: '', autoSend: false }))}
-                duplicate={filters.duplicate}
+                rows={liveRows}
+                filters={filters}
+                onChange={setFilters}
                 duplicateCount={duplicateSet.size}
-                onDuplicateToggle={() => setFilters(f => ({ ...f, duplicate: !f.duplicate, actionOnly: false, nextBatch: false, missingInfo: false, status: '', autoSend: false }))}
-                autoSend={filters.autoSend}
-                onAutoSendToggle={() => setFilters(f => ({ ...f, autoSend: !f.autoSend, actionOnly: false, nextBatch: false, missingInfo: false, duplicate: false, status: '' }))}
+                isDuplicate={isDuplicate}
+                chips={filterChips}
               />
             </div>
 
-            <FilterBar rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue} bandOptions={bandOptions} typeOptions={typeOptions} />
+            <FilterBar rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue} bandOptions={bandOptions} typeOptions={typeOptions} chips={filterChips} onChipsChange={handleChipsChange} />
             {view === 'list' && (
               <>
                 <div className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-3">

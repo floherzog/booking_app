@@ -3,6 +3,7 @@ import { normalizeBands } from './bands.js'
 import { normalizeVenueTypes, DEFAULT_VENUE_TYPES } from './venueTypes.js'
 import { normalizeAccounts } from './mailAccounts.js'
 import { DEFAULT_TEMPLATE_OPTIONS } from './templates.js'
+import { normalizeFilterChips } from './filterRows.js'
 
 // The settings shape and its normalisation, shared by both builds: the Mac app
 // keeps it in userData/settings.json (src/main/settingsStore.js), the web build
@@ -51,6 +52,8 @@ export const DEFAULT_SETTINGS = {
   },
   dismissedDupes: [],
   draftLog: {},                // 'Venue||City||Band' → ISO timestamp
+  // The chips above the list: default ones switched off, and saved filter sets.
+  filterChips: { hidden: [], custom: [] },
 }
 
 function isPlainObject(v) {
@@ -108,5 +111,6 @@ export function normalizeSettings(stored) {
     general: { ...DEFAULT_SETTINGS.general, ...(isPlainObject(s.general) ? s.general : {}) },
     dismissedDupes: Array.isArray(s.dismissedDupes) ? s.dismissedDupes : [],
     draftLog: isPlainObject(s.draftLog) ? s.draftLog : {},
+    filterChips: normalizeFilterChips(s.filterChips),
   }
 }

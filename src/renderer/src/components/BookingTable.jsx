@@ -317,7 +317,7 @@ const COLUMNS = [
         <div className={i.stacked ? 'flex flex-wrap gap-1 items-start' : 'flex flex-col gap-1 items-start'}>
           <DraftAction row={{ ...row, ...(edits[row._idx] || {}) }} meta={i.table.options.meta} />
           <FlagPill
-            label="Auto-draft" active={draft}
+            label="Next batch" active={draft}
             activeClass="bg-emerald-500 text-white border-emerald-500"
             onToggle={() => onEdit(row._idx, 'Draft', draft ? '' : 'TRUE')}
           />
@@ -569,7 +569,7 @@ function MobileEntry({ entry, edits, onEdit }) {
         {e['Follow Up Date'] && <span className="text-xs text-gray-400">Follow up <RelDate raw={e['Follow Up Date']} colorFn={followUpColor} row={e} /></span>}
       </div>
       <div className="mt-1 flex gap-1.5">
-        <FlagPill label="Auto-draft" active={draftNext} activeClass="bg-emerald-500 text-white border-emerald-500"
+        <FlagPill label="Next batch" active={draftNext} activeClass="bg-emerald-500 text-white border-emerald-500"
           onToggle={() => onEdit(entry._idx, 'Draft', draftNext ? '' : 'TRUE')} />
         <FlagPill label="Auto-send" active={autoSend} activeClass="bg-teal-500 text-white border-teal-500"
           onToggle={() => onEdit(entry._idx, 'Auto', autoSend ? '' : 'TRUE')} />
@@ -669,7 +669,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
       )}
       <div className="mt-1.5 flex gap-1.5">
         <FlagPill
-          label="Auto-draft" active={draftNext}
+          label="Next batch" active={draftNext}
           activeClass="bg-emerald-500 text-white border-emerald-500"
           onToggle={() => onEdit(r._idx, 'Draft', draftNext ? '' : 'TRUE')}
         />

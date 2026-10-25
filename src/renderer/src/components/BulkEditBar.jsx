@@ -15,7 +15,7 @@ const BULK_FIELDS = [
   { key: 'Time Frame', label: 'Time Frame', type: 'text' },
   { key: 'Dates', label: 'Dates', type: 'text' },
   { key: 'Note', label: 'Note', type: 'text' },
-  { key: 'Draft', label: 'Auto-draft flag', type: 'bool' },
+  { key: 'Draft', label: 'Next batch flag', type: 'bool' },
   { key: 'Auto', label: 'Auto-send flag', type: 'bool' },
   { key: 'filler', label: 'filler flag', type: 'bool' },
 ]

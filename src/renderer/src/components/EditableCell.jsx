@@ -41,14 +41,19 @@ export default function EditableCell({ value, rowIndex, field, edits, onEdit, cl
 
   if (editing) {
     if (isDate) {
+      // Wider than the column: a date column is about as wide as "11.09.26",
+      // and the field and its calendar button squeezed into that left room for
+      // two digits. While editing it spills over the next column, on top.
       return (
-        <DateInput
-          value={rawValue}
-          autoFocus
-          onCommit={commitDate}
-          onCancel={() => setEditing(false)}
-          className="w-24 rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
-        />
+        <div className="relative z-10 w-[8.5rem] rounded bg-white dark:bg-gray-800 shadow-sm">
+          <DateInput
+            value={rawValue}
+            autoFocus
+            onCommit={commitDate}
+            onCancel={() => setEditing(false)}
+            className="w-full rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+        </div>
       )
     }
     const sharedText = {

@@ -12,7 +12,7 @@ const GRAY = 'text-gray-400'
 // Statuses where re-emailing isn't the pending concern, so an old "last emailed"
 // date shouldn't alarm (would otherwise show orange/red for no reason).
 const LAST_EMAILED_MUTE = new Set([
-  STATUS.RECENTLY_PLAYED, STATUS.ON_HOLD, STATUS.FESTIVAL_INELIGIBLE,
+  STATUS.CONFIRMED, STATUS.RECENTLY_PLAYED, STATUS.ON_HOLD, STATUS.FESTIVAL_INELIGIBLE,
   STATUS.DEAD, STATUS.MISSING_INFO,
 ])
 
@@ -60,12 +60,14 @@ export function followUpColor(d, row, rules = DEFAULT_RULES) {
   return GRAY
 }
 
-// Recently played (or an upcoming gig) → too soon to rebook; the older it gets,
-// the greener. Green once it passes the RECENTLY_PLAYED threshold.
+// A confirmed gig still to come is good news → green. Recently played → too
+// soon to rebook; the older it gets, the greener, green once it passes the
+// RECENTLY_PLAYED threshold.
 export function lastPlayedColor(d, _row, rules = DEFAULT_RULES) {
   const c = rules.dateColors
+  if (d > new Date()) return GREEN                 // confirmed, upcoming
   const days = differenceInDays(new Date(), d)
-  if (days < c.lastPlayedRedDays) return RED       // recent or upcoming
+  if (days < c.lastPlayedRedDays) return RED       // recent
   if (days < c.lastPlayedOrangeDays) return ORANGE // in between
   return GREEN                                     // long enough ago
 }

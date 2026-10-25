@@ -48,9 +48,11 @@ export function classifyBooking(row, today, rules = DEFAULT_RULES, ctx = {}) {
   // send/follow-up list; the red "!" flag is enough of a prompt to fix it.
   if (isSendBlocked(row)) return STATUS.MISSING_INFO
 
-  // Played recently (or a future/upcoming gig) → not for booking outreach right
-  // now. Mirrors the next-batch policy.
+  // A gig still to come, or one played recently → not for booking outreach
+  // right now. Mirrors the next-batch policy. "Still to come" is the same test
+  // as replyHealth's 'gig'.
   const lastPlayed = parseDate(row['Last played'] || '')
+  if (lastPlayed && lastPlayed > today) return STATUS.CONFIRMED
   if (lastPlayed && differenceInDays(today, lastPlayed) < rules.recentlyPlayedDays) return STATUS.RECENTLY_PLAYED
 
   const lastEmailed = parseDate(lastEmailedRaw)

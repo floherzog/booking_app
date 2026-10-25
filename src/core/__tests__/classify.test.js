@@ -25,10 +25,17 @@ describe('classifyBooking — every status with the default rules', () => {
 
   it('RECENTLY_PLAYED inside the 365-day window, and not outside it', () => {
     expect(classifyBooking(row({ 'Last played': '01.01.25' }), TODAY)).toBe(STATUS.RECENTLY_PLAYED)
-    // An upcoming gig is "played" in the future → still recently played.
-    expect(classifyBooking(row({ 'Last played': '01.12.25' }), TODAY)).toBe(STATUS.RECENTLY_PLAYED)
     // 2 years ago → no longer blocking.
     expect(classifyBooking(row({ 'Last played': '01.01.23' }), TODAY)).not.toBe(STATUS.RECENTLY_PLAYED)
+  })
+
+  it('CONFIRMED for a gig still to come, ahead of every later gate', () => {
+    expect(classifyBooking(row({ 'Last played': '01.12.25' }), TODAY)).toBe(STATUS.CONFIRMED)
+    expect(classifyBooking(row({ 'Last played': '16.06.25', Note: 'anrufen', Type: 'festival' }), TODAY)).toBe(STATUS.CONFIRMED)
+    // A gig on "today" itself has started — recently played, as replyHealth says.
+    expect(classifyBooking(row({ 'Last played': '15.06.25' }), TODAY)).toBe(STATUS.RECENTLY_PLAYED)
+    // Still out of the send lists, as before.
+    expect(classifyBooking({ Venue: 'V', Band: '', Email: 'a@b.c', 'Last played': '01.12.25' }, TODAY)).toBe(STATUS.MISSING_INFO)
   })
 
   it('ON_HOLD on a hold keyword, unless the hold has expired', () => {
