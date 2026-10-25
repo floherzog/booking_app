@@ -678,5 +678,45 @@
   "Sejong||Korea": {
     "lat": 36.4799999,
     "lng": 127.289
+  },
+  "Busan||Korea": {
+    "lat": 35.1799528,
+    "lng": 129.0752365
+  },
+  "Jeonju||Korea": {
+    "lat": 35.8237631,
+    "lng": 127.1472805
+  },
+  "Daejeon||Korea": {
+    "lat": 36.3497007,
+    "lng": 127.3849016
+  },
+  "Jeju||Korea": {
+    "lat": 33.4998289,
+    "lng": 126.5313902
+  },
+  "Leuven||Belgium": {
+    "lat": 50.879202,
+    "lng": 4.7011675
+  },
+  "Lausanne||Switzerland": {
+    "lat": 46.5218269,
+    "lng": 6.6327025
+  },
+  "Montpellier||France": {
+    "lat": 43.6112422,
+    "lng": 3.8767337
+  },
+  "Rennes||France": {
+    "lat": 48.1113387,
+    "lng": -1.6800198
+  },
+  "Lens||France": {
+    "lat": 50.4291723,
+    "lng": 2.8319805
+  },
+  "Strasbourg||France": {
+    "lat": 48.584614,
+    "lng": 7.7507127
   }
 }
