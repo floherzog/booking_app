@@ -24,6 +24,25 @@ const SHORTCUT_OFF = Object.fromEntries(SHORTCUTS.map(s => [s.key, false]))
 
 export const SEARCH_FIELDS = ['Venue', 'City', 'Country', 'Contact', 'Band', 'Email', 'Note', 'Status', 'Text', 'Time Frame', 'Dates']
 
+// Column filters on the free-text columns take keywords: "formular, web form"
+// matches a Note with either. Elsewhere the value is one phrase, so a picked
+// value like "Müller, Anna" is not split.
+export const KEYWORD_FIELDS = new Set(['Note', 'Text', 'Status'])
+export function ruleTerms(rule) {
+  const v = String(rule?.value || '').toLowerCase()
+  const terms = KEYWORD_FIELDS.has(rule?.field) ? v.split(',') : [v]
+  return terms.map(t => t.trim()).filter(Boolean)
+}
+// A column filter: `op` 'none' keeps the rows that contain none of the terms;
+// anything else (and old rules without `op`) keeps the rows with one of them.
+function matchesRule(r, rule) {
+  if (rule.field === '_status') return r._status === rule.value
+  if (rule.field === '_health') return replyHealth(r) === rule.value
+  const cell = String(r[rule.field] || '').toLowerCase()
+  const hit = ruleTerms(rule).some(t => cell.includes(t))
+  return rule.op === 'none' ? !hit : hit
+}
+
 // The filters with one status pill or shortcut chip switched; the others go
 // off, since each of them answers "which venues?" on its own.
 export function toggleShortcut(filters, key) {
@@ -51,14 +70,8 @@ export function matchesFilters(r, filters, ctx = {}) {
   if (f.type && r['Type'] !== f.type) return false
   if (q && !SEARCH_FIELDS.some(k => (r[k] || '').toLowerCase().includes(q))) return false
   for (const rule of f.advanced || []) {
-    if (!rule.field || !rule.value) continue
-    if (rule.field === '_status') {
-      if (r._status !== rule.value) return false
-    } else if (rule.field === '_health') {
-      if (replyHealth(r) !== rule.value) return false
-    } else if (!String(r[rule.field] || '').toLowerCase().includes(rule.value.toLowerCase())) {
-      return false
-    }
+    if (!rule.field || !ruleTerms(rule).length) continue
+    if (!matchesRule(r, rule)) return false
   }
   return true
 }
@@ -71,7 +84,7 @@ function canonical(filters) {
     f.band, f.country, f.type, f.status,
     ...SHORTCUTS.map(s => !!f[s.key]),
     (f.search || '').trim(),
-    (f.advanced || []).filter(r => r.field && r.value).map(r => [r.field, r.value]),
+    (f.advanced || []).filter(r => r.field && ruleTerms(r).length).map(r => [r.field, r.op === 'none' ? 'none' : 'any', ruleTerms(r)]),
     f.sort?.field ? [f.sort.field, f.sort.dir || 'asc'] : null,
   ])
 }
@@ -94,9 +107,11 @@ export function describeFilters(filters, columnLabel = k => k) {
   if (f.type) parts.push(`Type: ${f.type}`)
   if ((f.search || '').trim()) parts.push(`Search: “${f.search.trim()}”`)
   for (const r of f.advanced || []) {
-    if (!r.field || !r.value) continue
-    const value = r.field === '_status' ? (STATUS_META[r.value]?.label || r.value) : r.value
-    parts.push(`${columnLabel(r.field)}: ${value}`)
+    if (!r.field || !ruleTerms(r).length) continue
+    const value = r.field === '_status' ? (STATUS_META[r.value]?.label || r.value)
+      : r.field === '_health' ? r.value
+      : ruleTerms(r).map(t => `“${t}”`).join(r.op === 'none' ? ' or ' : ' / ')
+    parts.push(`${columnLabel(r.field)}: ${r.op === 'none' ? 'not ' : ''}${value}`)
   }
   if (f.sort?.field) parts.push(`sorted by ${columnLabel(f.sort.field)} ${f.sort.dir === 'desc' ? '↓' : '↑'}`)
   return parts.join(' · ') || 'No filters'

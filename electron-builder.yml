@@ -68,9 +68,12 @@ mac:
   extendInfo:
     # Shown in the macOS permission prompts the AppleScript fallback triggers.
     NSAppleEventsUsageDescription: Booking needs permission to control Mail so it can open a pre-filled draft for you.
+    # Shown the first time the update banner's Download saves a new version.
+    NSDownloadsFolderUsageDescription: Booking saves new versions of itself to your Downloads folder when you click Download in the update banner.
 
 dmg:
   title: ${productName}
 
-# Nothing here auto-updates; distribution is a file you hand someone.
+# Nothing here auto-updates: the update banner downloads the new .dmg (see
+# src/main/ipc/updates.js) and you install it by hand.
 publish: null

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ADVANCED_COLUMNS, STATUS_META, HEALTH_OPTIONS } from '@core/constants'
-import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS } from '@core/filterRows'
+import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS, KEYWORD_FIELDS } from '@core/filterRows'
 import { ORDERED_STATUSES, StatusPill, ShortcutChip, CustomChip, columnLabel } from './StatsBar'
 
 const sel = 'rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
@@ -21,7 +21,8 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
   const distinct = useMemo(() => {
     const map = {}
     ADVANCED_COLUMNS.forEach(c => {
-      if (c.key === '_status' || c.type === 'health' || c.type === 'date') return
+      // Free-text columns take keywords; a list of whole notes helps nobody.
+      if (c.key === '_status' || c.type === 'health' || c.type === 'date' || KEYWORD_FIELDS.has(c.key)) return
       const set = new Set()
       for (const r of rows) {
         const v = (r[c.key] || '').trim()
@@ -77,7 +78,7 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
         </div>
 
         {advanced.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-500">No column filters — add one to narrow by any field (status, contact, time frame, …).</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">No column filters — add one to narrow by any field (status, contact, time frame, …). Note, Outreach Text and Reply Status take keywords: “formular, web form” matches either.</p>
         )}
 
         {advanced.map((rule, i) => (
@@ -89,6 +90,17 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
             >
               {SORTED_COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
+            {rule.field !== '_status' && rule.field !== '_health' && (
+              <select
+                className={`${sel} w-36 shrink-0`}
+                value={rule.op === 'none' ? 'none' : 'any'}
+                onChange={e => updateRule(i, { op: e.target.value })}
+                aria-label="Contains or doesn’t contain"
+              >
+                <option value="any">contains</option>
+                <option value="none">doesn’t contain</option>
+              </select>
+            )}
             <ValueInput rule={rule} distinct={distinct} onValue={v => updateRule(i, { value: v })} />
             <button
               onClick={() => removeRule(i)}
@@ -303,7 +315,7 @@ function ValueInput({ rule, distinct, onValue }) {
         className={`${sel} flex-1 min-w-0`}
         value={rule.value}
         onChange={e => onValue(e.target.value)}
-        placeholder={col?.type === 'date' ? 'contains… (e.g. 2026)' : 'contains…'}
+        placeholder={KEYWORD_FIELDS.has(rule.field) ? 'keywords, comma-separated (any of them)' : col?.type === 'date' ? 'e.g. 2026' : 'text…'}
         list={opts.length ? listId : undefined}
       />
       {opts.length > 0 && (

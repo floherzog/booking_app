@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getStoredTheme, setTheme } from '../lib/theme'
+import { usePinToolbar, setPinToolbar } from '../lib/uiPrefs'
 import { exportCsv } from '../lib/csvFile'
 import { validateRules, mergeRules } from '@core/rules'
 import RulesEditor from './RulesEditor'
@@ -43,6 +44,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // Theme stays a per-Mac preference in localStorage (see the note in the
   // General section) and applies immediately rather than on Save.
   const [theme, setThemeState] = useState(getStoredTheme)
+  const pinToolbar = usePinToolbar()
   const [newBand, setNewBand] = useState('')
   const [newType, setNewType] = useState('')
   const [version, setVersion] = useState('')
@@ -586,10 +588,24 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         </button>
                       ))}
                     </div>
+                    <label className="mt-3 flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pinToolbar}
+                        onChange={e => setPinToolbar(e.target.checked)}
+                        className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        Keep the toolbar visible while scrolling
+                        <span className="block text-xs text-gray-400 dark:text-gray-500">
+                          Search, Select, Filter / Chips and the column headings stay at the top of the list; Save joins them once the header has scrolled away.
+                        </span>
+                      </span>
+                    </label>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                       {caps.localFiles
-                        ? 'Applies straight away and is remembered per Mac, so it isn’t part of the settings file you might sync between machines.'
-                        : 'Applies straight away and is remembered in this browser only.'}
+                        ? 'Both apply straight away and are remembered per Mac, so they aren’t part of the settings file you might sync between machines.'
+                        : 'Both apply straight away and are remembered in this browser only.'}
                     </p>
                   </div>
 

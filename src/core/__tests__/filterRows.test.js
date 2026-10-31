@@ -8,7 +8,7 @@ import { normalizeSettings } from '@core/settings'
 const rows = [
   { _idx: 0, _status: 'SEND', Venue: 'Jazzfabrik', Band: 'Almost Natural', Country: 'Germany', Email: 'a@b.cc', Draft: 'TRUE' },
   { _idx: 1, _status: 'CONFIRMED', Venue: 'Moldejazz', Band: 'Trillmann', Country: 'Norway', Email: 'm@b.cc', 'Last played': '01.07.27' },
-  { _idx: 2, _status: 'NEVER_CONTACTED', Venue: 'Achter', Band: 'Almost Natural', Country: 'Germany', Email: '' },
+  { _idx: 2, _status: 'NEVER_CONTACTED', Venue: 'Achter', Band: 'Almost Natural', Country: 'Germany', Email: '', Contact: 'Müller, Anna', Note: 'Anfragen nur über Formular' },
 ]
 const shown = (f, ctx) => rows.filter(r => matchesFilters(r, f, ctx)).map(r => r._idx)
 
@@ -25,6 +25,18 @@ describe('matchesFilters', () => {
     expect(shown({ advanced: [{ field: '_status', value: 'CONFIRMED' }] })).toEqual([1])
     expect(shown({ advanced: [{ field: 'Last played', value: '27' }, { field: 'Venue', value: '' }] })).toEqual([1])
     expect(shown({ duplicate: true }, { isDuplicate: r => r._idx === 2 })).toEqual([2])
+  })
+
+  it('takes keywords in the Note, and can keep what does not contain them', () => {
+    const note = (value, op) => shown({ advanced: [{ field: 'Note', value, op }] })
+    expect(note('abgesagt, Formular')).toEqual([2])
+    expect(note(' , ')).toEqual([0, 1, 2]) // no keywords = no filter
+    expect(note('formular', 'none')).toEqual([0, 1])
+    expect(note('abgesagt, formular', 'none')).toEqual([0, 1])
+    // Other columns are one phrase: a picked "Müller, Anna" is not two words.
+    expect(shown({ advanced: [{ field: 'Contact', value: 'Müller, Anna' }] })).toEqual([2])
+    expect(shown({ advanced: [{ field: 'Contact', value: 'Anna, Müller' }] })).toEqual([])
+    expect(shown({ advanced: [{ field: 'Venue', value: 'jazz', op: 'none' }] })).toEqual([2])
   })
 })
 
@@ -49,6 +61,12 @@ describe('filtersEqual', () => {
     expect(filtersEqual({ sort: { field: 'Venue', dir: 'asc' } }, { sort: { field: 'Venue', dir: 'desc' } })).toBe(false)
     expect(isEmptyFilters({ status: 'SEND' })).toBe(false)
   })
+
+  it('counts the operator and the keywords, not their spelling', () => {
+    const a = { advanced: [{ field: 'Note', value: 'Formular, web form' }] }
+    expect(filtersEqual(a, { advanced: [{ field: 'Note', value: 'formular,web form ', op: 'any' }] })).toBe(true)
+    expect(filtersEqual(a, { advanced: [{ field: 'Note', value: 'formular, web form', op: 'none' }] })).toBe(false)
+  })
 })
 
 describe('describeFilters', () => {
@@ -56,6 +74,8 @@ describe('describeFilters', () => {
     const text = describeFilters({ status: 'CONFIRMED', band: 'Trillmann', search: 'jazz', sort: { field: 'Venue', dir: 'desc' } })
     expect(text).toBe('Status: Confirmed · Band: Trillmann · Search: “jazz” · sorted by Venue ↓')
     expect(describeFilters(EMPTY_FILTERS)).toBe('No filters')
+    expect(describeFilters({ advanced: [{ field: 'Note', value: 'formular, form only' }] })).toBe('Note: “formular” / “form only”')
+    expect(describeFilters({ advanced: [{ field: 'Note', value: 'abgesagt', op: 'none' }] })).toBe('Note: not “abgesagt”')
   })
 })
 

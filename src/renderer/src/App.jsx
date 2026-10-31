@@ -34,7 +34,7 @@ import { useInlinePrompt } from './components/InlinePrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
 import BandDatesBanner from './components/BandDatesBanner'
-import ActionDock from './components/ActionDock'
+import { usePinToolbar } from './lib/uiPrefs'
 import { api, caps } from './platform'
 import { checkOpenclawPolicy } from './lib/policySync'
 
@@ -91,6 +91,7 @@ export default function App() {
   const [mergeTarget, setMergeTarget] = useState(null) // { rowA, rowB }
   const [view, setView] = useState('list')
   const [selectMode, setSelectMode] = useState(false)
+  const pinToolbar = usePinToolbar()
   const [selected, setSelected] = useState(new Set()) // _idx of bulk-selected rows
   // The adapter instance that actually performed the last load — it carries the
   // mtime/sha conflict-guard token that Save needs.
@@ -914,6 +915,18 @@ export default function App() {
   )
 
   // Mobile-only: icon-only vertical controls sidebar
+  // "Showing 120 of 316 venues · fetched 11:24 · 3 unsaved edits" — the
+  // header's line, so the toolbar and the column headings can sit together.
+  const listSummary = (
+    <p className="text-xs text-gray-400 dark:text-gray-500">
+      {filteredVenueCount === venueCount ? `${venueCount} venues` : `Showing ${filteredVenueCount} of ${venueCount} venues`}
+      {lastFetched && ` · fetched ${lastFetched.toLocaleTimeString()}`}
+      {editCount > 0 && (
+        <span className="text-amber-600 dark:text-amber-400 font-medium"> · {editCount} unsaved edit{editCount !== 1 ? 's' : ''}</span>
+      )}
+    </p>
+  )
+
   const mobileControls = (
     <div className="flex flex-col gap-0.5 items-stretch">
       <div className="flex flex-col rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-base">
@@ -964,11 +977,7 @@ export default function App() {
         {/* Desktop header — original layout */}
         <div className="hidden sm:flex items-start justify-between">
           <div>
-            {lastFetched && (
-              <p className="text-xs text-gray-400 dark:text-gray-500">
-                {venueCount} venues · fetched {lastFetched.toLocaleTimeString()}
-              </p>
-            )}
+            {lastFetched && listSummary}
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
@@ -1026,6 +1035,9 @@ export default function App() {
           <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">Loading booking data…</div>
         )}
 
+        {/* Mobile: the same count line the desktop header carries */}
+        {lastFetched && rows.length > 0 && <div className="sm:hidden">{listSummary}</div>}
+
         {/* Mobile controls when no data yet */}
         {rows.length === 0 && !loading && !lastFetched && (
           <div className="sm:hidden flex justify-end">{mobileControls}</div>
@@ -1062,15 +1074,20 @@ export default function App() {
               />
             </div>
 
-            <FilterBar rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue} bandOptions={bandOptions} typeOptions={typeOptions} chips={filterChips} onChipsChange={handleChipsChange} />
+            <FilterBar
+              rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue}
+              bandOptions={bandOptions} typeOptions={typeOptions} chips={filterChips} onChipsChange={handleChipsChange}
+              canSelect={view === 'list' && rows.length > 0}
+              selectMode={selectMode}
+              selectedCount={selected.size}
+              onToggleSelect={() => (selectMode ? exitSelect() : setSelectMode(true))}
+              onEmail={caps.mail && rows.length > 0 ? () => setShowBulkDraft(true) : null}
+              pinned={pinToolbar}
+              editCount={editCount}
+              onSave={() => setShowSave(true)}
+            />
             {view === 'list' && (
               <>
-                <div className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-3">
-                  <span>Showing {filteredVenueCount} of {venueCount} venues</span>
-                  {editCount > 0 && (
-                    <span className="text-amber-600 dark:text-amber-400 font-medium">{editCount} unsaved edit{editCount !== 1 ? 's' : ''}</span>
-                  )}
-                </div>
                 {rows.length === 0 ? (
                   <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">
                     No venues yet — add one with <span className="font-medium">+ New Venue</span>, or bring
@@ -1090,6 +1107,7 @@ export default function App() {
                   selectMode={selectMode}
                   selected={selected}
                   onSetSelected={setSelected}
+                  onStartSelect={ids => { setSelectMode(true); setSelected(new Set(ids)) }}
                   onToggleAll={toggleAllSelect}
                   templates={templates}
                   languages={settings.languages}
@@ -1112,16 +1130,6 @@ export default function App() {
         )}
       </div>
 
-      {settings && rows.length > 0 && (
-        <ActionDock
-          selectMode={selectMode}
-          selectedCount={selected.size}
-          canSelect={view === 'list'}
-          onToggleSelect={() => (selectMode ? exitSelect() : setSelectMode(true))}
-          onEmail={caps.mail ? () => setShowBulkDraft(true) : null}
-        />
-      )}
-
       {selectMode && view === 'list' && (
         <BulkEditBar
           selectedCount={selected.size}
@@ -1132,6 +1140,8 @@ export default function App() {
           onClear={() => setSelected(new Set())}
           onBulkEdit={handleBulkEdit}
           onBulkDelete={handleBulkDelete}
+          onEmail={caps.mail ? () => setShowBulkDraft(true) : null}
+          onDone={exitSelect}
         />
       )}
 

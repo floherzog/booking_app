@@ -34,7 +34,7 @@ function defaultValue(type) {
 
 export default function BulkEditBar({
   selectedCount, filteredCount, bandOptions = [], typeOptions = [],
-  onSelectAllFiltered, onClear, onBulkEdit, onBulkDelete,
+  onSelectAllFiltered, onClear, onBulkEdit, onBulkDelete, onEmail, onDone,
 }) {
   const [fieldKey, setFieldKey] = useState(BULK_FIELDS[0].key)
   const [value, setValue] = useState('')
@@ -61,9 +61,9 @@ export default function BulkEditBar({
   const ctrl = 'rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500'
 
   return (
-    // Clear of the Select | Email dock in the bottom right corner.
-    <div className="fixed inset-x-0 bottom-4 z-[1000] flex justify-center px-4 sm:pr-60 pointer-events-none">
-      <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl px-4 py-3 max-w-4xl">
+    // Floating at the bottom on a desktop; a full-width sheet on a phone.
+    <div className="fixed inset-x-0 bottom-0 sm:bottom-4 z-[1000] flex justify-center sm:px-4 pointer-events-none">
+      <div className="pointer-events-auto w-full sm:w-auto flex flex-wrap items-center gap-3 rounded-t-xl sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3 max-w-4xl">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold text-gray-800 dark:text-gray-100">{selectedCount}</span>
           <span className="text-gray-500 dark:text-gray-400">selected</span>
@@ -79,10 +79,10 @@ export default function BulkEditBar({
           </button>
         </div>
 
-        <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+        <div className="hidden sm:block h-6 w-px bg-gray-200 dark:bg-gray-700" />
 
-        {/* Field + value + apply */}
-        <div className="flex items-center gap-2">
+        {/* Field + value + apply — wraps on a phone instead of running off the edge */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto [&>select]:max-w-full">
           <span className="text-xs text-gray-400 dark:text-gray-500">Set</span>
           <select value={fieldKey} onChange={e => pickField(e.target.value)} className={ctrl}>
             {BULK_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
@@ -90,12 +90,12 @@ export default function BulkEditBar({
           <span className="text-xs text-gray-400 dark:text-gray-500">to</span>
 
           {field.type === 'band' ? (
-            <select value={value} onChange={e => setValue(e.target.value)} className={`${ctrl} max-w-[12rem]`}>
+            <select value={value} onChange={e => setValue(e.target.value)} className={`${ctrl} max-w-[12rem] min-w-0`}>
               <option value="">— (clear)</option>
               {bandOptions.filter(Boolean).map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           ) : field.type === 'venueType' ? (
-            <select value={value} onChange={e => setValue(e.target.value)} className={`${ctrl} max-w-[12rem]`}>
+            <select value={value} onChange={e => setValue(e.target.value)} className={`${ctrl} max-w-[12rem] min-w-0`}>
               <option value="">— (clear)</option>
               {typeOptions.filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -130,7 +130,7 @@ export default function BulkEditBar({
 
         {note && <span className="text-xs text-emerald-600 dark:text-emerald-400">{note}</span>}
 
-        <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+        <div className="hidden sm:block h-6 w-px bg-gray-200 dark:bg-gray-700" />
 
         {/* Delete */}
         {confirmDel ? (
@@ -149,6 +149,26 @@ export default function BulkEditBar({
             Delete{selectedCount ? ` ${selectedCount}` : ''}
           </button>
         )}
+
+        <div className="ml-auto flex items-center gap-2">
+          {onEmail && (
+            <button
+              onClick={onEmail}
+              disabled={none}
+              title="Draft or send to the selected venues"
+              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors disabled:opacity-40"
+            >
+              <span aria-hidden="true">✉</span> Email{selectedCount ? ` ${selectedCount}` : ''}
+            </button>
+          )}
+          <button
+            onClick={onDone}
+            title="Leave Select mode"
+            className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500"
+          >
+            Done
+          </button>
+        </div>
       </div>
     </div>
   )

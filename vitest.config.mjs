@@ -2,6 +2,8 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  // Components use the automatic JSX runtime (no `import React`), as in the app builds.
+  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: {
       '@core': resolve(process.cwd(), 'src/core'),

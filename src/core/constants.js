@@ -226,14 +226,23 @@ export function emailAddresses(value) {
 // Venues that only take enquiries through a form on their website. They are
 // not missing an email — there is none to have — but they can't be drafted.
 const ONLINE_FORM_RE = /\b(online|web|contact|kontakt)[\s-]*form|\bformul[a-z]*\b|\bform only\b|\bvia form\b|\bnur (über )?formular|https?:\/\//i
+// A Note is prose, so it is read more strictly: no bare links (notes are full
+// of them) and no loose "formul…" ("anders formulieren").
+const NOTE_FORM_RE = /\b(online|web|contact|kontakt)[\s-]*form(ular)?\b|\bformular\b|\bform only\b|\bvia (web)?form\b|\bnur (über )?(das )?formular|\banfrage über (das )?formular/i
+function noteSaysForm(row) {
+  return NOTE_FORM_RE.test(String(row?.['Note'] || ''))
+}
 export function isOnlineForm(row) {
   const email = String(row?.['Email'] || '')
   if (emailAddresses(email).length) return false
-  return ONLINE_FORM_RE.test(email) || ONLINE_FORM_RE.test(String(row?.['Contact'] || ''))
+  return ONLINE_FORM_RE.test(email) || ONLINE_FORM_RE.test(String(row?.['Contact'] || '')) || noteSaysForm(row)
 }
-// The form's address, when the Email or Contact cell holds one.
+// The form's address, when the Email or Contact cell holds one — or the Note,
+// when it is the Note that says the venue takes a form.
 export function onlineFormUrl(row) {
-  for (const v of [row?.['Email'], row?.['Contact']]) {
+  const cells = [row?.['Email'], row?.['Contact']]
+  if (noteSaysForm(row)) cells.push(row?.['Note'])
+  for (const v of cells) {
     const m = String(v || '').match(/https?:\/\/\S+/i)
     if (m) return m[0].replace(/[),.;]+$/, '')
   }

@@ -51,7 +51,13 @@ the detour: it is what makes the app open *immediately* and without a warning.
 > Desktop, run `xattr -dr com.apple.quarantine ~/Desktop/Booking.app`, and drag it
 > back. Finder is allowed to move apps, so nothing blocks it.
 
-Afterwards, **Booking → Check for Updates…** tells you when there is a newer one.
+Afterwards, Booking tells you when there is a newer one (and **Booking → Check
+for Updates…** asks on demand). **Download** in that banner fetches the new `.dmg`
+inside the app, with a progress bar, checks it against the release's checksum and
+leaves it in Downloads **without the quarantine flag** — so updating that way
+needs no Terminal step: press **Open**, drag Booking into Applications, done. The
+first time, macOS asks whether Booking may save to your Downloads folder. The
+`xattr` step above is only for a copy downloaded with a browser.
 
 ## What an update keeps
 
@@ -90,8 +96,9 @@ inside the app bundle, so nothing is lost:
   “Lieber Thomas”, or formally “Sehr geehrte Frau Müller”.
 - **Drafts straight into Apple Mail**, one venue at a time or in bulk — or send
   for real over SMTP, now or at a scheduled time, with the `Auto` column
-  deciding per venue. **Select | ✉ Email** in the bottom right corner picks
-  venues (click, shift-click or drag across rows) and writes to them.
+  deciding per venue. **Select** and **✉ Email**, next to Filter / Chips, pick
+  venues (click, shift-click or drag across rows; on a phone tap, or press and
+  hold a venue) and write to them.
 - **Keeps `Last emailed` and the reply status honest** by reading the mail
   account itself, and always as edits you approve.
 - **Map view** of your venues, with offline-seeded coordinates.
@@ -233,6 +240,21 @@ runs in the main process.
 > secrets written by the previous one. They read as "not set" and have to be
 > entered again. Nothing else is lost.
 
+## Finding venues
+
+The chips above the list are the quick way: round ones are statuses, square ones
+are lists that cut across them (Next batch, Incomplete details, Online form…),
+and your own saved filters sit after them. **Filter / Chips** holds the rest:
+column filters, sorting, and which chips to show. A column filter *contains* or
+*doesn't contain* a value; on the free-text columns — Note, Outreach Text and
+Reply Status — it takes comma-separated keywords and matches any of them, so
+`Note` · contains · `formular, web form` finds both. Save any combination as a
+chip of your own.
+
+The search box, Select, ✉ Email, Filter / Chips and the column headings stay at
+the top while you scroll (turn that off in *Settings ▸ General*); Save joins them
+once the header has scrolled away.
+
 ## Rules
 
 **Settings ▸ Rules.** The defaults reproduce the original web app exactly, so a
@@ -282,7 +304,8 @@ the red “!” to see which. The template check only applies once the app has
 templates of its own, so a list drafted elsewhere (OpenClaw) is not affected.
 
 Venues that only take an **online form** (“online form”, “Kontaktformular”, a link
-in the Email column) keep their normal status but are never drafted; the square
+in the Email column, or a Note like “Anfragen nur über das Formular” when there is
+no address) keep their normal status but are never drafted; the square
 **Online form** chip lists them, and the venue panel links to the form.
 
 ## What the row colours mean
@@ -476,7 +499,7 @@ Exact formatting, no permission prompts, and it works in bulk.
    without guessing at names.
 4. Save.
 
-Then use **Draft in Mail** on any venue, or **✉ Email** in the bottom right corner
+Then use **Draft in Mail** on any venue, or **✉ Email** next to Filter / Chips
 for a bulk run: pick a source (next batch, follow-ups due, flagged Next Batch,
 exactly what your filters are showing, or the venues you picked with **Select**),
 review the preflight list, and let it work through them one at a time.

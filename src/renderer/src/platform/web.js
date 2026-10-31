@@ -55,6 +55,10 @@ export const UNSUPPORTED = {
   resolveGenders: 'articles',
   setGenderOverride: 'articles',
   checkForUpdates: 'updates',
+  downloadUpdate: 'updates',
+  cancelUpdateDownload: 'updates',
+  openUpdate: 'updates',
+  revealUpdate: 'updates',
 }
 
 const BASE = import.meta.env.BASE_URL || '/'
@@ -391,6 +395,7 @@ export const api = {
   // Nothing on the web pushes menu, update or scheduler events.
   onMenu: noopSubscription,
   onUpdateAvailable: noopSubscription,
+  onUpdateProgress: noopSubscription,
   onScheduleUpdate: noopSubscription,
   // Web only.
   fetchOpenclawScript,

@@ -30,6 +30,17 @@ describe('isOnlineForm', () => {
     expect(onlineFormUrl({ Email: 'online form' })).toBe('')
   })
 
+  it('reads the Note too, but only when there is no address and only plain wording', () => {
+    for (const Note of ['Anfragen nur über das Formular', 'nur Kontaktformular', 'Booking via webform, see site', 'online form only']) {
+      expect(isOnlineForm({ Email: '', Note })).toBe(true)
+    }
+    expect(isOnlineForm({ Email: 'info@club.de', Note: 'nur über Kontaktformular' })).toBe(false)
+    expect(isOnlineForm({ Email: '', Note: 'Text anders formulieren' })).toBe(false)
+    expect(isOnlineForm({ Email: '', Note: 'Website: https://club.de' })).toBe(false)
+    expect(onlineFormUrl({ Email: '', Note: 'Kontaktformular: https://club.de/kontakt' })).toBe('https://club.de/kontakt')
+    expect(onlineFormUrl({ Email: '', Note: 'see https://club.de' })).toBe('')
+  })
+
   it('has its own chip', () => {
     expect(matchesFilters({ Email: 'online form' }, { onlineForm: true })).toBe(true)
     expect(matchesFilters({ Email: 'a@club.de' }, { onlineForm: true })).toBe(false)

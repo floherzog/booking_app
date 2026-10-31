@@ -72,6 +72,17 @@ const api = {
 
   // Updates (compare against the latest GitHub release; nothing self-installs)
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  // Download the newer release's .dmg into Downloads (no quarantine mark), then
+  // open it or show it in Finder. The file is chosen in the main process.
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  cancelUpdateDownload: () => ipcRenderer.invoke('updates:cancel'),
+  openUpdate: () => ipcRenderer.invoke('updates:open'),
+  revealUpdate: () => ipcRenderer.invoke('updates:reveal'),
+  onUpdateProgress: cb => {
+    const handler = (_e, p) => cb(p)
+    ipcRenderer.on('updates:progress', handler)
+    return () => ipcRenderer.removeListener('updates:progress', handler)
+  },
   getAppVersion: () => ipcRenderer.invoke('app:version'),
 
   // Scheduled bulk runs (drafts and/or sends at a chosen time)

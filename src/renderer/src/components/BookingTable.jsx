@@ -21,6 +21,7 @@ import { healthMeta, HEALTH_META } from '../lib/health'
 import { prepareDraft } from '../lib/drafts'
 import { useClassifyCtx } from '../lib/rulesContext'
 import { useDragSelect } from '../lib/useDragSelect'
+import { usePinToolbar } from '../lib/uiPrefs'
 import { isSharedField } from '@core/multiBand'
 
 
@@ -580,6 +581,100 @@ function MobileEntry({ entry, edits, onEdit }) {
   )
 }
 
+// Selecting on a phone. In Select mode a tap toggles the card (nothing inside
+// it reacts) and a checkbox shows which are picked; outside it, pressing and
+// holding a card starts Select mode with that card picked. There is no drag
+// selection here: on a touch screen a drag scrolls.
+const LONG_PRESS_MS = 500
+const LONG_PRESS_SLOP = 10 // px the finger may wander before it counts as scrolling
+function MobileSelectable({ row, selectMode, selected, onSetSelected, onStartSelect, children }) {
+  const press = useRef(null)
+  const ids = (row.original._entries || [row.original]).map(e => e._idx)
+  const isSelected = selectMode && ids.every(id => selected?.has(id))
+
+  function cancelPress() {
+    if (press.current) {
+      clearTimeout(press.current.timer)
+      window.removeEventListener('scroll', press.current.onScroll)
+    }
+    press.current = null
+  }
+  function fire() {
+    const p = press.current
+    if (!p || p.fired) return
+    clearTimeout(p.timer)
+    window.removeEventListener('scroll', p.onScroll)
+    p.fired = true
+    navigator.vibrate?.(10)
+    onStartSelect(ids)
+  }
+  function onPointerDown(e) {
+    // A long press the browser ended without a click leaves its state behind;
+    // a new touch starts afresh, so the first tap in Select mode counts.
+    cancelPress()
+    if (selectMode || !onStartSelect || e.pointerType === 'mouse') return
+    // A press that turns into scrolling is no long press.
+    const onScroll = () => { if (!press.current?.fired) cancelPress() }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    press.current = { x: e.clientX, y: e.clientY, fired: false, onScroll, timer: setTimeout(fire, LONG_PRESS_MS) }
+  }
+  function onPointerMove(e) {
+    const p = press.current
+    if (p && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > LONG_PRESS_SLOP) cancelPress()
+  }
+  function toggle() {
+    const next = new Set(selected)
+    for (const id of ids) {
+      if (isSelected) next.delete(id)
+      else next.add(id)
+    }
+    onSetSelected(next)
+  }
+
+  return (
+    <div
+      // The tint is laid over the card, whose own status colours would hide a background.
+      className={`relative flex items-stretch select-none [-webkit-touch-callout:none] ${isSelected ? 'after:absolute after:inset-0 after:bg-indigo-500/15 after:pointer-events-none' : ''}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={() => { if (!press.current?.fired) cancelPress() }}
+      // The browser's own long-press gesture cancels the pointer (and may ask
+      // for a context menu) at about the moment ours fires; that is the long
+      // press, not a reason to drop it. Scrolling already cancelled above.
+      onContextMenu={e => {
+        if (!press.current) return
+        e.preventDefault()
+        fire()
+      }}
+      onClickCapture={e => {
+        // The click that ends a long press only started Select mode.
+        if (press.current?.fired) {
+          e.preventDefault(); e.stopPropagation(); cancelPress()
+          return
+        }
+        if (!selectMode) return
+        e.preventDefault(); e.stopPropagation()
+        toggle()
+      }}
+    >
+      {selectMode && (
+        <span className="flex items-center pl-3 shrink-0" aria-hidden="true">
+          <span className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected
+            ? 'bg-indigo-600 border-indigo-600 text-white'
+            : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'}`}>
+            {isSelected && (
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M4 8.2l2.5 2.5 5.5-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </span>
+        </span>
+      )}
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  )
+}
+
 function MobileCard({ row, edits, onVenueClick, onEdit }) {
   const classify = useClassifyCtx()
   const r = row.original
@@ -688,7 +783,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
 
 const missingTitle = missing => `Missing: ${describeMissing(missing)}`
 
-export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
+export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onStartSelect, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
   const [sorting, setSorting] = useState(sortBy || [{ id: '_status', desc: false }])
 
   useEffect(() => {
@@ -760,6 +855,52 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
   // name dropped out again, and the list flipped between the two layouts every
   // frame. Measured again only when the columns or the window width change.
   const tableRef = useRef(null)
+
+  // Column headings that stay under the pinned toolbar (Settings ▸ General).
+  // position: sticky only works while no box between the table and the window
+  // scrolls, so when the table fits the window the wrapper clips instead of
+  // scrolling sideways and the headings simply stick. When it is wider than the
+  // window the wrapper has to scroll, and the headings are moved down by hand
+  // as the page scrolls instead.
+  const pinHead = usePinToolbar() && isDesktop
+  const theadRef = useRef(null)
+  const [fits, setFits] = useState(true)
+  useLayoutEffect(() => {
+    const wrap = listRef.current
+    const tbl = tableRef.current
+    if (!isDesktop || !wrap || !tbl) return
+    const check = () => setFits(tbl.scrollWidth <= wrap.clientWidth + 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(wrap)
+    ro.observe(tbl)
+    return () => ro.disconnect()
+  }, [isDesktop])
+  useEffect(() => {
+    const head = theadRef.current
+    if (!pinHead || fits || !head) return
+    let frame = 0
+    const cells = () => head.querySelectorAll('th')
+    const place = () => {
+      frame = 0
+      const pinTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-top')) || 0
+      const r = head.getBoundingClientRect() // its own place: moving the cells doesn't move it
+      const room = (tableRef.current?.getBoundingClientRect().bottom ?? r.bottom) - r.bottom
+      const shift = Math.max(0, Math.min(pinTop - r.top, room))
+      cells().forEach(th => { th.style.transform = shift ? `translateY(${shift}px)` : '' })
+    }
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(place) }
+    place()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      cells().forEach(th => { th.style.transform = '' })
+    }
+  }, [pinHead, fits])
+
   const layoutKey = `${listWidth}|${columns.map(c => c.id ?? c.accessorKey).join(',')}|${groups.length > 0}`
   const [frozen, setFrozen] = useState(null)
   const colWidths = frozen?.key === layoutKey ? frozen.widths : null
@@ -813,7 +954,9 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
               const row = sortedRows[v.index]
               return (
                 <div key={row.id} data-index={v.index} ref={virtualizer.measureElement}>
-                  <MobileCard row={row} edits={edits} onVenueClick={onVenueClick} onEdit={onEdit} />
+                  <MobileSelectable row={row} selectMode={selectMode} selected={selected} onSetSelected={onSetSelected} onStartSelect={onStartSelect}>
+                    <MobileCard row={row} edits={edits} onVenueClick={onVenueClick} onEdit={onEdit} />
+                  </MobileSelectable>
                 </div>
               )
             })}
@@ -826,20 +969,21 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
 
   return (
     // overflow-anchor: see the mobile list above.
-    <div ref={listRef} style={{ overflowAnchor: 'none' }} className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+    <div ref={listRef} style={{ overflowAnchor: 'none' }} className={`${pinHead && fits ? 'overflow-x-clip' : 'overflow-x-auto'} rounded-lg border border-gray-200 dark:border-gray-700`}>
       <table
         ref={tableRef}
         className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm ${colWidths ? 'table-fixed' : ''}`}
         style={colWidths ? { width: colWidths.reduce((a, b) => a + b, 0) } : undefined}
       >
-        <thead className="bg-gray-50 dark:bg-gray-800">
+        <thead ref={theadRef} className="bg-gray-50 dark:bg-gray-800">
           {table.getHeaderGroups().map(hg => (
             <tr key={hg.id}>
               {hg.headers.map((h, i) => (
                 <th
                   key={h.id}
-                  style={colWidths ? { width: colWidths[i] } : undefined}
+                  style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'var(--pin-top, 0px)' } : {}) }}
                   className={`px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide select-none
+                    ${pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50 dark:bg-gray-800 shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]` : ''}
                     ${h.column.getCanSort() ? 'cursor-pointer hover:text-gray-800 dark:hover:text-gray-200' : ''}`}
                   onClick={h.column.getToggleSortingHandler()}
                 >

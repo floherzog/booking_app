@@ -5,7 +5,8 @@ import { useEffect, useRef } from 'react'
 // the range from the last row clicked. Rows are virtualised, so a range is
 // worked out from row positions, not from what happens to be drawn — rows that
 // scrolled out of view are part of it too. Dragging near the top or bottom
-// edge of the window scrolls it.
+// edge of the window scrolls it — the top edge being the bottom of whatever is
+// pinned there (toolbar and column headings), when something is.
 //
 // count            how many rows there are
 // idsAt(i)         the _idx values row i stands for (a venue with several bands
@@ -36,6 +37,12 @@ export function useDragSelect({ enabled, count, idsAt, selected, setSelected }) 
       else next.delete(id)
     }
     live.current.setSelected(next)
+  }
+
+  // Where the rows start showing: below the stuck column headings, if any.
+  function pinnedBottom() {
+    const head = document.querySelector('thead th')
+    return head ? Math.max(0, head.getBoundingClientRect().bottom) : 0
   }
 
   function rowAt(x, y) {
@@ -80,7 +87,8 @@ export function useDragSelect({ enabled, count, idsAt, selected, setSelected }) 
       applyRange(d.base, d.from, d.to, d.on)
     }
     const tick = () => {
-      const dy = d.y < EDGE ? -(EDGE - d.y) : d.y > window.innerHeight - EDGE ? d.y - (window.innerHeight - EDGE) : 0
+      const top = pinnedBottom()
+      const dy = d.y < top + EDGE ? -(top + EDGE - d.y) : d.y > window.innerHeight - EDGE ? d.y - (window.innerHeight - EDGE) : 0
       if (dy) {
         window.scrollBy(0, Math.round((Math.min(EDGE, Math.abs(dy)) / EDGE) * SPEED) * Math.sign(dy))
         follow()
