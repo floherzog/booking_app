@@ -730,5 +730,9 @@
   "Correzzola||Italy": {
     "lat": 45.2173171,
     "lng": 12.0779036
+  },
+  "Freiburg||Germany": {
+    "lat": 47.9960901,
+    "lng": 7.8494005
   }
 }
