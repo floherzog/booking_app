@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { statusMeta, chipStyle, customChipStyle, useChipColors } from '../lib/palette'
 import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOnlineForm, describeStatus } from '@core/constants'
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
 import { useRules, useClassifyCtx } from '../lib/rulesContext'
@@ -53,7 +54,8 @@ const BookmarkIcon = (
 )
 
 export function StatusPill({ status, count, active, onClick, title }) {
-  const meta = STATUS_META[status]
+  useChipColors()
+  const meta = statusMeta(status)
   return (
     <button
       type="button"
@@ -70,7 +72,8 @@ export function StatusPill({ status, count, active, onClick, title }) {
 }
 
 export function ShortcutChip({ shortcut, label, count, active, onClick, title }) {
-  const style = SHORTCUT_STYLE[shortcut]
+  useChipColors()
+  const style = chipStyle(shortcut, SHORTCUT_STYLE[shortcut])
   return (
     <button
       type="button"
@@ -84,16 +87,19 @@ export function ShortcutChip({ shortcut, label, count, active, onClick, title })
   )
 }
 
-export function CustomChip({ name, count, active, onClick, title }) {
+const CUSTOM_STYLE = {
+  on: 'bg-slate-700 text-white border-slate-700 dark:bg-slate-300 dark:text-slate-900 dark:border-slate-300',
+  off: 'bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-600 dark:hover:border-slate-500',
+}
+
+export function CustomChip({ name, color, count, active, onClick, title }) {
+  const style = customChipStyle(color, CUSTOM_STYLE)
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-all
-        ${active
-          ? 'bg-slate-700 text-white border-slate-700 dark:bg-slate-300 dark:text-slate-900 dark:border-slate-300'
-          : 'bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-600 dark:hover:border-slate-500'}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-all ${active ? style.on : style.off}`}
     >
       {BookmarkIcon}
       {name}
@@ -104,7 +110,9 @@ export function CustomChip({ name, count, active, onClick, title }) {
 
 export const columnLabel = key => ADVANCED_COLUMNS.find(c => c.key === key)?.label || key
 
-export default function StatsBar({ rows, filters, onChange, duplicateCount, isDuplicate, chips }) {
+// `strip`: one row that scrolls sideways, for the pinned bar at the top.
+export default function StatsBar({ rows, filters, onChange, duplicateCount, isDuplicate, chips, batchWhyEmpty, strip = false }) {
+  useChipColors()
   const rules = useRules()
   const classify = useClassifyCtx()
   const hidden = useMemo(() => new Set(chips?.hidden || []), [chips])
@@ -131,12 +139,12 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
   )
 
   const activeStatus = filters.status
-  const activeMeta = activeStatus ? STATUS_META[activeStatus] : null
+  const activeMeta = activeStatus ? statusMeta(activeStatus) : null
   const shortcuts = SHORTCUTS.filter(s => !hidden.has(s.key) && (ALWAYS_SHOWN.has(s.key) || counts[s.key] > 0 || filters[s.key]))
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className={`flex gap-2 items-center ${strip ? 'flex-nowrap overflow-x-auto [scrollbar-width:none] [&>*]:shrink-0 py-0.5' : 'flex-wrap'}`}>
         {ORDERED_STATUSES.map(([key]) => {
           const count = counts.byStatus[key] || 0
           const active = activeStatus === key
@@ -154,7 +162,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
         {shortcuts.map(s => (
           <ShortcutChip
             key={s.key} shortcut={s.key} label={s.label} count={counts[s.key]} active={!!filters[s.key]}
-            title={SHORTCUT_TITLES[s.key]}
+            title={s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key]}
             onClick={() => onChange(f => toggleShortcut(f, s.key))}
           />
         ))}
@@ -165,7 +173,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
           const active = filtersEqual(filters, c.filters)
           return (
             <CustomChip
-              key={c.id} name={c.name} count={customCounts[i]} active={active}
+              key={c.id} name={c.name} color={c.color} count={customCounts[i]} active={active}
               title={describeFilters(c.filters, columnLabel)}
               onClick={() => onChange(active ? EMPTY_FILTERS : { ...EMPTY_FILTERS, ...c.filters })}
             />
@@ -173,7 +181,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
         })}
       </div>
 
-      {activeMeta && (
+      {activeMeta && !strip && (
         <p className={`text-xs px-3 py-1.5 rounded-md inline-block ${activeMeta.badge} bg-opacity-60`}>
           <span className="font-medium">{activeMeta.label}:</span> {describeStatus(activeStatus, rules)}
         </p>

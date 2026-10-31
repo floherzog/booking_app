@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_ACCOUNT_ID, secretKeyFor, normalizeAccount, normalizeAccounts,
   accountById, accountIdForBand, accountForRow, accountLabel,
-  hasMultipleAccounts, nextAccountId,
+  hasMultipleAccounts, nextAccountId, hasMailAccount,
 } from '../mailAccounts.js'
 
 describe('secretKeyFor', () => {
@@ -143,5 +143,15 @@ describe('hasMultipleAccounts / nextAccountId', () => {
   it('never collides with an existing id', () => {
     expect(nextAccountId([{ id: 'default' }])).toBe('account-1')
     expect(nextAccountId([{ id: 'default' }, { id: 'account-1' }])).toBe('account-2')
+  })
+})
+
+describe('hasMailAccount', () => {
+  it('needs an account with a server and a user', () => {
+    expect(hasMailAccount({})).toBe(false)
+    expect(hasMailAccount({ mail: { accounts: [] } })).toBe(false)
+    expect(hasMailAccount({ mail: { accounts: [{ id: 'a', host: 'imap.x.de', user: '' }] } })).toBe(false)
+    expect(hasMailAccount({ mail: { accounts: [{ id: 'a', host: 'imap.x.de', user: 'me@x.de' }] } })).toBe(true)
+    expect(hasMailAccount({ mail: { host: 'imap.x.de', user: 'me@x.de' } })).toBe(true) // the pre-accounts shape
   })
 })

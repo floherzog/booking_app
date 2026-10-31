@@ -90,6 +90,15 @@ describe('normalizeFilterChips', () => {
   })
 
   it('is part of the settings, empty by default', () => {
-    expect(normalizeSettings({}).filterChips).toEqual({ hidden: [], custom: [] })
+    expect(normalizeSettings({}).filterChips).toEqual({ hidden: [], colors: {}, custom: [] })
+  })
+
+  it('keeps chosen colours from the palette and drops anything else', () => {
+    const chips = normalizeFilterChips({
+      colors: { SEND: 'teal', nextBatch: 'rose', DEAD: 'plaid', x: 3 },
+      custom: [{ id: 'a', name: 'A', filters: {}, color: 'rose' }, { id: 'b', name: 'B', filters: {}, color: '#fff' }],
+    })
+    expect(chips.colors).toEqual({ SEND: 'teal', nextBatch: 'rose' })
+    expect(chips.custom.map(c => c.color)).toEqual(['rose', undefined])
   })
 })

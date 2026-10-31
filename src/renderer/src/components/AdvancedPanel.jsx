@@ -2,6 +2,11 @@ import { useMemo, useState } from 'react'
 import { ADVANCED_COLUMNS, STATUS_META, HEALTH_OPTIONS } from '@core/constants'
 import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS, KEYWORD_FIELDS } from '@core/filterRows'
 import { ORDERED_STATUSES, StatusPill, ShortcutChip, CustomChip, columnLabel } from './StatsBar'
+import ColorDot from './ColorDot'
+
+// What a shortcut chip and a custom chip look like before any colour is chosen.
+const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#F97316', duplicate: '#F43F5E', onlineForm: '#0891B2', autoSend: '#0D9488' }
+const CUSTOM_HEX = '#475569'
 
 const sel = 'rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
 
@@ -134,6 +139,12 @@ function ChipSettings({ chips, filters, onChipsChange }) {
     hidden: hidden.has(key) ? chips.hidden.filter(k => k !== key) : [...chips.hidden, key],
   })
   const setCustom = custom => onChipsChange({ ...chips, custom })
+  const setColor = (key, hue) => {
+    const colors = { ...chips.colors }
+    if (hue) colors[key] = hue
+    else delete colors[key]
+    onChipsChange({ ...chips, colors })
+  }
   const current = { ...EMPTY_FILTERS, ...filters }
   const canSave = name.trim() && !isEmptyFilters(current)
 
@@ -163,7 +174,7 @@ function ChipSettings({ chips, filters, onChipsChange }) {
         </svg>
         <span className="min-w-0">
           <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">Chips / saved filters</span>
-          <span className="block text-xs text-gray-400 dark:text-gray-500">Show or hide the chips above the list, and save filters as chips of your own</span>
+          <span className="block text-xs text-gray-400 dark:text-gray-500">Show, hide or recolour the chips above the list, and save filters as chips of your own</span>
         </span>
         <svg viewBox="0 0 16 16" className={`ml-auto w-4 h-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M6 3l5 5-5 5" />
@@ -176,13 +187,17 @@ function ChipSettings({ chips, filters, onChipsChange }) {
             <p className={head}>Round — statuses</p>
             <p className={blurb}>
               One per status. Every venue has exactly one status, so these split the list and their counts add up to all
-              venues. Click to show or hide one in the bar; a status with no venues is never shown.
+              venues. Click to show or hide one in the bar; a status with no venues is never shown. The dot next to
+              a chip sets its colour — for a status that's also its badge, its row marking and its map pin.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-x-3 gap-y-2">
               {ORDERED_STATUSES.map(([key, meta]) => (
-                <ToggleChip key={key} on={!hidden.has(key)} label={meta.label} onToggle={() => toggle(key)}>
-                  <StatusPill status={key} />
-                </ToggleChip>
+                <span key={key} className="inline-flex items-center gap-1.5">
+                  <ToggleChip on={!hidden.has(key)} label={meta.label} onToggle={() => toggle(key)}>
+                    <StatusPill status={key} />
+                  </ToggleChip>
+                  <ColorDot value={chips.colors?.[key]} fallbackHex={meta.mapColor} label={meta.label} onChange={h => setColor(key, h)} />
+                </span>
               ))}
             </div>
           </div>
@@ -193,11 +208,14 @@ function ChipSettings({ chips, filters, onChipsChange }) {
               Lists that cut across the statuses: a venue can be in several. Incomplete details, Online form, Duplicates and
               Auto-send appear only while they have venues.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-x-3 gap-y-2">
               {SHORTCUTS.map(s => (
-                <ToggleChip key={s.key} on={!hidden.has(s.key)} label={s.label} onToggle={() => toggle(s.key)}>
-                  <ShortcutChip shortcut={s.key} label={s.label} />
-                </ToggleChip>
+                <span key={s.key} className="inline-flex items-center gap-1.5">
+                  <ToggleChip on={!hidden.has(s.key)} label={s.label} onToggle={() => toggle(s.key)}>
+                    <ShortcutChip shortcut={s.key} label={s.label} />
+                  </ToggleChip>
+                  <ColorDot value={chips.colors?.[s.key]} fallbackHex={SHORTCUT_HEX[s.key]} label={s.label} onChange={h => setColor(s.key, h)} />
+                </span>
               ))}
             </div>
           </div>
@@ -215,6 +233,11 @@ function ChipSettings({ chips, filters, onChipsChange }) {
                     key={c.id}
                     chip={c}
                     onRename={n => setCustom(chips.custom.map((x, j) => (j === i ? { ...x, name: n } : x)))}
+                    onColor={h => setCustom(chips.custom.map((x, j) => {
+                      if (j !== i) return x
+                      const { color, ...rest } = x // eslint-disable-line no-unused-vars
+                      return h ? { ...rest, color: h } : rest
+                    }))}
                     onUseCurrent={isEmptyFilters(current) ? null : () => setCustom(chips.custom.map((x, j) => (j === i ? { ...x, filters: current } : x)))}
                     onRemove={() => setCustom(chips.custom.filter((_, j) => j !== i))}
                   />
@@ -262,12 +285,13 @@ function ToggleChip({ on, label, onToggle, children }) {
   )
 }
 
-function CustomChipRow({ chip, onRename, onUseCurrent, onRemove }) {
+function CustomChipRow({ chip, onRename, onColor, onUseCurrent, onRemove }) {
   const [draft, setDraft] = useState(chip.name)
   const commit = () => { const n = draft.trim(); if (n && n !== chip.name) onRename(n); else setDraft(chip.name) }
   return (
     <li className="flex flex-wrap items-center gap-2">
-      <span className="pointer-events-none"><CustomChip name={chip.name} /></span>
+      <span className="pointer-events-none"><CustomChip name={chip.name} color={chip.color} /></span>
+      <ColorDot value={chip.color} fallbackHex={CUSTOM_HEX} label={chip.name} onChange={onColor} />
       <input
         className={`${sel} w-40 py-1 text-xs`}
         value={draft}

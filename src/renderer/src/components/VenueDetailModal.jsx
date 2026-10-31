@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { getMissingFields, describeMissing, fieldLabel, isOnlineForm, onlineFormUrl, STATUS_META } from '@core/constants'
+import { statusMeta, useChipColors } from '../lib/palette'
+import { getMissingFields, describeMissing, fieldLabel, isOnlineForm, onlineFormUrl } from '@core/constants'
 import { normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
 import { geocodeCity } from '../lib/geocode'
@@ -14,10 +15,12 @@ import { isSharedField } from '@core/multiBand'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { useClassifyCtx } from '../lib/rulesContext'
+import { MailIcon } from './icons'
 import { contactGenderOf, overrideContactGender, useContactGenders } from '../lib/genders'
 import { greetingFor, contactOptionsFor } from '@core/templates'
 
 function MiniMap({ city, country, status, onOpenMap }) {
+  useChipColors()
   const [pos, setPos] = useState(null)
   const [loading, setLoading] = useState(Boolean(city || country))
 
@@ -35,7 +38,7 @@ function MiniMap({ city, country, status, onOpenMap }) {
   if (loading) return <div className="h-32 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse" />
   if (!pos) return null
 
-  const color = STATUS_META[status]?.mapColor ?? '#9CA3AF'
+  const color = statusMeta(status).mapColor ?? '#9CA3AF'
 
   return (
     <div className="relative h-32 rounded-lg overflow-hidden group">
@@ -340,6 +343,7 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
 // add another. The tab shows the band's status colour, so a glance tells which
 // band needs something.
 function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
+  useChipColors()
   const bandOf = e => edits[e._idx]?.['Band'] ?? e['Band'] ?? ''
   const taken = new Set(entries.map(bandOf).filter(Boolean))
   const free = bandOptions.filter(b => b && !taken.has(b))
@@ -356,7 +360,7 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
               ? 'bg-gray-800 text-white border-gray-800 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200'
               : 'text-gray-600 border-gray-300 hover:border-gray-400 dark:text-gray-300 dark:border-gray-600 dark:hover:border-gray-500'}`}
           >
-            <span className="w-2 h-2 rounded-full" style={{ background: STATUS_META[e._status]?.mapColor ?? '#9CA3AF' }} aria-hidden />
+            <span className="w-2 h-2 rounded-full" style={{ background: statusMeta(e._status).mapColor ?? '#9CA3AF' }} aria-hidden />
             {bandOf(e) || <span className="italic">no band</span>}
           </button>
         )
@@ -376,7 +380,7 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
   )
 }
 
-export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand }) {
+export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand, onOpenSettings }) {
   const [confirmDelete, setConfirmDelete] = useState(false) // false | 'band' | 'venue'
   const backdrop = useBackdropClose(onClose)
   useEscape(onClose)
@@ -411,13 +415,13 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
                 title={`${totalEmails} email${totalEmails !== 1 ? 's' : ''} sent all time`}
               >
-                {totalEmails} <span className="text-[1.5em] leading-none relative -top-[0.09em]">✉</span> all time
+                {totalEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> all time
               </span>
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
                 title={`${recentEmails} email${recentEmails !== 1 ? 's' : ''} sent since last reply`}
               >
-                {recentEmails} <span className="text-[1.5em] leading-none relative -top-[0.09em]">✉</span> since reply
+                {recentEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> since reply
               </span>
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${health.badge}`}
@@ -580,6 +584,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
             {caps.mail && (
               <DraftVenueButton
                 row={effective}
+                onOpenSettings={onOpenSettings}
                 templates={templates}
                 languages={languages}
                 settings={settings}

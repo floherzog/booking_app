@@ -95,6 +95,12 @@ export function normalizeAccounts(mail = {}) {
   return [normalizeAccount(mail, DEFAULT_ACCOUNT_ID)]
 }
 
+// Whether any mailbox has been set up at all: an account with a server and a
+// user name. (The password lives in the keychain and isn't known here.)
+export function hasMailAccount(settings) {
+  return normalizeAccounts(settings?.mail || {}).some(a => a.host.trim() && a.user.trim())
+}
+
 export function accountById(accounts, id) {
   const list = accounts || []
   return list.find(a => a.id === id) || list[0] || normalizeAccount({})

@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, lazy, Suspense } from 'react'
 import { classifyBooking, classifyContext, classifyContextKey } from '@core/classify'
 import { getSettings, saveSettings } from './lib/config'
-import { APP_COLUMNS, getMissingSeverity } from '@core/constants'
+import { APP_COLUMNS, STATUS, getMissingSeverity } from '@core/constants'
 import { effectiveBandOptions, bandsFromRows, normalizeBands } from '@core/bands'
 import { effectiveTypeOptions } from '@core/venueTypes'
-import { computeNextBatch } from '@core/nextBatch'
+import { computeNextBatch, explainEmptyBatch } from '@core/nextBatch'
 import { computeDuplicates, dismissPair } from '@core/duplicates'
 import { bandDateGaps, gapsKey, agreedDates, keepKey } from '@core/bandDates'
 import { EMPTY_FILTERS, matchesFilters, normalizeFilterChips } from '@core/filterRows'
@@ -19,7 +19,7 @@ import { listTemplates } from './lib/templates'
 import { draftKey, draftedAt, createDraft, prepareDraft, deliverPrepared, resolveForDraft } from './lib/drafts'
 import { selectRows, deliveryForRow } from '@core/delivery'
 import { formatDateDDMMYY } from '@core/parseDate'
-import StatsBar from './components/StatsBar'
+import StatsBar, { columnLabel as statsColumnLabel } from './components/StatsBar'
 import FilterBar from './components/FilterBar'
 import BookingTable from './components/BookingTable'
 import MapView from './components/MapView'
@@ -30,11 +30,13 @@ import LogicModal from './components/LogicModal'
 import VenueDetailModal from './components/VenueDetailModal'
 import MergeModal from './components/MergeModal'
 import BulkEditBar from './components/BulkEditBar'
-import { useInlinePrompt } from './components/InlinePrompt'
+import { useInlinePrompt, useConfirm } from './components/InlinePrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
 import BandDatesBanner from './components/BandDatesBanner'
-import { usePinToolbar } from './lib/uiPrefs'
+import { usePinToolbar, usePinItems } from './lib/uiPrefs'
+import { setChipColors } from './lib/palette'
+import MailSetupNotice, { mailSetupGaps } from './components/MailSetupNotice'
 import { api, caps } from './platform'
 import { checkOpenclawPolicy } from './lib/policySync'
 
@@ -62,6 +64,7 @@ export default function App() {
   const [lastFetched, setLastFetched] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [promptNode, ask] = useInlinePrompt()
+  const [confirmNode, confirm] = useConfirm()
   const [showImport, setShowImport] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   // Templates and Import are reachable both from Settings and on their own.
@@ -92,6 +95,14 @@ export default function App() {
   const [view, setView] = useState('list')
   const [selectMode, setSelectMode] = useState(false)
   const pinToolbar = usePinToolbar()
+  const pinItems = usePinItems()
+  const [settingsSection, setSettingsSection] = useState(null) // which Settings section opens
+  const [showMailSetup, setShowMailSetup] = useState(false) // a one-click draft found mail not set up
+  // Settings at one section — from a notice that says what to set up there.
+  function openSettings(section) {
+    setSettingsSection(section)
+    setShowSettings(true)
+  }
   const [selected, setSelected] = useState(new Set()) // _idx of bulk-selected rows
   // The adapter instance that actually performed the last load — it carries the
   // mtime/sha conflict-guard token that Save needs.
@@ -367,22 +378,28 @@ export default function App() {
   // When a band's Dates change in Settings, offer to push them onto that band's
   // venue rows (Dates column). Applied as
   // normal unsaved edits — they reach the CSV only via the existing Save flow.
-  function propagateBandChanges(oldBands, newBands) {
+  async function propagateBandChanges(oldBands, newBands) {
     // Multi-band mode: a band renamed in place (same position in the list, the
     // old name gone) is offered to its venues too, and its file follows it —
     // otherwise its venues would keep the old name and the old file.
     if (multiBand && oldBands?.length === newBands.length) {
       const newNames = new Set(newBands.map(b => b.name))
-      newBands.forEach((nb, i) => {
+      for (const [i, nb] of newBands.entries()) {
         const from = oldBands[i]?.name
-        if (!from || !nb.name || from === nb.name || newNames.has(from)) return
+        if (!from || !nb.name || from === nb.name || newNames.has(from)) continue
         const matching = rows.filter(r => r['Band'] === from && !deletions.has(r._idx))
-        if (!matching.length) return
-        if (window.confirm(`Rename "${from}" to "${nb.name}" on its ${matching.length} venue(s) too? Its band file keeps its name.`)) {
+        if (!matching.length) continue
+        const ok = await confirm({
+          title: `Rename “${from}” to “${nb.name}” on its venues too?`,
+          message: `${matching.length} venue${matching.length !== 1 ? 's' : ''} still say “${from}”. Its band file keeps its name.`,
+          cancelLabel: 'Not now',
+          choices: [{ value: true, label: `Rename on ${matching.length} venue${matching.length !== 1 ? 's' : ''}` }],
+        })
+        if (ok) {
           adapter?.renameBand?.(from, nb.name)
           applyEdits(matching.map(r => [r._idx, 'Band', nb.name]))
         }
-      })
+      }
     }
     const oldByName = new Map((oldBands || []).map(b => [b.name, b]))
     for (const nb of newBands) {
@@ -392,9 +409,25 @@ export default function App() {
       if (!matching.length) continue
 
       if (nb.tourDates !== ob.tourDates && nb.tourDates) {
-        if (window.confirm(`Set the "Dates" column for ${matching.length} "${nb.name}" venue(s) to "${nb.tourDates}"?`)) {
-          matching.forEach(r => handleEdit(r._idx, 'Dates', nb.tourDates))
-        }
+        // Venues already on the new dates need nothing; of the rest, those with
+        // no Dates at all can be filled without touching ones that have their own.
+        const live = r => (edits[r._idx]?.['Dates'] ?? r['Dates'] ?? '').trim()
+        const differ = matching.filter(r => live(r) !== nb.tourDates)
+        if (!differ.length) continue
+        const empty = differ.filter(r => !live(r))
+        const n = k => `${k} venue${k !== 1 ? 's' : ''}`
+        const choices = [{ value: 'all', label: `Set on ${n(differ.length)}` }]
+        if (empty.length && empty.length < differ.length) choices.unshift({ value: 'empty', label: `Only the ${empty.length} without Dates` })
+        const pick = await confirm({
+          title: `Use “${nb.tourDates}” as the Dates of ${nb.name}’s venues?`,
+          message: empty.length === differ.length
+            ? `${n(differ.length)} of ${nb.name} have no Dates yet.`
+            : `${n(differ.length)} of ${nb.name} have other Dates${empty.length ? `, ${empty.length} of them none at all` : ''}. Nothing is saved until you press Save.`,
+          cancelLabel: 'Not now',
+          choices,
+        })
+        const target = pick === 'all' ? differ : pick === 'empty' ? empty : []
+        target.forEach(r => handleEdit(r._idx, 'Dates', nb.tourDates))
       }
     }
   }
@@ -480,7 +513,7 @@ export default function App() {
 
   async function handleSettingsSave(form) {
     const bands = normalizeBands(form.bands)
-    propagateBandChanges(settings.bands, bands)
+    await propagateBandChanges(settings.bands, bands)
     const saved = await persist({ ...settings, ...form, bands })
     // A rules change reclassifies through the effect below; a storage change
     // means the venues themselves come from somewhere else now, so refetch.
@@ -511,6 +544,9 @@ export default function App() {
   }
 
   async function handleQuickDraft(row) {
+    // Without an account or templates there is nothing to try: say what is
+    // missing, with the way to Settings, instead of a server error.
+    if (mailSetupGaps(settings, templates).length) { setShowMailSetup(true); return }
     setDraftingIdx(row._idx)
     try {
       await resolveForDraft([row], settings)
@@ -789,6 +825,8 @@ export default function App() {
 
   // Settings ▸ the chips above the list (Filter / Chips ▸ Chips / saved filters).
   const filterChips = useMemo(() => normalizeFilterChips(settings?.filterChips), [settings])
+  // Chosen chip colours go to the palette store, where badges, rows and map pins read them.
+  useLayoutEffect(() => { setChipColors(filterChips) }, [filterChips])
   function handleChipsChange(next) {
     persist({ ...settings, filterChips: next }).catch(e => setError(e.message))
   }
@@ -854,6 +892,36 @@ export default function App() {
   }
 
   const filteredVenueCount = useMemo(() => new Set(filteredRows.map(r => r._venueId)).size, [filteredRows])
+
+  // Why the Next batch is empty — for the list (with the chip on), the chip's
+  // tooltip and the Email dialog's "Next batch" source. Only worked out when
+  // there is something to explain.
+  const batchCount = useMemo(() => liveRows.filter(r => r._nextBatch || r['Draft'] === 'TRUE').length, [liveRows])
+  const batchWhyEmpty = useMemo(
+    () => (batchCount ? null : explainEmptyBatch({ rows: liveRows, filters: { nextBatch: true }, rules, today })),
+    [batchCount, liveRows, rules, today],
+  )
+  const listWhyEmpty = useMemo(
+    () => (filters.nextBatch && filteredRows.length === 0
+      ? explainEmptyBatch({ rows: liveRows, filters, rules, today, ctx: { isDuplicate, classify: classifyCtx }, columnLabel: statsColumnLabel })
+      : null),
+    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, classifyCtx],
+  )
+  const batchActions = {
+    rules: { label: 'Open Rules', run: () => openSettings('rules') },
+    onlyBatch: { label: 'Show the next batch', run: () => setFilters({ ...EMPTY_FILTERS, nextBatch: true }) },
+    missingInfo: { label: 'Show Missing info', run: () => setFilters({ ...EMPTY_FILTERS, status: STATUS.MISSING_INFO }) },
+  }
+  const emptyNote = listWhyEmpty && (
+    <span className="block max-w-xl mx-auto text-gray-500 dark:text-gray-400">
+      {listWhyEmpty.reason}
+      {listWhyEmpty.action && (
+        <button onClick={batchActions[listWhyEmpty.action].run} className="ml-2 font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+          {batchActions[listWhyEmpty.action].label}
+        </button>
+      )}
+    </span>
+  )
 
   // Sorting runs through the table itself, so the sorted column stays visible
   // (BookingTable injects it as an extra column when it isn't a default one).
@@ -960,6 +1028,7 @@ export default function App() {
     <ClassifyProvider value={classifyCtx}>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {promptNode}
+      {confirmNode}
       <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl space-y-2">
         <UpdateBanner update={update} onDismiss={dismissUpdate} />
         {!loading && dateGapsKey !== dismissedDateGaps && (
@@ -1024,6 +1093,13 @@ export default function App() {
           </div>
         )}
 
+        {showMailSetup && mailSetupGaps(settings, templates).length > 0 && (
+          <div className="flex items-start gap-2">
+            <MailSetupNotice settings={settings} templates={templates} onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} className="flex-1" />
+            <button onClick={() => setShowMailSetup(false)} aria-label="Dismiss" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none px-1">&times;</button>
+          </div>
+        )}
+
         {syncNote && (
           <div className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
             <span>{syncNote}</span>
@@ -1057,6 +1133,7 @@ export default function App() {
                   duplicateCount={duplicateSet.size}
                   isDuplicate={isDuplicate}
                   chips={filterChips}
+                  batchWhyEmpty={batchWhyEmpty?.reason}
                 />
               </div>
               <div className="shrink-0 pt-0.5">{mobileControls}</div>
@@ -1071,6 +1148,7 @@ export default function App() {
                 duplicateCount={duplicateSet.size}
                 isDuplicate={isDuplicate}
                 chips={filterChips}
+                batchWhyEmpty={batchWhyEmpty?.reason}
               />
             </div>
 
@@ -1083,6 +1161,19 @@ export default function App() {
               onToggleSelect={() => (selectMode ? exitSelect() : setSelectMode(true))}
               onEmail={caps.mail && rows.length > 0 ? () => setShowBulkDraft(true) : null}
               pinned={pinToolbar}
+              pinItems={pinItems}
+              pinnedChips={pinItems.chips && (
+                <StatsBar
+                  strip
+                  rows={liveRows}
+                  filters={filters}
+                  onChange={setFilters}
+                  duplicateCount={duplicateSet.size}
+                  isDuplicate={isDuplicate}
+                  chips={filterChips}
+                  batchWhyEmpty={batchWhyEmpty?.reason}
+                />
+              )}
               editCount={editCount}
               onSave={() => setShowSave(true)}
             />
@@ -1096,6 +1187,7 @@ export default function App() {
                 ) : (
                 <BookingTable
                   rows={filteredRows}
+                  emptyNote={emptyNote}
                   edits={edits}
                   onEdit={handleEdit}
                   onVenueClick={setVenueDetail}
@@ -1161,7 +1253,8 @@ export default function App() {
           onImportBandFiles={handleImportBandFiles}
           unsavedEdits={editCount}
           onPersist={form => persist({ ...settings, ...form })}
-          onClose={() => setShowSettings(false)}
+          initialSection={settingsSection}
+          onClose={() => { setShowSettings(false); setSettingsSection(null) }}
         />
       )}
       {showTemplates && caps.mail && (
@@ -1178,6 +1271,8 @@ export default function App() {
         <Suspense fallback={null}>
         <BulkDraftModal
           rows={rows}
+          batchWhyEmpty={batchWhyEmpty}
+          onOpenSettings={section => { setShowBulkDraft(false); openSettings(section) }}
           filteredRows={filteredRows}
           selected={selectMode ? selected : null}
           templates={templates}
@@ -1238,6 +1333,7 @@ export default function App() {
           edits={edits}
           onEdit={handleEdit}
           onClose={() => setVenueDetail(null)}
+          onOpenSettings={openSettings}
           onDelete={handleDelete}
           onSave={() => setShowSave(true)}
           editCount={editCount}

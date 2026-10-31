@@ -136,6 +136,10 @@ export function describeStatus(status, rules = DEFAULT_RULES) {
   return STATUS_DESCRIPTIONS[status]?.(rules) || ''
 }
 
+// The colours chips and statuses can be given; the classes for each are in
+// src/renderer/src/lib/palette.js.
+export const CHIP_HUES = ['gray', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'pink', 'rose']
+
 export const ACTION_STATUSES = new Set([STATUS.SEND, STATUS.FOLLOW_UP_DUE, STATUS.NEVER_CONTACTED])
 
 // Columns offered in the advanced filter/sort panel. `type` drives how the

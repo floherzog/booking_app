@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS = {
   // in bandDates.js): the band-dates notice leaves them out.
   keptVenueDates: [],
   // The chips above the list: default ones switched off, and saved filter sets.
-  filterChips: { hidden: [], custom: [] },
+  filterChips: { hidden: [], colors: {}, custom: [] },
 }
 
 function isPlainObject(v) {

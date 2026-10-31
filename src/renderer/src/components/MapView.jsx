@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { statusMeta, useChipColors } from '../lib/palette'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -21,7 +22,7 @@ function makeIcon(statusCounts, totalCount) {
 
   let inner
   if (entries.length === 1) {
-    const color = STATUS_META[entries[0][0]]?.mapColor ?? '#6B7280'
+    const color = statusMeta(entries[0][0]).mapColor ?? '#6B7280'
     inner = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/>`
   } else {
     const total = entries.reduce((s, [, n]) => s + n, 0)
@@ -32,7 +33,7 @@ function makeIcon(statusCounts, totalCount) {
       const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle)
       const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end)
       const large = frac > 0.5 ? 1 : 0
-      const color = STATUS_META[status]?.mapColor ?? '#6B7280'
+      const color = statusMeta(status).mapColor ?? '#6B7280'
       const d = `M${cx} ${cy} L${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z`
       angle = end
       return `<path d="${d}" fill="${color}"/>`
@@ -105,6 +106,7 @@ function SmoothWheelZoom() {
 }
 
 function ClusteredMarkers({ locations, onVenueClick }) {
+  useChipColors() // markers redraw in a newly chosen colour
   const map = useMap()
   const [clusters, setClusters] = useState(() => cluster(locations, map))
   const timerRef = useRef(null)
@@ -163,6 +165,7 @@ function ClusteredMarkers({ locations, onVenueClick }) {
 }
 
 export default function MapView({ filteredRows, onVenueClick, focusRow }) {
+  useChipColors()
   const [geoCache, setGeoCache] = useState(loadStoredCache)
 
   // On first mount, merge in the app's bundled seed cache so the map starts
@@ -252,7 +255,7 @@ export default function MapView({ filteredRows, onVenueClick, focusRow }) {
         {focusRow && (() => {
           const key = `${focusRow['City'] || ''}||${focusRow['Country'] || ''}`
           const pos = geoCache[key]
-          const color = STATUS_META[focusRow._status]?.mapColor ?? '#9CA3AF'
+          const color = statusMeta(focusRow._status).mapColor ?? '#9CA3AF'
           return pos ? (
             <CircleMarker
               center={[pos.lat, pos.lng]} radius={22}

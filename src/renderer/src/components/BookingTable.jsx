@@ -1,3 +1,4 @@
+import { statusMeta, useChipColors } from '../lib/palette'
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,7 +22,8 @@ import { healthMeta, HEALTH_META } from '../lib/health'
 import { prepareDraft } from '../lib/drafts'
 import { useClassifyCtx } from '../lib/rulesContext'
 import { useDragSelect } from '../lib/useDragSelect'
-import { usePinToolbar } from '../lib/uiPrefs'
+import { usePinToolbar, usePinItems } from '../lib/uiPrefs'
+import { MailIcon } from './icons'
 import { isSharedField } from '@core/multiBand'
 
 
@@ -352,7 +354,7 @@ function DraftAction({ row, meta }) {
       onClick={e => { e.stopPropagation(); onQuickDraft(row) }}
       disabled={!prepared.ok || busy}
       title={prepared.ok ? `Create a draft in Mail (${prepared.language})` : prepared.reason}
-      className={`px-1.5 py-0.5 rounded border text-[11px] leading-none transition-colors disabled:opacity-30 ${
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[11px] leading-none transition-colors disabled:opacity-30 ${
         result?.ok
           ? 'border-green-400 text-green-600 dark:text-green-400'
           : result
@@ -360,7 +362,7 @@ function DraftAction({ row, meta }) {
             : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
       }`}
     >
-      {busy ? '…' : result?.ok ? '✉ ✓' : result ? '✉ ✗' : '✉'}
+      {busy ? '…' : <><MailIcon className="w-3.5 h-3.5" />{result?.ok ? ' ✓' : result ? ' ✗' : ''}</>}
     </button>
   )
 }
@@ -676,6 +678,7 @@ function MobileSelectable({ row, selectMode, selected, onSetSelected, onStartSel
 }
 
 function MobileCard({ row, edits, onVenueClick, onEdit }) {
+  useChipColors()
   const classify = useClassifyCtx()
   const r = row.original
   const entries = r._entries || [r]
@@ -712,7 +715,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
   const effective = { ...r, ...rowEdits }
   const missing = getMissingFields(effective, classify)
   const hasEdits = !!edits[r._idx]
-  const meta = STATUS_META[r._status] || {}
+  const meta = statusMeta(r._status)
   const highlight = hasEdits ? '' : rowHighlight(r)
   const draftNext = effective['Draft'] === 'TRUE'
   const autoSend = effective['Auto'] === 'TRUE'
@@ -783,7 +786,8 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
 
 const missingTitle = missing => `Missing: ${describeMissing(missing)}`
 
-export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onStartSelect, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
+export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onStartSelect, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
+  useChipColors() // rows redraw in a newly chosen colour
   const [sorting, setSorting] = useState(sortBy || [{ id: '_status', desc: false }])
 
   useEffect(() => {
@@ -862,7 +866,8 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
   // scrolling sideways and the headings simply stick. When it is wider than the
   // window the wrapper has to scroll, and the headings are moved down by hand
   // as the page scrolls instead.
-  const pinHead = usePinToolbar() && isDesktop
+  const pinItems = usePinItems()
+  const pinHead = usePinToolbar() && pinItems.headings && isDesktop
   const theadRef = useRef(null)
   const [fits, setFits] = useState(true)
   useLayoutEffect(() => {
@@ -938,7 +943,7 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
 
   const empty = (
     <p className="px-3 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
-      No venues match the current filters.
+      {emptyNote || 'No venues match the current filters.'}
     </p>
   )
 
@@ -999,7 +1004,7 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
           {sortedRows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="px-3 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
-                No venues match the current filters.
+                {emptyNote || 'No venues match the current filters.'}
               </td>
             </tr>
           ) : (
@@ -1007,7 +1012,7 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
               {padTop > 0 && <tr style={{ height: padTop }} />}
               {virtualRows.map(v => {
                 const row = sortedRows[v.index]
-                const meta = STATUS_META[row.original._status] || {}
+                const meta = statusMeta(row.original._status)
                 const hasRowEdits = (row.original._entries || [row.original]).some(e => edits[e._idx])
                 const highlight = hasRowEdits ? '' : rowHighlight(row.original)
                 const isSelected = selectMode && (row.original._entries || [row.original]).every(e => selected?.has(e._idx))

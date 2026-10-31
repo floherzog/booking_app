@@ -21,3 +21,39 @@ function subscribe(l) {
 export function usePinToolbar() {
   return useSyncExternalStore(subscribe, getPinToolbar)
 }
+
+// What the bar at the top holds once the toolbar has scrolled away. The
+// defaults are the toolbar itself, Save, and the column headings.
+export const PIN_ITEMS = [
+  { key: 'chips', label: 'Chips', on: false },
+  { key: 'search', label: 'Search', on: true },
+  { key: 'select', label: 'Select', on: true },
+  { key: 'email', label: 'Email', on: true, needs: 'mail' },
+  { key: 'filter', label: 'Filter / Chips', on: true },
+  { key: 'newVenue', label: '+ New Venue', on: true },
+  { key: 'save', label: 'Save (with unsaved changes)', on: true },
+  { key: 'dropdowns', label: 'Band / Country / Type', on: false },
+  { key: 'headings', label: 'Column headings', on: true },
+]
+const ITEMS_KEY = 'booking_pinItems'
+const DEFAULT_ITEMS = Object.fromEntries(PIN_ITEMS.map(i => [i.key, i.on]))
+let itemsRaw
+let itemsCache = DEFAULT_ITEMS
+export function getPinItems() {
+  let raw = null
+  try { raw = localStorage.getItem(ITEMS_KEY) } catch { /* storage unavailable */ }
+  if (raw !== itemsRaw) {
+    itemsRaw = raw
+    let stored = {}
+    try { stored = JSON.parse(raw) || {} } catch { /* broken: defaults */ }
+    itemsCache = Object.fromEntries(PIN_ITEMS.map(i => [i.key, typeof stored[i.key] === 'boolean' ? stored[i.key] : i.on]))
+  }
+  return itemsCache
+}
+export function setPinItem(key, on) {
+  try { localStorage.setItem(ITEMS_KEY, JSON.stringify({ ...getPinItems(), [key]: on })) } catch { /* storage unavailable */ }
+  listeners.forEach(l => l())
+}
+export function usePinItems() {
+  return useSyncExternalStore(subscribe, getPinItems)
+}

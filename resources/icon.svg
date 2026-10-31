@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Booking's app icon: a ticket with a calendar check on the app's indigo.
+       The body is the whole icon shape (824 × 824 on Apple's 1024 grid), with
+       nothing around it, so macOS doesn't put it inside a frame of its own.
+       Rendered to resources/icon.icns and the web icons by scripts/build-icon.mjs. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6E72F5"/>
+      <stop offset="1" stop-color="#4338CA"/>
+    </linearGradient>
+    <mask id="notches">
+      <rect x="0" y="0" width="1024" height="1024" fill="#fff"/>
+      <circle cx="212" cy="540" r="50" fill="#000"/>
+      <circle cx="812" cy="540" r="50" fill="#000"/>
+    </mask>
+  </defs>
+  <rect id="body" x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+  <!-- flat shadow, then the ticket -->
+  <g mask="url(#notches)">
+    <rect x="212" y="356" width="600" height="368" rx="44" fill="#312E81" opacity="0.35" transform="translate(0 18)"/>
+    <rect x="212" y="356" width="600" height="368" rx="44" fill="#fff"/>
+  </g>
+  <line x1="372" y1="388" x2="372" y2="692" stroke="#C7D2FE" stroke-width="12" stroke-linecap="round" stroke-dasharray="18 24"/>
+  <!-- calendar with a check -->
+  <rect x="458" y="420" width="276" height="244" rx="34" fill="#EEF2FF"/>
+  <path d="M458 486 v-32 a34 34 0 0 1 34 -34 h208 a34 34 0 0 1 34 34 v32 z" fill="#6366F1"/>
+  <rect x="526" y="392" width="24" height="60" rx="12" fill="#3730A3"/>
+  <rect x="642" y="392" width="24" height="60" rx="12" fill="#3730A3"/>
+  <path d="M534 572 l42 40 l84 -86" fill="none" stroke="#4F46E5" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

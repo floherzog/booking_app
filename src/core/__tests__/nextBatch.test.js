@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeNextBatch } from '@core/nextBatch'
+import { computeNextBatch, explainEmptyBatch } from '@core/nextBatch'
 import { STATUS } from '@core/constants'
 import { DEFAULT_RULES, mergeRules } from '@core/rules'
 
@@ -41,5 +41,40 @@ describe('computeNextBatch', () => {
     expect([...computeNextBatch(rows, TODAY, byVenue)]).toEqual([1, 2])
     const byVenueDesc = mergeRules({ ...DEFAULT_RULES, batchSize: 1, batchSortKeys: ['City'] })
     expect([...computeNextBatch(rows, TODAY, byVenueDesc)]).toEqual([2]) // Aachen
+  })
+})
+
+describe('explainEmptyBatch', () => {
+  const rule = (o = {}) => mergeRules({ ...DEFAULT_RULES, ...o })
+
+  it('points at the batch size when it is 0', () => {
+    const r = explainEmptyBatch({ rows: [actionable(0)], filters: { nextBatch: true }, rules: rule({ batchSize: 0 }), today: TODAY })
+    expect(r.action).toBe('rules')
+  })
+
+  it('says when other filters hide the batch', () => {
+    const rows = [{ ...actionable(0, { Band: 'A' }), _nextBatch: true }]
+    const r = explainEmptyBatch({ rows, filters: { nextBatch: true, band: 'B' }, rules: rule(), today: TODAY })
+    expect(r.action).toBe('onlyBatch')
+    expect(r.reason).toContain('Band: B')
+    expect(r.reason).toContain('1 venue')
+  })
+
+  it('is null when the batch does show', () => {
+    const rows = [{ ...actionable(0), _nextBatch: true }]
+    expect(explainEmptyBatch({ rows, filters: { nextBatch: true }, rules: rule(), today: TODAY })).toBeNull()
+  })
+
+  it('with nothing to do: who is waiting, the next follow-up, and the venues missing info', () => {
+    const rows = [
+      { _idx: 0, _status: STATUS.FOLLOW_UP_PENDING, Venue: 'Moods', 'Follow Up Date': '20.07.25' },
+      { _idx: 1, _status: STATUS.RECENT_CONTACT, Venue: 'Kulak', 'Follow Up Date': '01.07.25' },
+      { _idx: 2, _status: STATUS.MISSING_INFO, Venue: 'X', 'Follow Up Date': '16.06.25' },
+      { _idx: 3, _status: STATUS.ON_HOLD, Venue: 'Old', 'Follow Up Date': '01.01.25' },
+    ]
+    const r = explainEmptyBatch({ rows, filters: { nextBatch: true }, rules: rule(), today: TODAY })
+    expect(r.reason).toBe('No venue needs contacting right now — 2 venues are waiting for a reply or their next turn, and the next follow-up is due on 01.07.25 (Kulak). 1 more venue would qualify but is missing info.')
+    expect(r.action).toBe('missingInfo')
+    expect(explainEmptyBatch({ rows: rows.slice(3), filters: {}, rules: rule(), today: TODAY })).toEqual({ reason: 'No venue needs contacting right now.', action: null })
   })
 })

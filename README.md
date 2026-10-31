@@ -251,9 +251,22 @@ Reply Status — it takes comma-separated keywords and matches any of them, so
 `Note` · contains · `formular, web form` finds both. Save any combination as a
 chip of your own.
 
-The search box, Select, ✉ Email, Filter / Chips and the column headings stay at
-the top while you scroll (turn that off in *Settings ▸ General*); Save joins them
-once the header has scrolled away.
+Every chip can have its own colour: the dot next to it in *Filter / Chips ▸
+Chips / saved filters* opens the palette (Default puts it back). For a status,
+the colour is also its badge, its row marking and its map pin.
+
+When **Next batch** comes up empty, the list says why, with the one thing to
+do about it: the batch size is 0 (Open Rules), your other filters hide the
+batch (Show the next batch), or nothing needs contacting right now (how many
+venues are waiting, when the next follow-up is due, and how many would qualify
+but are missing info). The chip's tooltip and the Email dialog say the same.
+
+Once the toolbar scrolls away, a bar at the top of the window keeps what you
+choose in *Settings ▸ General*: by default the search box, Select, Email,
+Filter / Chips, + New Venue, Save (while there are unsaved changes) and the
+column headings; the chips and the Band / Country / Type dropdowns can join
+them. The choice is remembered per device. Filter / Chips in that bar goes back
+up to the panel.
 
 ## Rules
 
@@ -412,7 +425,10 @@ Settings ▸ Mail templates shows the live status and how to turn it on.
 
 ## Mail accounts
 
-One entry per mailbox you send from, in **Settings ▸ Mail settings**. Each has its
+One entry per mailbox you send from, in **Settings ▸ Mail settings**. Until
+there is one (and at least one template), the Email dialog and the draft
+buttons say what's missing and link straight to the right Settings section;
+*Open in Mail.app* still works without an account. Each has its
 own IMAP and SMTP servers, its own username, its own password in the keychain, and
 its own Drafts and Sent folders — so they can be entirely separate accounts at
 different providers, not just aliases.
@@ -667,9 +683,10 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   and therefore for the `Application Support/Booking/` directory. It is not
   redundant with the one in `electron-builder.yml` — remove it and the app
   silently starts storing its data under `booking_app_mac`.
-- `resources/icon.icns` was generated from the web app's 192px PNG with
-  `sips` + `iconutil`, so the larger sizes are upscaled. Replace it with a
-  proper 1024px source when there is one.
+- The app icon is drawn in `resources/icon.svg`: a full-bleed body on
+  Apple's 1024 grid, so macOS 26 doesn't put it in a frame of its own.
+  `node scripts/build-icon.mjs` renders it into `resources/icon.icns` and the
+  web icons in `web/public` (the script says what it needs).
 - Only `date-fns`, `papaparse`, `imapflow` and `nodemailer` are runtime
   `dependencies` — everything the renderer uses is bundled by Vite, and
   listing it as a dependency would only copy it into the .app for nothing.

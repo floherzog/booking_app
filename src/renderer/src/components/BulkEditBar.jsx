@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { normalizeDateText } from '@core/parseDate'
+import { MailIcon } from './icons'
 import DateInput from './DateInput'
 import { fieldLabel } from '@core/constants'
 
@@ -158,7 +159,7 @@ export default function BulkEditBar({
               title="Draft or send to the selected venues"
               className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors disabled:opacity-40"
             >
-              <span aria-hidden="true">✉</span> Email{selectedCount ? ` ${selectedCount}` : ''}
+              <MailIcon /> Email{selectedCount ? ` ${selectedCount}` : ''}
             </button>
           )}
           <button

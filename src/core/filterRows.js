@@ -1,4 +1,4 @@
-import { ACTION_STATUSES, STATUS_META, getMissingFields, isOnlineForm } from './constants.js'
+import { ACTION_STATUSES, STATUS_META, CHIP_HUES, getMissingFields, isOnlineForm } from './constants.js'
 import { replyHealth } from './replyStatus.js'
 
 // What the filter bar, the chips and the Filter / Chips panel together decide:
@@ -119,14 +119,25 @@ export function describeFilters(filters, columnLabel = k => k) {
 
 // Settings ▸ which chips the bar shows. `hidden` holds status keys (SEND, …)
 // and shortcut keys (actionOnly, …); `custom` the saved filter sets.
+// `colors` gives statuses and shortcut chips a colour of their own (key → hue);
+// a custom chip carries its `color`. Unknown hues are dropped: default colours.
 export function normalizeFilterChips(stored) {
   const s = stored && typeof stored === 'object' ? stored : {}
+  const hue = v => (CHIP_HUES.includes(v) ? v : undefined)
+  const colors = {}
+  if (s.colors && typeof s.colors === 'object') {
+    for (const [k, v] of Object.entries(s.colors)) if (hue(v)) colors[k] = v
+  }
   return {
     hidden: Array.isArray(s.hidden) ? s.hidden.filter(k => typeof k === 'string') : [],
+    colors,
     custom: Array.isArray(s.custom)
       ? s.custom
           .filter(c => c && typeof c.name === 'string' && c.name.trim() && c.filters && typeof c.filters === 'object')
-          .map(c => ({ id: String(c.id || c.name), name: c.name.trim(), filters: { ...EMPTY_FILTERS, ...c.filters } }))
+          .map(c => ({
+            id: String(c.id || c.name), name: c.name.trim(), filters: { ...EMPTY_FILTERS, ...c.filters },
+            ...(hue(c.color) ? { color: c.color } : {}),
+          }))
       : [],
   }
 }

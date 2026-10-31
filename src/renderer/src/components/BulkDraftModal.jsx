@@ -9,13 +9,14 @@ import { languageForRow } from '@core/templates'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { api } from '../platform'
+import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
 
 function whenLabel(iso) {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export default function BulkDraftModal({ rows, filteredRows, selected = null, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
+export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
   const backdrop = useBackdropClose(onClose)
   // Opened from Select mode with venues picked: those are what it drafts.
   const [source, setSource] = useState(selected?.size ? 'selected' : 'nextBatch')
@@ -48,6 +49,7 @@ export default function BulkDraftModal({ rows, filteredRows, selected = null, te
 
   // The venues this run would touch — worked out before the preflight so their
   // German genders can be fetched for just these, not for the whole table.
+  const setupGaps = mailSetupGaps(settings, templates)
   const picked = useMemo(() => selectRows(source, { rows, filteredRows, selected }), [source, rows, filteredRows, selected])
 
   const articlesOn = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
@@ -194,6 +196,12 @@ export default function BulkDraftModal({ rows, filteredRows, selected = null, te
           <button onClick={onClose} disabled={phase === 'running'} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none disabled:opacity-30">&times;</button>
         </div>
 
+        {phase === 'preflight' && setupGaps.length > 0 && (
+          <div className="px-6 pt-3">
+            <MailSetupNotice settings={settings} templates={templates} onOpenSettings={onOpenSettings} />
+          </div>
+        )}
+
         {phase === 'preflight' && (
           <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 space-y-2.5">
             <div>
@@ -289,7 +297,16 @@ export default function BulkDraftModal({ rows, filteredRows, selected = null, te
               </span>
             </p>
           ) : candidates.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No venues in this selection.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">
+              {source === 'nextBatch' && batchWhyEmpty ? (
+                <span className="block max-w-md mx-auto text-gray-500 dark:text-gray-400">
+                  {batchWhyEmpty.reason}
+                  {batchWhyEmpty.action === 'rules' && onOpenSettings && (
+                    <button onClick={() => onOpenSettings('rules')} className="ml-2 font-medium text-indigo-600 dark:text-indigo-400 hover:underline">Open Rules</button>
+                  )}
+                </span>
+              ) : 'No venues in this selection.'}
+            </p>
           ) : candidates.map(({ row, prepared, delivery }) => {
             const result = results[row._idx]
             const isSkipped = skipped.has(row._idx)
@@ -383,7 +400,7 @@ export default function BulkDraftModal({ rows, filteredRows, selected = null, te
               {phase !== 'done' && phase !== 'scheduled' && (
                 <button
                   onClick={primaryAction}
-                  disabled={phase === 'running' || (repeat === 'once' && eligible.length === 0) || (timing === 'later' && !scheduledAt)}
+                  disabled={phase === 'running' || setupGaps.length > 0 || (repeat === 'once' && eligible.length === 0) || (timing === 'later' && !scheduledAt)}
                   className={`text-white text-sm font-medium px-5 py-2 rounded-md transition-colors disabled:opacity-50 ${confirmSend
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-indigo-600 hover:bg-indigo-700'}`}

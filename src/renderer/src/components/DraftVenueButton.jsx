@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import RelDate from './RelDate'
+import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
 import { prepareDraft, createDraft, createDraftViaAppleScript, sendEmail } from '../lib/drafts'
 import { useGenders, useContactGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
@@ -10,7 +11,7 @@ import { languageForRow } from '@core/templates'
 // `showSend` promotes sending from the overflow to a button of its own. The venue
 // detail view sets it — there is room there, and sending one venue you are already
 // looking at is a normal thing to want. In the table row it stays in the overflow.
-export default function DraftVenueButton({ row, templates, languages, settings, draftedAtIso, onDraftCreated, onSent, showSend = false }) {
+export default function DraftVenueButton({ row, templates, languages, settings, draftedAtIso, onDraftCreated, onSent, onOpenSettings, showSend = false }) {
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null) // { ok, message }
   const [overflow, setOverflow] = useState(false)
@@ -30,6 +31,11 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [row, templates, languages, settings, genderVersion, nameVersion],
   )
+
+  // No account: drafting over IMAP and sending can't work, Open in Mail.app can.
+  // No templates at all: nothing can be written. Both say where to fix it.
+  const setupGaps = mailSetupGaps(settings, templates)
+  const noAccount = setupGaps.includes('account')
 
   async function run(fn, successMessage, { sent = false } = {}) {
     setBusy(true)
@@ -65,8 +71,8 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
 
         <button
           onClick={() => run(createDraft, 'Draft created in Mail')}
-          disabled={!prepared.ok || busy}
-          title={prepared.ok ? 'Create a draft in your Drafts mailbox over IMAP' : prepared.reason}
+          disabled={!prepared.ok || busy || noAccount}
+          title={noAccount ? 'Set up a mail account first (Settings ▸ Mail settings)' : prepared.ok ? 'Create a draft in your Drafts mailbox over IMAP' : prepared.reason}
           className="bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-gray-700 dark:hover:bg-white transition-colors disabled:opacity-40"
         >
           {busy ? 'Drafting…' : 'Draft in Mail'}
@@ -81,8 +87,8 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
               run(sendEmail, 'Email sent', { sent: true })
             }}
             onBlur={() => setTimeout(() => setConfirmSend(false), 150)}
-            disabled={!prepared.ok || busy}
-            title={prepared.ok ? `Send over SMTP to ${row['Email']} right now` : prepared.reason}
+            disabled={!prepared.ok || busy || noAccount}
+            title={noAccount ? 'Set up a mail account first (Settings ▸ Mail settings)' : prepared.ok ? `Send over SMTP to ${row['Email']} right now` : prepared.reason}
             className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors disabled:opacity-40 ${confirmSend
               ? 'bg-rose-600 text-white hover:bg-rose-700'
               : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'}`}
@@ -103,7 +109,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
           </button>
           {overflow && (
             <div className="absolute right-0 bottom-full mb-1 z-10 w-64 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1">
-              {!showSend && (
+              {!showSend && !noAccount && (
                 <button
                   onMouseDown={e => {
                     e.preventDefault()
@@ -137,7 +143,10 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
         </div>
       </div>
 
-      {!prepared.ok && (
+      {setupGaps.length > 0 && (
+        <MailSetupNotice settings={settings} templates={templates} onOpenSettings={onOpenSettings} appleScript={noAccount && prepared.ok} className="max-w-sm text-xs" />
+      )}
+      {!prepared.ok && !setupGaps.includes('templates') && (
         <p className="text-xs text-gray-400 dark:text-gray-500 max-w-xs text-right">{prepared.reason}</p>
       )}
       {status && (

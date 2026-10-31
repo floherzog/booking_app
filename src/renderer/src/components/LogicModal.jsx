@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { STATUS_META } from '@core/constants'
+import { statusMeta, useChipColors } from '../lib/palette'
 import { buildLogicNodes, describeWindow, describeBatchRule, TYPE_GATES } from '@core/logicTree'
 import { setTypeRule, typeRuleFor } from '@core/venueTypes'
 import { validateRules } from '@core/rules'
@@ -10,6 +10,7 @@ import { useEscape } from '../lib/useEscape'
 
 // A leaf: either a status outcome (blue-ish status pill) or a "keep going" fall-through.
 function Outcome({ value }) {
+  useChipColors()
   if (typeof value === 'object') {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300 ring-1 ring-gray-200 dark:ring-gray-600">
@@ -17,7 +18,7 @@ function Outcome({ value }) {
       </span>
     )
   }
-  const meta = STATUS_META[value]
+  const meta = statusMeta(value)
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${meta.badge}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />
