@@ -1,6 +1,7 @@
 import { parseCsvText, serializeCsv } from '@core/csv'
 import { routeRows, isMultiBand } from '@core/multiBand'
 import { api } from '../platform'
+import { t } from '../i18n'
 
 // A storage adapter is the only thing that knows where the CSV lives:
 //   { kind, label, configured, load(): { rows }, save(rows, message) }
@@ -14,7 +15,7 @@ function fileAdapter(storage) {
 
   return {
     kind: 'file',
-    label: path ? path.split('/').pop() : 'no file chosen',
+    label: path ? path.split('/').pop() : t('no file chosen'),
     detail: path,
     configured: !!path,
     async load() {
@@ -38,7 +39,7 @@ function githubAdapter(storage) {
 
   return {
     kind: 'github',
-    label: repo && path ? `${repo}/${path}` : 'GitHub not configured',
+    label: repo && path ? `${repo}/${path}` : t('GitHub not configured'),
     detail: repo && path ? `${repo} · ${path}` : '',
     configured: !!(repo && path),
     async load() {
@@ -64,7 +65,7 @@ function githubAdapter(storage) {
 function multiBandAdapter(storage) {
   let manifest = storage.multiBand
   const mtimes = {}
-  const label = manifest.base ? `${manifest.base}-*.csv (one per band)` : 'band files'
+  const label = manifest.base ? t('{base}-*.csv (one per band)', { base: manifest.base }) : t('band files')
 
   function paths() {
     return [manifest.unassigned, ...Object.values(manifest.files || {})].filter(Boolean)

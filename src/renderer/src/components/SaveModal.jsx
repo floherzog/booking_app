@@ -3,13 +3,14 @@ import { ADVANCED_COLUMNS, fieldLabel } from '@core/constants'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import EditableCell from './EditableCell'
+import { t, useT } from '../i18n'
 
 const label = fieldLabel
 const DATE_FIELDS = new Set(ADVANCED_COLUMNS.filter(c => c.type === 'date').map(c => c.key))
 // "Kulturfabrik · Band A": in multi-band mode one venue has a line per band, and
 // the list has to say which one changed. Harmless in normal mode.
 function venueLabel(row, idx) {
-  const name = row['Venue'] || `Row ${idx}`
+  const name = row['Venue'] || t('Row {n}', { n: idx })
   return row['Band'] ? `${name} · ${row['Band']}` : name
 }
 
@@ -17,6 +18,7 @@ function venueLabel(row, idx) {
 // table's own edit path), any one change taken back (onRevert), or all of them
 // dropped (onDiscard).
 export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose, onEdit, onRevert, onDiscard }) {
+  const t = useT()
   const backdrop = useBackdropClose(onClose)
   useEscape(onClose)
   const [pushing, setPushing] = useState(false)
@@ -85,22 +87,22 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Save {changes.length} change{changes.length !== 1 ? 's' : ''}
+            {t('Save {n} change|Save {n} changes', { n: changes.length })}
           </h2>
           <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-4">
           {lines.length === 0 ? (
-            <p className="text-gray-400 dark:text-gray-500 text-sm">No changes to save.</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm">{t("No changes to save.")}</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                  <th className="text-left pb-2 font-medium w-1/4">Venue</th>
-                  <th className="text-left pb-2 font-medium w-1/5">Field</th>
-                  <th className="text-left pb-2 font-medium w-[30%]">Before</th>
-                  <th className="text-left pb-2 font-medium w-[30%]">After{onEdit && <span className="normal-case tracking-normal font-normal"> · tap to edit</span>}</th>
+                  <th className="text-left pb-2 font-medium w-1/4">{t("Venue")}</th>
+                  <th className="text-left pb-2 font-medium w-1/5">{t("Field")}</th>
+                  <th className="text-left pb-2 font-medium w-[30%]">{t("Before")}</th>
+                  <th className="text-left pb-2 font-medium w-[30%]">{t("After")}{onEdit && <span className="normal-case tracking-normal font-normal"> {t("· tap to edit")}</span>}</th>
                   <th className="pb-2 w-6"></th>
                 </tr>
               </thead>
@@ -110,19 +112,19 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
                     <td className="py-2 pr-3 text-gray-700 dark:text-gray-300 font-medium align-top">{c.venue}</td>
                     <td className="py-2 pr-3 align-top">
                       {c.isDelete
-                        ? <span className="text-red-600 dark:text-red-400 font-medium text-xs uppercase tracking-wide">Deleted</span>
+                        ? <span className="text-red-600 dark:text-red-400 font-medium text-xs uppercase tracking-wide">{t("Deleted")}</span>
                         : c.isAdd
-                          ? <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs uppercase tracking-wide">Added</span>
-                          : <span className="text-gray-500 dark:text-gray-400">{label(c.field)}</span>}
+                          ? <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs uppercase tracking-wide">{t("Added")}</span>
+                          : <span className="text-gray-500 dark:text-gray-400">{t(label(c.field))}</span>}
                     </td>
                     <td className={`py-2 pr-3 align-top break-words ${c.reverted ? 'text-gray-400 dark:text-gray-500' : 'text-red-500 dark:text-red-400'}`}>
-                      {c.isDelete || c.isAdd ? '' : (c.oldVal || <span className="text-gray-300 dark:text-gray-600 italic">empty</span>)}
+                      {c.isDelete || c.isAdd ? '' : (c.oldVal || <span className="text-gray-300 dark:text-gray-600 italic">{t("empty")}</span>)}
                     </td>
                     <td className="py-2 pr-2 text-green-700 dark:text-green-400 font-medium align-top break-words">
-                      {c.isDelete ? '' : c.isAdd ? <span className="text-emerald-600 dark:text-emerald-400">new</span>
-                        : c.reverted ? <span className="text-gray-400 dark:text-gray-500 font-normal italic">no change</span>
+                      {c.isDelete ? '' : c.isAdd ? <span className="text-emerald-600 dark:text-emerald-400">{t("new")}</span>
+                        : c.reverted ? <span className="text-gray-400 dark:text-gray-500 font-normal italic">{t("no change")}</span>
                         : onEdit ? <EditableCell value={c.oldVal} rowIndex={c.idx} field={c.field} edits={edits} onEdit={onEdit} isDate={DATE_FIELDS.has(c.field)} className="text-sm" />
-                        : (c.newVal || <span className="text-gray-300 dark:text-gray-600 italic">empty</span>)}
+                        : (c.newVal || <span className="text-gray-300 dark:text-gray-600 italic">{t("empty")}</span>)}
                     </td>
                     <td className="py-2 align-top text-right w-6">
                       {onRevert && !c.reverted && (
@@ -141,19 +143,17 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
           {conflict && (
             <div className="mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-3 space-y-2">
               <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
-                The booking file changed since it was loaded.
+                {t("The booking file changed since it was loaded.")}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Something else wrote to it — another Mac via iCloud, the web app, or the booking script.
-                Overwriting replaces those changes with what you see here. Cancelling lets you reload first
-                (your unsaved edits would be lost).
+                {t("Something else wrote to it — another Mac via iCloud, the web app, or the booking script. Overwriting replaces those changes with what you see here. Cancelling lets you reload first (your unsaved edits would be lost).")}
               </p>
               <button
                 onClick={() => handlePush(true)}
                 disabled={pushing}
                 className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50"
               >
-                Overwrite anyway
+                {t("Overwrite anyway")}
               </button>
             </div>
           )}
@@ -164,24 +164,24 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
 
         <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
           <p className="min-w-0 text-xs text-gray-400 dark:text-gray-500">
-            Writes to <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded break-all">{adapter?.label || 'no storage configured'}</code>
+            {t("Writes to")} <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded break-all">{adapter?.label || t('no storage configured')}</code>
           </p>
           <div className="flex items-center justify-between gap-3">
           <div>
             {onDiscard && changes.length > 0 && (confirmDiscard ? (
               <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-1.5 whitespace-nowrap">
-                <span className="text-xs text-red-700 dark:text-red-400">Discard all?</span>
-                <button onClick={() => { onDiscard(); onClose() }} className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900">Yes</button>
+                <span className="text-xs text-red-700 dark:text-red-400">{t("Discard all?")}</span>
+                <button onClick={() => { onDiscard(); onClose() }} className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900">{t("Yes")}</button>
                 <span className="text-red-300">·</span>
-                <button onClick={() => setConfirmDiscard(false)} className="text-xs text-red-500 hover:text-red-700">No</button>
+                <button onClick={() => setConfirmDiscard(false)} className="text-xs text-red-500 hover:text-red-700">{t("No")}</button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDiscard(true)} disabled={pushing} className="text-sm text-gray-400 hover:text-red-600 px-2 py-1.5 -ml-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">Discard</button>
+              <button onClick={() => setConfirmDiscard(true)} disabled={pushing} className="text-sm text-gray-400 hover:text-red-600 px-2 py-1.5 -ml-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">{t("Discard")}</button>
             ))}
           </div>
           <div className="flex gap-3 shrink-0 justify-end">
             <button onClick={onClose} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-4 py-2">
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               onClick={() => handlePush()}

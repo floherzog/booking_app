@@ -10,6 +10,7 @@
 //
 // Pure on purpose — the file system is main's job, and the tests drive this.
 import { parseDate } from './parseDate.js'
+import { plainT } from './tr.js'
 
 // Raw venue data. Identical on every band's entry for the same venue; editing it
 // on one band edits it on all of them. Every other column is per band.
@@ -190,11 +191,11 @@ const NOT_A_BAND_FILE = /\.before-multiband-|-merged-\d{4}-\d{2}-\d{2}\.csv$/i
 // names can contain dashes, so the file name alone cannot say where the prefix
 // ends. A file's band is likewise the Band column, not its name; only a file
 // with no venues yet falls back to its name.
-export function inferBandFileSet(picked, entries) {
+export function inferBandFileSet(picked, entries, t = plainT) {
   const byName = new Map((entries || []).map(e => [e.name, e]))
   const me = byName.get(picked)
-  if (!me) return { error: `${picked} could not be read.` }
-  if (NOT_A_BAND_FILE.test(picked)) return { error: `${picked} is a backup, not a band file.` }
+  if (!me) return { error: t('{name} could not be read.', { name: picked }) }
+  if (NOT_A_BAND_FILE.test(picked)) return { error: t('{name} is a backup, not a band file.', { name: picked }) }
 
   let base = null
   const unassignedMatch = picked.match(/^(.+)-unassigned( \d+)?\.csv$/i)
@@ -203,11 +204,11 @@ export function inferBandFileSet(picked, entries) {
     const m = picked.match(new RegExp(`^(.+)-${escapeRe(bandSlug(me.bands[0]))}( \\d+)?\\.csv$`, 'i'))
     if (m) base = m[1]
   } else if (me.bands.length > 1) {
-    return { error: `${picked} holds venues of several bands (${me.bands.slice(0, 3).join(', ')}…) — that is a single booking CSV, not a band file. Use Import CSV for it.` }
+    return { error: t('{name} holds venues of several bands ({bands}…) — that is a single booking CSV, not a band file. Use Import CSV for it.', { name: picked, bands: me.bands.slice(0, 3).join(', ') }) }
   }
   if (!base) {
     const dash = picked.lastIndexOf('-')
-    if (dash <= 0) return { error: `${picked} isn't named like a band file (<name>-<band>.csv).` }
+    if (dash <= 0) return { error: t('{name} isn’t named like a band file (<name>-<band>.csv).', { name: picked }) }
     base = picked.slice(0, dash)
   }
 
@@ -224,10 +225,10 @@ export function inferBandFileSet(picked, entries) {
     const m = e.name.match(prefix)
     if (!m || NOT_A_BAND_FILE.test(e.name)) continue
     if (m[1].toLowerCase() === 'unassigned' && !e.bands.length) { unassigned = e.name; continue }
-    if (e.bands.length > 1) { skipped.push({ name: e.name, reason: 'holds venues of several bands' }); continue }
+    if (e.bands.length > 1) { skipped.push({ name: e.name, reason: t('holds venues of several bands') }); continue }
     const band = e.bands[0] || m[1]
     const key = band.trim().toLowerCase()
-    if (taken.has(key)) { skipped.push({ name: e.name, reason: `a second file for ${band} (${taken.get(key)} is used)` }); continue }
+    if (taken.has(key)) { skipped.push({ name: e.name, reason: t('a second file for {band} ({file} is used)', { band, file: taken.get(key) }) }); continue }
     taken.set(key, e.name)
     files[band] = e.name
   }

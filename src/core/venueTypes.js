@@ -1,3 +1,4 @@
+import { plainT } from './tr.js'
 // A venue's `Type` is a free CSV column. What a type does is decided by its rule
 // (Settings ▸ Venue types, and the type gates in Rules ▸ Flow):
 //   behaves  'never'    → never contacted (Dead)
@@ -96,16 +97,17 @@ export function behavioralTypes(typeRules) {
 
 // Where a type is in use before it is deleted: its rule (in words, as the flow
 // shows it) and how many venues carry it. Empty `rule` = an ordinary type.
-export function typeUsage(typeRules, type, rows = []) {
+export function typeUsage(typeRules, type, rows = [], t = plainT) {
   const r = typeRuleFor(typeRules, type)
   const parts = []
-  if (r.behaves === 'never') parts.push('Type is … → Dead (never contacted)')
-  if (r.behaves === 'festival') parts.push('Type is … and the festival booking window is closed')
-  if (r.bands !== null) parts.push('Type is … and the band isn’t one that books it')
-  if (r.frequencyDays) parts.push(`its own follow-up interval (${r.frequencyDays} days)`)
+  const name = `“${type}”`
+  if (r.behaves === 'never') parts.push(t('Type is {type} → Dead (never contacted)', { type: name }))
+  if (r.behaves === 'festival') parts.push(t('Type is {type} and the festival booking window is closed', { type: name }))
+  if (r.bands !== null) parts.push(t('Type is {type} and the band isn’t one that books it', { type: name }))
+  if (r.frequencyDays) parts.push(t('its own follow-up interval ({days} days)', { days: r.frequencyDays }))
   const key = typeKey(type)
   const venues = rows.filter(row => typeKey(row?.['Type']) === key).length
-  return { rule: parts.map(p => p.replace('…', `“${type}”`)), venues }
+  return { rule: parts, venues }
 }
 
 // Settings written before venue-type rules (version 1) may lack the built-in

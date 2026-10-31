@@ -39,6 +39,7 @@ import { setChipColors } from './lib/palette'
 import MailSetupNotice, { mailSetupGaps } from './components/MailSetupNotice'
 import { api, caps } from './platform'
 import { checkOpenclawPolicy } from './lib/policySync'
+import { t, useT, getLanguage, useLanguage } from './i18n'
 
 // Mail-only views, loaded when first opened: they carry the template editor
 // (TipTap), which the web build never shows and so never downloads.
@@ -47,6 +48,7 @@ const BulkDraftModal = lazy(() => import('./components/BulkDraftModal'))
 
 
 export default function App() {
+  const t = useT()
   // The whole persisted config lives in the main process (userData/settings.json);
   // null until the first settings:get resolves.
   const [settings, setSettings] = useState(null)
@@ -95,6 +97,9 @@ export default function App() {
   const [view, setView] = useState('list')
   const [selectMode, setSelectMode] = useState(false)
   const pinToolbar = usePinToolbar()
+  const language = useLanguage()
+  // The Mac menu and dialogs follow the app's language.
+  useEffect(() => { api.setLanguage?.(language) }, [language])
   const pinItems = usePinItems()
   const [settingsSection, setSettingsSection] = useState(null) // which Settings section opens
   const [showMailSetup, setShowMailSetup] = useState(false) // a one-click draft found mail not set up
@@ -164,11 +169,11 @@ export default function App() {
       const notes = []
       const bandFiles = multi ? Object.keys(s.storage.multiBand.files || {}).length + 1 : 0
       if (multi && missing.length >= bandFiles) {
-        notes.push(`The band files folder ${s.storage.multiBand.dir} is gone (moved, renamed or deleted), so the list is empty. In Settings ▸ Data & storage, choose where it is now, or switch back to a single CSV.`)
+        notes.push(t('The band files folder {dir} is gone (moved, renamed or deleted), so the list is empty. In Settings ▸ Data & storage, choose where it is now, or switch back to a single CSV.', { dir: s.storage.multiBand.dir }))
       } else if (missing.length) {
-        notes.push(`Missing band file${missing.length !== 1 ? 's' : ''} ${missing.join(', ')} — treated as empty and recreated on the next Save.`)
+        notes.push(t('Missing band file {files} — treated as empty and recreated on the next Save.|Missing band files {files} — treated as empty and recreated on the next Save.', { n: missing.length, files: missing.join(', ') }))
       }
-      if (fixes.length) notes.push(`${new Set(fixes.map(f => f._idx)).size} band entr${fixes.length !== 1 ? 'ies' : 'y'} had venue details that differed from the same venue's other bands — staged the most recently emailed version for review. Save to apply.`)
+      if (fixes.length) notes.push(t('{n} band entry had venue details that differed from the same venue’s other bands — staged the most recently emailed version for review. Save to apply.|{n} band entries had venue details that differed from the same venue’s other bands — staged the most recently emailed version for review. Save to apply.', { n: new Set(fixes.map(f => f._idx)).size }))
       if (notes.length) setSyncNote(notes.join(' '))
       setDeletions(new Set())
       setAdditions(new Set())
@@ -244,7 +249,7 @@ export default function App() {
   const onScheduleDone = useRef(null)
   onScheduleDone.current = payload => {
     if (payload?.reason === 'run' && payload.job?.recipe) {
-      runScheduledRecipe(payload.job).catch(e => setError(`Scheduled run: ${e.message}`))
+      runScheduledRecipe(payload.job).catch(e => setError(t('Scheduled run: {error}', { error: e.message })))
       return
     }
     if (payload?.reason !== 'completed') return
@@ -259,7 +264,7 @@ export default function App() {
       if (result.delivery === 'send') recordSend(row)
       else recordDraft(row)
     }
-    if (failures.length) setError(`Scheduled run: ${failures.length} message${failures.length !== 1 ? 's' : ''} failed — ${failures[0]}`)
+    if (failures.length) setError(t('Scheduled run: {n} message failed — {error}|Scheduled run: {n} messages failed — {error}', { n: failures.length, error: failures[0] }))
   }
   // Subscribed once; the ref keeps the handler looking at the current rows.
   useEffect(() => api.onScheduleUpdate(p => onScheduleDone.current?.(p)), [])
@@ -316,8 +321,8 @@ export default function App() {
       const found = result?.edits || []
       found.forEach(e => handleEdit(e._idx, e.field, e.value))
       setSyncNote(found.length
-        ? `Mail sync staged ${found.length} change${found.length !== 1 ? 's' : ''} — review and Save.`
-        : 'Mail sync found nothing new.')
+        ? t('Mail sync staged {n} change — review and Save.|Mail sync staged {n} changes — review and Save.', { n: found.length })
+        : t('Mail sync found nothing new.'))
     } catch (e) {
       setSyncNote(e.message)
     } finally {
@@ -390,10 +395,10 @@ export default function App() {
         const matching = rows.filter(r => r['Band'] === from && !deletions.has(r._idx))
         if (!matching.length) continue
         const ok = await confirm({
-          title: `Rename “${from}” to “${nb.name}” on its venues too?`,
-          message: `${matching.length} venue${matching.length !== 1 ? 's' : ''} still say “${from}”. Its band file keeps its name.`,
-          cancelLabel: 'Not now',
-          choices: [{ value: true, label: `Rename on ${matching.length} venue${matching.length !== 1 ? 's' : ''}` }],
+          title: t('Rename “{from}” to “{to}” on its venues too?', { from, to: nb.name }),
+          message: t('{n} venue still says “{from}”. Its band file keeps its name.|{n} venues still say “{from}”. Its band file keeps its name.', { n: matching.length, from }),
+          cancelLabel: t('Not now'),
+          choices: [{ value: true, label: t('Rename on {n} venue|Rename on {n} venues', { n: matching.length }) }],
         })
         if (ok) {
           adapter?.renameBand?.(from, nb.name)
@@ -415,15 +420,14 @@ export default function App() {
         const differ = matching.filter(r => live(r) !== nb.tourDates)
         if (!differ.length) continue
         const empty = differ.filter(r => !live(r))
-        const n = k => `${k} venue${k !== 1 ? 's' : ''}`
-        const choices = [{ value: 'all', label: `Set on ${n(differ.length)}` }]
-        if (empty.length && empty.length < differ.length) choices.unshift({ value: 'empty', label: `Only the ${empty.length} without Dates` })
+        const choices = [{ value: 'all', label: t('Set on {n} venue|Set on {n} venues', { n: differ.length }) }]
+        if (empty.length && empty.length < differ.length) choices.unshift({ value: 'empty', label: t('Only the {n} without Dates', { n: empty.length }) })
         const pick = await confirm({
-          title: `Use “${nb.tourDates}” as the Dates of ${nb.name}’s venues?`,
+          title: t('Use “{dates}” as the Dates of {band}’s venues?', { dates: nb.tourDates, band: nb.name }),
           message: empty.length === differ.length
-            ? `${n(differ.length)} of ${nb.name} have no Dates yet.`
-            : `${n(differ.length)} of ${nb.name} have other Dates${empty.length ? `, ${empty.length} of them none at all` : ''}. Nothing is saved until you press Save.`,
-          cancelLabel: 'Not now',
+            ? t('{n} venue of {band} has no Dates yet.|{n} venues of {band} have no Dates yet.', { n: differ.length, band: nb.name })
+            : `${t('{n} venue of {band} has other Dates.|{n} venues of {band} have other Dates.', { n: differ.length, band: nb.name })}${empty.length ? ` ${t('{n} of them have none at all.', { n: empty.length })}` : ''} ${t('Nothing is saved until you press Save.')}`,
+          cancelLabel: t('Not now'),
           choices,
         })
         const target = pick === 'all' ? differ : pick === 'empty' ? empty : []
@@ -452,7 +456,7 @@ export default function App() {
   // says so) and reload from disk afterwards. Returns the stored settings so the
   // still-open panel can adopt the new storage section.
   async function handleSetMultiBand(on) {
-    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     const storage = on
       ? await enableMultiBand(settings)
       : await disableMultiBand(settings, rows)
@@ -473,25 +477,25 @@ export default function App() {
 
   // Use a set of band files that already exists (found from the one picked).
   async function handleOpenBandFiles(plan) {
-    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     return switchStorage(await openBandFiles(settings, plan))
   }
 
   // The band files' folder moved (or should): see planRelocate.
   async function handleRelocateBandFiles(plan) {
-    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     return switchStorage(await relocateBandFiles(settings, plan))
   }
 
   // Band files that are gone: back to the single CSV, without merging.
   async function handleForgetBandFiles() {
-    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     return switchStorage(forgetBandFiles(settings))
   }
 
   // Start a new, empty set of band files somewhere else; the current files stay.
   async function handleNewBandSet(plan) {
-    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     return switchStorage(await createNewBandSet(settings, plan))
   }
 
@@ -500,7 +504,7 @@ export default function App() {
   // venues are added to the list that produced. Staged: they reach the band
   // files on Save, like any import. → { saved, added }
   async function handleImportBandFiles(plan) {
-    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     let saved = settings
     let base = rows
     if (!multiBand) {
@@ -581,7 +585,7 @@ export default function App() {
       if (multiBand && originalRow) {
         const clash = rows.some(r => r._venueId === originalRow._venueId && r._idx !== rowIndex
           && !deletions.has(r._idx) && (edits[r._idx]?.['Band'] ?? r['Band']) === value)
-        if (clash) { setError(`${originalRow['Venue'] || 'This venue'} already has ${value}.`); return }
+        if (clash) { setError(t('{venue} already has {band}.', { venue: originalRow['Venue'] || t('This venue'), band: value })); return }
       }
       // Swapping a venue's band also fills its Dates from that band's Dates
       // text (only when the band has one — never wipe an existing Dates value).
@@ -810,14 +814,14 @@ export default function App() {
   // it is offered everywhere from now on, and hand it back to the cell to commit.
   async function handleAddType() {
     const name = (await ask({
-      label: 'New venue type',
+      label: t('New venue type'),
       placeholder: 'club',
-      hint: 'Only "festival", "filler" and "dead" change how a venue is classified; anything else is just a label.',
-      confirmLabel: 'Add',
+      hint: t('Only “festival”, “filler” and “dead” change how a venue is classified; anything else is just a label.'),
+      confirmLabel: t('Add'),
     }))?.trim()
     if (!name) return null
     const known = settings?.venueTypes || []
-    if (!known.some(t => t.toLowerCase() === name.toLowerCase())) {
+    if (!known.some(tx => tx.toLowerCase() === name.toLowerCase())) {
       await persist({ ...settings, venueTypes: [...known, name] })
     }
     return name
@@ -898,19 +902,21 @@ export default function App() {
   // there is something to explain.
   const batchCount = useMemo(() => liveRows.filter(r => r._nextBatch || r['Draft'] === 'TRUE').length, [liveRows])
   const batchWhyEmpty = useMemo(
-    () => (batchCount ? null : explainEmptyBatch({ rows: liveRows, filters: { nextBatch: true }, rules, today })),
-    [batchCount, liveRows, rules, today],
+    () => (batchCount ? null : explainEmptyBatch({ rows: liveRows, filters: { nextBatch: true }, rules, today, t })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [batchCount, liveRows, rules, today, language],
   )
   const listWhyEmpty = useMemo(
     () => (filters.nextBatch && filteredRows.length === 0
-      ? explainEmptyBatch({ rows: liveRows, filters, rules, today, ctx: { isDuplicate, classify: classifyCtx }, columnLabel: statsColumnLabel })
+      ? explainEmptyBatch({ rows: liveRows, filters, rules, today, ctx: { isDuplicate, classify: classifyCtx }, columnLabel: statsColumnLabel, t })
       : null),
-    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, classifyCtx],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, classifyCtx, language],
   )
   const batchActions = {
-    rules: { label: 'Open Rules', run: () => openSettings('rules') },
-    onlyBatch: { label: 'Show the next batch', run: () => setFilters({ ...EMPTY_FILTERS, nextBatch: true }) },
-    missingInfo: { label: 'Show Missing info', run: () => setFilters({ ...EMPTY_FILTERS, status: STATUS.MISSING_INFO }) },
+    rules: { label: t('Open Rules'), run: () => openSettings('rules') },
+    onlyBatch: { label: t('Show the next batch'), run: () => setFilters({ ...EMPTY_FILTERS, nextBatch: true }) },
+    missingInfo: { label: t('Show Missing info'), run: () => setFilters({ ...EMPTY_FILTERS, status: STATUS.MISSING_INFO }) },
   }
   const emptyNote = listWhyEmpty && (
     <span className="block max-w-xl mx-auto text-gray-500 dark:text-gray-400">
@@ -987,10 +993,10 @@ export default function App() {
   // header's line, so the toolbar and the column headings can sit together.
   const listSummary = (
     <p className="text-xs text-gray-400 dark:text-gray-500">
-      {filteredVenueCount === venueCount ? `${venueCount} venues` : `Showing ${filteredVenueCount} of ${venueCount} venues`}
-      {lastFetched && ` · fetched ${lastFetched.toLocaleTimeString()}`}
+      {filteredVenueCount === venueCount ? t('{n} venue|{n} venues', { n: venueCount }) : t('Showing {shown} of {n} venues', { shown: filteredVenueCount, n: venueCount })}
+      {lastFetched && ` · ${t('fetched {time}', { time: lastFetched.toLocaleTimeString(getLanguage()) })}`}
       {editCount > 0 && (
-        <span className="text-amber-600 dark:text-amber-400 font-medium"> · {editCount} unsaved edit{editCount !== 1 ? 's' : ''}</span>
+        <span className="text-amber-600 dark:text-amber-400 font-medium"> · {t('{n} unsaved edit|{n} unsaved edits', { n: editCount })}</span>
       )}
     </p>
   )
@@ -1003,23 +1009,23 @@ export default function App() {
       </div>
       {editCount > 0 && (
         <button onClick={() => setShowSave(true)} className="flex items-center justify-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium px-2 py-1.5 rounded-md transition-colors">
-          Save <span className="bg-amber-400 text-amber-900 font-bold px-1 py-0.5 rounded-full leading-none">{editCount}</span>
+          {t("Save")} <span className="bg-amber-400 text-amber-900 font-bold px-1 py-0.5 rounded-full leading-none">{editCount}</span>
         </button>
       )}
       {editCount > 0 && (confirmDiscard ? (
         <div className="flex flex-col rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-xs overflow-hidden">
-          <span className="text-center text-red-700 dark:text-red-400 py-1">Sure?</span>
+          <span className="text-center text-red-700 dark:text-red-400 py-1">{t("Sure?")}</span>
           <div className="flex border-t border-red-200 dark:border-red-800">
-            <button onClick={handleDiscard} className="flex-1 py-1.5 font-semibold text-red-700 dark:text-red-400">Yes</button>
-            <button onClick={() => setConfirmDiscard(false)} className="flex-1 py-1.5 text-red-500 border-l border-red-200 dark:border-red-800">No</button>
+            <button onClick={handleDiscard} className="flex-1 py-1.5 font-semibold text-red-700 dark:text-red-400">{t("Yes")}</button>
+            <button onClick={() => setConfirmDiscard(false)} className="flex-1 py-1.5 text-red-500 border-l border-red-200 dark:border-red-800">{t("No")}</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">Discard</button>
+        <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">{t("Discard")}</button>
       ))}
-      <button onClick={() => setShowLogic(true)} className={iconBtn} title="How venues are classified">ⓘ</button>
+      <button onClick={() => setShowLogic(true)} className={iconBtn} title={t("How venues are classified")}>ⓘ</button>
       <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : '↻'}</button>
-      <button onClick={() => setShowSettings(true)} className={iconBtn} title="Settings">{SlidersIcon}</button>
+      <button onClick={() => setShowSettings(true)} className={iconBtn} title={t("Settings")}>{SlidersIcon}</button>
     </div>
   )
 
@@ -1050,30 +1056,30 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
-              <button onClick={() => setView('list')} className={`px-3 py-1.5 transition-colors ${view === 'list' ? viewToggleActive : viewToggleInactive}`}>≡ List</button>
-              <button onClick={() => setView('map')} className={`inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{GlobeIcon} Map</button>
+              <button onClick={() => setView('list')} className={`px-3 py-1.5 transition-colors ${view === 'list' ? viewToggleActive : viewToggleInactive}`}>{t("≡ List")}</button>
+              <button onClick={() => setView('map')} className={`inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{GlobeIcon} {t("Map")}</button>
             </div>
             {editCount > 0 && (
               <>
                 <button onClick={() => setShowSave(true)} className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-1.5 rounded-md transition-colors">
-                  <span>Save</span>
+                  <span>{t("Save")}</span>
                   <span className="bg-amber-400 text-amber-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{editCount}</span>
                 </button>
                 {confirmDiscard ? (
                   <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-1.5">
-                    <span className="text-xs text-red-700 dark:text-red-400">Sure?</span>
-                    <button onClick={handleDiscard} className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900">Yes</button>
+                    <span className="text-xs text-red-700 dark:text-red-400">{t("Sure?")}</span>
+                    <button onClick={handleDiscard} className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900">{t("Yes")}</button>
                     <span className="text-red-300">·</span>
-                    <button onClick={() => setConfirmDiscard(false)} className="text-xs text-red-500 hover:text-red-700">No</button>
+                    <button onClick={() => setConfirmDiscard(false)} className="text-xs text-red-500 hover:text-red-700">{t("No")}</button>
                   </div>
                 ) : (
-                  <button onClick={() => setConfirmDiscard(true)} className="text-sm text-gray-400 hover:text-red-600 px-2 py-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Discard</button>
+                  <button onClick={() => setConfirmDiscard(true)} className="text-sm text-gray-400 hover:text-red-600 px-2 py-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">{t("Discard")}</button>
                 )}
               </>
             )}
-            <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="How venues are classified">ⓘ Logic</button>
-            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? 'Reload the CSV and check the mail account' : 'Reload the CSV'} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? 'Loading…' : syncing ? 'Checking mail…' : '↻'}</button>
-            <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Settings">⚙</button>
+            <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("How venues are classified")}>{t("ⓘ Logic")}</button>
+            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? t('Loading…') : syncing ? t('Checking mail…') : '↻'}</button>
+            <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("Settings")}>⚙</button>
           </div>
         </div>
 
@@ -1084,7 +1090,7 @@ export default function App() {
         {policyDrift.length > 0 && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md px-4 py-3 flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">OpenClaw’s hold logic differs from the Rules — update them in ⓘ Logic</p>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{t("OpenClaw’s hold logic differs from the Rules — update them in ⓘ Logic")}</p>
               {policyDrift.map((d, i) => (
                 <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{d}</p>
               ))}
@@ -1096,7 +1102,7 @@ export default function App() {
         {showMailSetup && mailSetupGaps(settings, templates).length > 0 && (
           <div className="flex items-start gap-2">
             <MailSetupNotice settings={settings} templates={templates} onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} className="flex-1" />
-            <button onClick={() => setShowMailSetup(false)} aria-label="Dismiss" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none px-1">&times;</button>
+            <button onClick={() => setShowMailSetup(false)} aria-label={t("Dismiss")} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none px-1">&times;</button>
           </div>
         )}
 
@@ -1108,7 +1114,7 @@ export default function App() {
         )}
 
         {loading && rows.length === 0 && (
-          <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">Loading booking data…</div>
+          <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">{t("Loading booking data…")}</div>
         )}
 
         {/* Mobile: the same count line the desktop header carries */}
@@ -1181,8 +1187,7 @@ export default function App() {
               <>
                 {rows.length === 0 ? (
                   <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">
-                    No venues yet — add one with <span className="font-medium">+ New Venue</span>, or bring
-                    a list in through Settings ▸ Data &amp; storage ▸ Import CSV.
+                    {t("No venues yet — add one with")} <span className="font-medium">{t("+ New Venue")}</span>{t(", or bring a list in through Settings ▸ Data & storage ▸ Import CSV.")}
                   </div>
                 ) : (
                 <BookingTable
@@ -1319,10 +1324,10 @@ export default function App() {
           fallback={({ error }) => (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" onClick={() => setVenueDetail(null)}>
               <div className="bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
-                <p className="font-semibold text-red-700 dark:text-red-400">This venue view ran into an error.</p>
+                <p className="font-semibold text-red-700 dark:text-red-400">{t("This venue view ran into an error.")}</p>
                 <p className="font-mono text-xs break-words bg-red-50 dark:bg-red-900/20 rounded p-2 text-red-700 dark:text-red-300">{String(error?.message || error)}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Your unsaved edits are still there — close this and Save as usual.</p>
-                <button onClick={() => setVenueDetail(null)} className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700">Close</button>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{t("Your unsaved edits are still there — close this and Save as usual.")}</p>
+                <button onClick={() => setVenueDetail(null)} className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700">{t("Close")}</button>
               </div>
             </div>
           )}

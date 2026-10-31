@@ -4,6 +4,7 @@ import { renderEmailHtml } from '@core/emailHtml'
 import { genderOf, contactGenderOf, ensureGenders, ensureContactGenders } from './genders'
 import { accountForRow } from '@core/mailAccounts'
 import { api } from '../platform'
+import { t } from '../i18n'
 
 // The key a created draft is logged under. Venue+City+Band identifies a venue
 // row independently of its position in the CSV, so the log survives re-sorting
@@ -24,14 +25,14 @@ export function draftedAt(settings, row) {
 export function prepareDraft(row, templates, languages, settings) {
   // Only real addresses: an Email cell may hold several, or a note around one.
   const email = emailAddresses(row['Email']).join(', ')
-  const resolved = resolveTemplate(templates, row, languages)
+  const resolved = resolveTemplate(templates, row, languages, t)
 
   // `resolved` carries its own `reason`, so it is spread first — otherwise it
   // would overwrite the more specific message below.
   if (!email) {
     const reason = isOnlineForm(row)
-      ? 'This venue only takes an online form.'
-      : 'No email address for this venue.'
+      ? t('This venue only takes an online form.')
+      : t('No email address for this venue.')
     return { ...resolved, ok: false, reason, empties: [] }
   }
   if (!resolved.template) {

@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 // A play button has to be drawn *into* the thumbnail, not layered over it with
 // CSS: mail clients strip positioning, and absolutely-positioned overlays fall
 // apart in Outlook and Gmail. Baking it in means the thumbnail is still just an
@@ -67,7 +68,7 @@ export async function drawPlayBadge(bytes, mime = 'image/jpeg') {
   ctx.fill()
 
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92))
-  if (!blob) throw new Error('Could not draw the play button onto the thumbnail.')
+  if (!blob) throw new Error(t('Could not draw the play button onto the thumbnail.'))
   return blob
 }
 

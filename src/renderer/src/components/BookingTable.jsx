@@ -25,6 +25,7 @@ import { useDragSelect } from '../lib/useDragSelect'
 import { usePinToolbar, usePinItems } from '../lib/uiPrefs'
 import { MailIcon } from './icons'
 import { isSharedField } from '@core/multiBand'
+import { t, useT } from '../i18n'
 
 
 // The Reply Status kind reads as a recorded fact (a tinted badge with an inbound
@@ -36,7 +37,7 @@ const REPLY_BADGE = {
   'auto-reply': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   none: 'border border-dashed border-gray-300 text-gray-400 dark:border-gray-600 dark:text-gray-500',
 }
-const REPLY_LABEL = { reply: 'replied', 'auto-reply': 'auto-reply', none: 'no reply' }
+const REPLY_LABEL = { reply: () => t('replied'), 'auto-reply': () => t('auto-reply'), none: () => t('no reply') }
 const REPLY_ICON = { reply: '↩', 'auto-reply': '⟳', none: '' }
 function rowHighlight(row) {
   return healthMeta(row).row
@@ -161,7 +162,7 @@ const COLUMNS = [
         <div aria-hidden className="h-0 overflow-hidden invisible normal-case tracking-normal">
           {Object.keys(STATUS_META).map(s => <div key={s}><StatusBadge status={s} /></div>)}
         </div>
-        Status
+        {t("Status")}
       </>
     ),
     cell: i => <StatusBadge status={i.getValue()} />,
@@ -172,7 +173,7 @@ const COLUMNS = [
     enableSorting: true,
   }),
   helper.accessor('Venue', {
-    header: 'Venue',
+    header: () => t('Venue'),
     cell: i => {
       const { edits, classify } = i.table.options.meta
       const row = i.row.original
@@ -197,11 +198,11 @@ const COLUMNS = [
       return (
         <div className="flex items-center gap-1.5">
           {draftNext
-            ? <span title="Flagged: draft next" className="shrink-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 dark:ring-emerald-600" />
+            ? <span title={t("Flagged: draft next")} className="shrink-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 dark:ring-emerald-600" />
             : row._nextBatch && (
               (effective['Note'] || '').trim()
-                ? <span title="In next batch, but needs an LLM note check — may be skipped" className="shrink-0 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 dark:ring-amber-600" />
-                : <span title="In next OpenClaw batch" className="shrink-0 w-2 h-2 rounded-full bg-indigo-500" />
+                ? <span title={t("In next batch, but needs an LLM note check — may be skipped")} className="shrink-0 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 dark:ring-amber-600" />
+                : <span title={t("In next OpenClaw batch")} className="shrink-0 w-2 h-2 rounded-full bg-indigo-500" />
             )}
           {nameEl}
           {missing.length > 0 && (
@@ -217,10 +218,10 @@ const COLUMNS = [
     },
     sortingFn: 'alphanumeric',
   }),
-  mkEditable('City', { header: 'City', cellClass: 'text-sm text-gray-600' }),
-  mkEditable('Country', { header: 'Country', cellClass: 'text-sm text-gray-600' }),
+  mkEditable('City', { header: () => t('City'), cellClass: 'text-sm text-gray-600' }),
+  mkEditable('Country', { header: () => t('Country'), cellClass: 'text-sm text-gray-600' }),
   helper.accessor('Band', {
-    header: 'Band',
+    header: () => t('Band'),
     cell: i => {
       const { edits, onEdit, bandOptions } = i.table.options.meta
       return (
@@ -238,7 +239,7 @@ const COLUMNS = [
     sortingFn: 'alphanumeric',
   }),
   helper.accessor('Type', {
-    header: 'Type',
+    header: () => t('Type'),
     cell: i => {
       const { edits, onEdit, typeOptions, onAddType } = i.table.options.meta
       return (
@@ -246,8 +247,8 @@ const COLUMNS = [
           value={i.row.original['Type'] || ''}
           rowIndex={i.row.original._idx}
           field="Type"
-          label="Type"
-          title="Click to change the venue type"
+          label={t("Type")}
+          title={t("Click to change the venue type")}
           edits={edits}
           onEdit={onEdit}
           options={typeOptions || []}
@@ -259,7 +260,7 @@ const COLUMNS = [
     sortingFn: 'alphanumeric',
   }),
   helper.accessor('Last emailed', {
-    header: 'Last Emailed',
+    header: () => t('Last Emailed'),
     cell: i => {
       const { edits, onEdit } = i.table.options.meta
       const raw = edits[i.row.original._idx]?.['Last emailed'] ?? i.row.original['Last emailed'] ?? ''
@@ -278,7 +279,7 @@ const COLUMNS = [
     },
   }),
   helper.accessor('Follow Up Date', {
-    header: 'Follow Up',
+    header: () => t('Follow Up'),
     cell: i => {
       const { edits, onEdit } = i.table.options.meta
       const raw = edits[i.row.original._idx]?.['Follow Up Date'] ?? i.row.original['Follow Up Date'] ?? ''
@@ -296,9 +297,9 @@ const COLUMNS = [
       return da - db
     },
   }),
-  mkEditable('Note', { header: 'Note', cellClass: 'text-xs text-gray-500' }),
+  mkEditable('Note', { header: () => t('Note'), cellClass: 'text-xs text-gray-500' }),
   helper.accessor('Status', {
-    header: 'Reply Status',
+    header: () => t('Reply Status'),
     cell: i => {
       const { edits, onEdit } = i.table.options.meta
       return <ReplyStatusCell rowIndex={i.row.original._idx} value={i.row.original['Status'] || ''} edits={edits} onEdit={onEdit} />
@@ -312,7 +313,7 @@ const COLUMNS = [
   }),
   helper.display({
     id: 'flags',
-    header: 'Outreach',
+    header: () => t('Outreach'),
     cell: i => {
       const { edits, onEdit } = i.table.options.meta
       const row = i.row.original
@@ -322,12 +323,12 @@ const COLUMNS = [
         <div className={i.stacked ? 'flex flex-wrap gap-1 items-start' : 'flex flex-col gap-1 items-start'}>
           <DraftAction row={{ ...row, ...(edits[row._idx] || {}) }} meta={i.table.options.meta} />
           <FlagPill
-            label="Next batch" active={draft}
+            label={t("Next batch")} active={draft}
             activeClass="bg-emerald-500 text-white border-emerald-500"
             onToggle={() => onEdit(row._idx, 'Draft', draft ? '' : 'TRUE')}
           />
           <FlagPill
-            label="Auto-send" active={auto}
+            label={t("Auto-send")} active={auto}
             activeClass="bg-teal-500 text-white border-teal-500"
             onToggle={() => onEdit(row._idx, 'Auto', auto ? '' : 'TRUE')}
           />
@@ -342,6 +343,7 @@ const COLUMNS = [
 // One-click draft straight from the row. Disabled (with the reason on hover)
 // when the venue has no email or no template for its band and language.
 function DraftAction({ row, meta }) {
+  const t = useT()
   const { templates, languages, settings, onQuickDraft, draftingIdx, draftResults } = meta
   if (!onQuickDraft) return null
 
@@ -353,7 +355,7 @@ function DraftAction({ row, meta }) {
     <button
       onClick={e => { e.stopPropagation(); onQuickDraft(row) }}
       disabled={!prepared.ok || busy}
-      title={prepared.ok ? `Create a draft in Mail (${prepared.language})` : prepared.reason}
+      title={prepared.ok ? t('Create a draft in Mail ({language})', { language: prepared.language }) : prepared.reason}
       className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[11px] leading-none transition-colors disabled:opacity-30 ${
         result?.ok
           ? 'border-green-400 text-green-600 dark:text-green-400'
@@ -377,7 +379,7 @@ const SELECT_COLUMN = helper.display({
     return (
       <input
         type="checkbox"
-        aria-label="Select all shown venues"
+        aria-label={t("Select all shown venues")}
         checked={allSelected}
         onChange={e => onToggleAll(ids, e.target.checked)}
         className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
@@ -393,7 +395,7 @@ const SELECT_COLUMN = helper.display({
     return (
       <input
         type="checkbox"
-        aria-label="Select venue"
+        aria-label={t("Select venue")}
         checked={checked}
         onChange={() => onToggleAll(ids, !checked)}
         onClick={e => e.stopPropagation()}
@@ -428,7 +430,7 @@ function buildExtraColumnDef(field) {
   if (col.type === 'date') {
     const colorFn = field === 'Last played' ? lastPlayedColor : followUpColor
     return helper.accessor(field, {
-      header: col.label,
+      header: () => t(col.label),
       cell: i => {
         const { edits, onEdit } = i.table.options.meta
         const raw = edits[i.row.original._idx]?.[field] ?? i.row.original[field] ?? ''
@@ -444,7 +446,7 @@ function buildExtraColumnDef(field) {
   }
   if (col.type === 'number') {
     return helper.accessor(field, {
-      header: col.label,
+      header: () => t(col.label),
       cell: i => <span className="text-sm text-gray-600 tabular-nums">{i.row.original[field] || '0'}</span>,
       sortingFn: (a, b) => (Number(a.original[field]) || 0) - (Number(b.original[field]) || 0),
     })
@@ -452,7 +454,7 @@ function buildExtraColumnDef(field) {
   if (col.type === 'health') {
     return helper.accessor(() => '', {
       id: '_health',
-      header: col.label,
+      header: () => t(col.label),
       cell: i => {
         const h = replyHealth(i.row.original)
         return (
@@ -465,12 +467,13 @@ function buildExtraColumnDef(field) {
       sortingFn: (a, b) => (HEALTH_RANK[replyHealth(a.original)] ?? 9) - (HEALTH_RANK[replyHealth(b.original)] ?? 9),
     })
   }
-  return mkEditable(field, { header: col.label, cellClass: 'text-sm text-gray-600' })
+  return mkEditable(field, { header: () => t(col.label), cellClass: 'text-sm text-gray-600' })
 }
 
 // Last-reply editor: the reply date (typed or picked) with its countdown on top, the
 // reply kind (dropdown) underneath. Both recompose the single `Status` CSV field.
 function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
+  const t = useT()
   const raw = edits[rowIndex]?.['Status'] ?? value ?? ''
   const { kind, dateStr } = parseReplyStatus(raw)
   const isEdited = edits[rowIndex]?.['Status'] !== undefined
@@ -506,7 +509,7 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
         <div
           onClick={e => { e.stopPropagation(); setEditingDate(true) }}
           className="cursor-text hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 -mx-1"
-          title="Click to set the reply date"
+          title={t("Click to set the reply date")}
         >
           {dateStr ? (
             <div className="leading-tight">
@@ -514,7 +517,7 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
               <div><RelDate raw={dateStr} colorFn={colorFn} /></div>
             </div>
           ) : (
-            <span className="text-gray-300 dark:text-gray-600 text-xs">— set date —</span>
+            <span className="text-gray-300 dark:text-gray-600 text-xs">{t("— set date —")}</span>
           )}
         </div>
       )}
@@ -527,18 +530,18 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
           onClick={e => e.stopPropagation()}
           className="rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
         >
-          <option value="none">— no reply —</option>
-          <option value="reply">replied</option>
-          <option value="auto-reply">auto-reply</option>
+          <option value="none">{t("— no reply —")}</option>
+          <option value="reply">{t("replied")}</option>
+          <option value="auto-reply">{t("auto-reply")}</option>
         </select>
       ) : (
         <button
           onClick={e => { e.stopPropagation(); setEditingKind(true) }}
-          title="Click to change the reply type"
+          title={t("Click to change the reply type")}
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap transition-colors hover:opacity-80 ${REPLY_BADGE[kind]}`}
         >
           {REPLY_ICON[kind] && <span className="leading-none">{REPLY_ICON[kind]}</span>}
-          {REPLY_LABEL[kind]}
+          {REPLY_LABEL[kind]()}
         </button>
       )}
     </div>
@@ -560,23 +563,24 @@ function FlagPill({ label, active, activeClass, onToggle }) {
 // One band's part of a mobile card in multi-band mode: its status, band, dates
 // and flags on a couple of lines. Tapping it opens that band.
 function MobileEntry({ entry, edits, onEdit }) {
+  const t = useT()
   const e = { ...entry, ...(edits[entry._idx] || {}) }
   const draftNext = e['Draft'] === 'TRUE'
   const autoSend = e['Auto'] === 'TRUE'
   return (
     <div data-entry={entry._idx} className="py-1.5 border-t border-gray-100 dark:border-gray-800 first:border-0">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{e['Band'] || <span className="italic text-gray-400">no band</span>}</span>
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{e['Band'] || <span className="italic text-gray-400">{t("no band")}</span>}</span>
         <StatusBadge status={entry._status} />
       </div>
       <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
-        {e['Last emailed'] && <span className="text-xs text-gray-400">Emailed <RelDate raw={e['Last emailed']} colorFn={lastEmailedColor} row={e} /></span>}
-        {e['Follow Up Date'] && <span className="text-xs text-gray-400">Follow up <RelDate raw={e['Follow Up Date']} colorFn={followUpColor} row={e} /></span>}
+        {e['Last emailed'] && <span className="text-xs text-gray-400">{t("Emailed")} <RelDate raw={e['Last emailed']} colorFn={lastEmailedColor} row={e} /></span>}
+        {e['Follow Up Date'] && <span className="text-xs text-gray-400">{t("Follow up")} <RelDate raw={e['Follow Up Date']} colorFn={followUpColor} row={e} /></span>}
       </div>
       <div className="mt-1 flex gap-1.5">
-        <FlagPill label="Next batch" active={draftNext} activeClass="bg-emerald-500 text-white border-emerald-500"
+        <FlagPill label={t("Next batch")} active={draftNext} activeClass="bg-emerald-500 text-white border-emerald-500"
           onToggle={() => onEdit(entry._idx, 'Draft', draftNext ? '' : 'TRUE')} />
-        <FlagPill label="Auto-send" active={autoSend} activeClass="bg-teal-500 text-white border-teal-500"
+        <FlagPill label={t("Auto-send")} active={autoSend} activeClass="bg-teal-500 text-white border-teal-500"
           onToggle={() => onEdit(entry._idx, 'Auto', autoSend ? '' : 'TRUE')} />
       </div>
     </div>
@@ -678,6 +682,7 @@ function MobileSelectable({ row, selectMode, selected, onSetSelected, onStartSel
 }
 
 function MobileCard({ row, edits, onVenueClick, onEdit }) {
+  const t = useT()
   useChipColors()
   const classify = useClassifyCtx()
   const r = row.original
@@ -731,11 +736,11 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           {draftNext
-            ? <span title="Flagged: draft next" className="shrink-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 dark:ring-emerald-600" />
+            ? <span title={t("Flagged: draft next")} className="shrink-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 dark:ring-emerald-600" />
             : r._nextBatch && (
               (effective['Note'] || '').trim()
-                ? <span title="In next batch, but needs an LLM note check — may be skipped" className="shrink-0 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 dark:ring-amber-600" />
-                : <span title="In next OpenClaw batch" className="shrink-0 w-2 h-2 rounded-full bg-indigo-500" />
+                ? <span title={t("In next batch, but needs an LLM note check — may be skipped")} className="shrink-0 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 dark:ring-amber-600" />
+                : <span title={t("In next OpenClaw batch")} className="shrink-0 w-2 h-2 rounded-full bg-indigo-500" />
             )}
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">{effective['Venue'] || '—'}</span>
         </div>
@@ -756,12 +761,12 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
         {lastEmailedRaw && (
           <span className="text-xs text-gray-400">
-            Emailed <RelDate raw={lastEmailedRaw} colorFn={lastEmailedColor} row={effective} />
+            {t("Emailed")} <RelDate raw={lastEmailedRaw} colorFn={lastEmailedColor} row={effective} />
           </span>
         )}
         {followUpRaw && (
           <span className="text-xs text-gray-400">
-            Follow up <RelDate raw={followUpRaw} colorFn={followUpColor} row={effective} />
+            {t("Follow up")} <RelDate raw={followUpRaw} colorFn={followUpColor} row={effective} />
           </span>
         )}
       </div>
@@ -770,12 +775,12 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
       )}
       <div className="mt-1.5 flex gap-1.5">
         <FlagPill
-          label="Next batch" active={draftNext}
+          label={t("Next batch")} active={draftNext}
           activeClass="bg-emerald-500 text-white border-emerald-500"
           onToggle={() => onEdit(r._idx, 'Draft', draftNext ? '' : 'TRUE')}
         />
         <FlagPill
-          label="Auto-send" active={autoSend}
+          label={t("Auto-send")} active={autoSend}
           activeClass="bg-teal-500 text-white border-teal-500"
           onToggle={() => onEdit(r._idx, 'Auto', autoSend ? '' : 'TRUE')}
         />
@@ -784,9 +789,10 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
   )
 }
 
-const missingTitle = missing => `Missing: ${describeMissing(missing)}`
+const missingTitle = missing => t('Missing: {what}', { what: describeMissing(missing, t) })
 
 export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onStartSelect, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
+  const t = useT()
   useChipColors() // rows redraw in a newly chosen colour
   const [sorting, setSorting] = useState(sortBy || [{ id: '_status', desc: false }])
 
@@ -943,7 +949,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
 
   const empty = (
     <p className="px-3 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
-      {emptyNote || 'No venues match the current filters.'}
+      {emptyNote || t('No venues match the current filters.')}
     </p>
   )
 
@@ -1004,7 +1010,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
           {sortedRows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="px-3 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
-                {emptyNote || 'No venues match the current filters.'}
+                {emptyNote || t('No venues match the current filters.')}
               </td>
             </tr>
           ) : (

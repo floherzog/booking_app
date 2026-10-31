@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { t, useT } from '../i18n'
 
 // A render error anywhere used to unmount the whole tree and leave a blank
 // window. Wrapped around a part of the UI, this keeps the rest — and App's
@@ -28,14 +29,14 @@ export default class ErrorBoundary extends Component {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-lg space-y-3 text-sm text-gray-700 dark:text-gray-300">
-          <p className="font-semibold text-red-700 dark:text-red-400">Something went wrong.</p>
+          <p className="font-semibold text-red-700 dark:text-red-400">{t("Something went wrong.")}</p>
           <p className="font-mono text-xs break-words bg-red-50 dark:bg-red-900/20 rounded p-2">{String(error?.message || error)}</p>
-          <p>Unsaved edits could not be kept. Your CSV itself is untouched.</p>
+          <p>{t("Unsaved edits could not be kept. Your CSV itself is untouched.")}</p>
           <button
             onClick={() => window.location.reload()}
             className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700"
           >
-            Reload
+            {t("Reload")}
           </button>
         </div>
       </div>

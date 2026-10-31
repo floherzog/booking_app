@@ -3,6 +3,7 @@ import { emptyManifest, fileForBand, routeRows, linkVenues, mergeRows, inferBand
 import { looksLikeAppCsv } from '@core/importMap'
 import { bandName } from '@core/bands'
 import { api } from '../platform'
+import { t } from '../i18n'
 
 // Turning multi-band mode on (split one CSV into a file per band) and off
 // (merge them back). Both refuse rather than overwrite anything: the split never
@@ -28,7 +29,7 @@ const fileName = path => path.split('/').pop()
 export async function planSplit(settings) {
   const source = settings?.storage?.filePath
   if (settings?.storage?.adapter === 'github' || !source) {
-    throw new Error('Multi-band mode needs a local CSV file (Settings ▸ Data & storage).')
+    throw new Error(t('Multi-band mode needs a local CSV file (Settings ▸ Data & storage).'))
   }
   const { dir, name, base } = splitPath(source)
   const { text } = await api.readCsvFile(source)
@@ -57,7 +58,7 @@ export async function planSplit(settings) {
 export async function enableMultiBand(settings) {
   const plan = await planSplit(settings)
   if (plan.clashes.length) {
-    throw new Error(`These files already exist in that folder: ${plan.clashes.join(', ')}. Move them away first.`)
+    throw new Error(t('These files already exist in that folder: {files}. Move them away first.', { files: plan.clashes.join(', ') }))
   }
   await api.writeCsvFiles({
     files: [...plan.routed.files].map(([path, rows]) => ({ path, text: serializeCsv(rows), expectedMtimeMs: null })),
@@ -129,9 +130,9 @@ export async function planOpenBandFiles(pickedPath) {
     parsed.set(fileName(path), await parseCsvText(text))
   }
   const entries = [...parsed].map(([n, rows]) => ({ name: n, bands: distinctBands(rows), rows: rows.length }))
-  const set = inferBandFileSet(name, entries)
+  const set = inferBandFileSet(name, entries, t)
   if (set.error) throw new Error(set.error)
-  if (!Object.keys(set.files).length && !set.unassigned) throw new Error(`No band files found next to ${name}.`)
+  if (!Object.keys(set.files).length && !set.unassigned) throw new Error(t('No band files found next to {name}.', { name }))
 
   const unassigned = set.unassigned || `${set.base}-unassigned.csv`
   const manifest = {
@@ -178,7 +179,7 @@ export async function planNewBandSet(settings, savePath) {
 }
 
 export async function createNewBandSet(settings, plan) {
-  if (plan.clashes.length) throw new Error(`Already in that folder: ${plan.clashes.join(', ')}. Pick another name or folder.`)
+  if (plan.clashes.length) throw new Error(t('Already in that folder: {files}. Pick another name or folder.', { files: plan.clashes.join(', ') }))
   await api.writeCsvFiles({
     files: plan.files.map(f => ({ path: f.path, text: serializeCsv([]), expectedMtimeMs: null })),
   })
@@ -198,16 +199,16 @@ export async function planImportBandFiles(paths) {
   const files = []
   for (const { path, text, missing } of read) {
     const name = fileName(path)
-    if (missing) throw new Error(`${name} could not be read.`)
+    if (missing) throw new Error(t('{name} could not be read.', { name }))
     const { headers } = await parseCsvRaw(text)
     if (!looksLikeAppCsv(headers)) {
-      throw new Error(`${name} doesn't have the app's columns. Import it on its own with Import CSV…, which lets you match its columns.`)
+      throw new Error(t('{name} doesn’t have the app’s columns. Import it on its own with Import CSV…, which lets you match its columns.', { name }))
     }
     const fileRows = await parseCsvText(text)
     const bands = distinctBands(fileRows)
     const band = bands.length === 1 ? bands[0] : ''
     for (const r of fileRows) rows.push(band && !r['Band'] ? { ...r, Band: band } : r)
-    files.push({ name, band: bands.length > 1 ? `${bands.length} bands` : band, count: fileRows.length })
+    files.push({ name, band: bands.length > 1 ? t('{n} bands', { n: bands.length }) : band, count: fileRows.length })
   }
   const venues = new Set(linkVenues(rows).map(r => r._venueId)).size
   return { kind: 'import', rows, files, venues }
@@ -248,7 +249,7 @@ export async function planRelocate(settings, newDir) {
 // → the new `storage` section.
 export async function relocateBandFiles(settings, plan) {
   if (plan.clashes.length) {
-    throw new Error(`Both folders have ${plan.clashes.join(', ')}. Move one copy away first.`)
+    throw new Error(t('Both folders have {files}. Move one copy away first.', { files: plan.clashes.join(', ') }))
   }
   const mb = settings.storage.multiBand
   for (const name of plan.toMove) {

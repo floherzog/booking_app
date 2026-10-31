@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import AdvancedPanel from './AdvancedPanel'
 import { EMPTY_FILTERS, isEmptyFilters } from '@core/filterRows'
 import { FilterIcon, SelectIcon, MailIcon } from './icons'
+import { t, useT } from '../i18n'
 
 const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
 
@@ -21,6 +22,7 @@ export default function FilterBar({
   canSelect = false, selectMode = false, selectedCount = 0, onToggleSelect, onEmail,
   pinned = false, pinItems = {}, pinnedChips = null, editCount = 0, onSave,
 }) {
+  const t = useT()
   const [, startTransition] = useTransition()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const barRef = useRef(null)
@@ -70,7 +72,7 @@ export default function FilterBar({
   const search = (
     <input
       type="search"
-      placeholder="Search…"
+      placeholder={t("Search…")}
       value={filters.search || ''}
       onChange={e => { const v = e.target.value; startTransition(() => onChange({ ...filters, search: v })) }}
       className="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
@@ -80,37 +82,37 @@ export default function FilterBar({
     <button
       onClick={onToggleSelect}
       aria-pressed={selectMode}
-      title={selectMode ? 'Leave Select mode' : 'Pick venues: click rows, shift-click a range, or drag across them (on a phone: tap, or press and hold a venue)'}
+      title={selectMode ? t('Leave Select mode') : t('Pick venues: click rows, shift-click a range, or drag across them (on a phone: tap, or press and hold a venue)')}
       className={`${btn} ${selectMode
         ? 'bg-gray-800 border-gray-800 text-white dark:bg-gray-200 dark:border-gray-200 dark:text-gray-900'
         : btnIdle}`}
     >
       <SelectIcon on={selectMode} />
-      <span className="hidden sm:inline">{selectMode ? `Done${selectedCount ? ` (${selectedCount})` : ''}` : 'Select'}</span>
+      <span className="hidden sm:inline">{selectMode ? `${t('Done')}${selectedCount ? ` (${selectedCount})` : ''}` : t('Select')}</span>
     </button>
   )
   const email = onEmail && (
     <button
       onClick={onEmail}
       title={selectMode && selectedCount
-        ? `Draft or send to the ${selectedCount} selected venue${selectedCount !== 1 ? 's' : ''}`
-        : 'Draft or send to several venues: the next batch, follow-ups, what the filters show, or the venues you select'}
+        ? t('Draft or send to the selected venue|Draft or send to the {n} selected venues', { n: selectedCount })
+        : t('Draft or send to several venues: the next batch, follow-ups, what the filters show, or the venues you select')}
       className={`${btn} bg-white border-indigo-300 text-indigo-700 hover:border-indigo-500 dark:bg-gray-800 dark:border-indigo-700 dark:text-indigo-300 dark:hover:border-indigo-500`}
     >
       <MailIcon />
-      <span className="hidden sm:inline">Email{selectMode && selectedCount ? ` ${selectedCount}` : ''}</span>
+      <span className="hidden sm:inline">{t("Email")}{selectMode && selectedCount ? ` ${selectedCount}` : ''}</span>
     </button>
   )
   const filterButton = onClick => (
     <button
       onClick={onClick}
-      title="Column filters, sort, and the chips above the list"
+      title={t("Column filters, sort, and the chips above the list")}
       className={`${btn} ${advancedOpen || advCount > 0
         ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300'
         : btnIdle}`}
     >
       <FilterIcon />
-      <span className="hidden sm:inline">Filter / Chips</span>
+      <span className="hidden sm:inline">{t("Filter / Chips")}</span>
       {advCount > 0 && (
         <span className="bg-indigo-600 text-white text-[10px] font-bold rounded-full px-1.5 leading-tight">{advCount}</span>
       )}
@@ -122,31 +124,31 @@ export default function FilterBar({
       className="shrink-0 flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
     >
       <span className="text-base leading-none">+</span>
-      <span className="hidden sm:inline">New Venue</span>
+      <span className="hidden sm:inline">{t("New Venue")}</span>
     </button>
   )
   const save = showSave && (
     <button
       onClick={onSave}
-      title="Review and save your changes"
+      title={t("Review and save your changes")}
       className="shrink-0 flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
     >
-      Save<span className="hidden sm:inline"> {editCount}</span>
+      {t("Save")}<span className="hidden sm:inline"> {editCount}</span>
     </button>
   )
   const dropdowns = (
     <div className="flex gap-2 flex-1 min-w-0">
       <select className={sel} value={filters.band}    onChange={e => onChange({ ...filters, band:    e.target.value, actionOnly: false, nextBatch: false })}>
-        <option value="">Band</option>
+        <option value="">{t("Band")}</option>
         {bands.map(b => <option key={b}>{b}</option>)}
       </select>
       <select className={sel} value={filters.country} onChange={e => onChange({ ...filters, country: e.target.value, actionOnly: false, nextBatch: false })}>
-        <option value="">Country</option>
+        <option value="">{t("Country")}</option>
         {countries.map(c => <option key={c}>{c}</option>)}
       </select>
       <select className={sel} value={filters.type}    onChange={e => onChange({ ...filters, type:    e.target.value, actionOnly: false, nextBatch: false })}>
-        <option value="">Type</option>
-        {types.map(t => <option key={t}>{t}</option>)}
+        <option value="">{t("Type")}</option>
+        {types.map(tx => <option key={tx}>{tx}</option>)}
       </select>
     </div>
   )
@@ -183,7 +185,7 @@ export default function FilterBar({
         {dropdowns}
         {hasFilters && (
           <button onClick={clear} className="shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline">
-            Clear
+            {t("Clear")}
           </button>
         )}
       </div>

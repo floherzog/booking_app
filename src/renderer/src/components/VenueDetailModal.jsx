@@ -18,8 +18,10 @@ import { useClassifyCtx } from '../lib/rulesContext'
 import { MailIcon } from './icons'
 import { contactGenderOf, overrideContactGender, useContactGenders } from '../lib/genders'
 import { greetingFor, contactOptionsFor } from '@core/templates'
+import { t, useT } from '../i18n'
 
 function MiniMap({ city, country, status, onOpenMap }) {
+  const t = useT()
   useChipColors()
   const [pos, setPos] = useState(null)
   const [loading, setLoading] = useState(Boolean(city || country))
@@ -60,7 +62,7 @@ function MiniMap({ city, country, status, onOpenMap }) {
         onClick={onOpenMap}
       >
         <span className="text-xs text-white font-medium bg-black/40 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-          Open in map ↗
+          {t("Open in map ↗")}
         </span>
       </div>
     </div>
@@ -124,6 +126,7 @@ const GREETING_CHOICES = [
   { value: 'x', label: 'neutral (Hallo / Guten Tag)' },
 ]
 function GreetingField({ row, settings }) {
+  const t = useT()
   const onDevice = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
   // Re-renders once the model has answered.
   useContactGenders([row['Contact']], onDevice)
@@ -137,15 +140,15 @@ function GreetingField({ row, settings }) {
   }
   return (
     <div className="col-span-2 -mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-      <span>Greeting:</span>
+      <span>{t("Greeting:")}</span>
       <span className="font-medium text-gray-700 dark:text-gray-200">{example}</span>
       <select
         value={override ?? ''}
         onChange={e => pick(e.target.value)}
         className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-0.5 pl-2 pr-7"
-        title="Correct how the first name is read"
+        title={t("Correct how the first name is read")}
       >
-        {GREETING_CHOICES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+        {GREETING_CHOICES.map(c => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
       </select>
     </div>
   )
@@ -172,6 +175,7 @@ function deriveFrequency(v) {
 }
 
 function FrequencyField({ fieldDef, value, isEdited, onChange }) {
+  const t = useT()
   const { key, hint } = fieldDef
   const inputId = `vd-${key}`
   const [state, setState] = useState(() => deriveFrequency(value))
@@ -217,16 +221,16 @@ function FrequencyField({ fieldDef, value, isEdited, onChange }) {
   return (
     <div className="col-span-2">
       <label htmlFor={inputId} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-        {fieldDef.label}
-        {hint && <span className="ml-1 text-gray-300 dark:text-gray-600 font-normal">{hint}</span>}
+        {t(fieldDef.label)}
+        {hint && <span className="ml-1 text-gray-300 dark:text-gray-600 font-normal">{t(hint)}</span>}
       </label>
       <div className="flex items-center gap-2">
         <select id={inputId} value={state.mode} onChange={handleSelect} className={`${base} flex-1`}>
-          <option value="default">Default (the type’s, else the Rules’)</option>
-          <option value="2 months">2 months</option>
-          <option value="3 months">3 months</option>
-          <option value="6 months">6 months</option>
-          <option value="custom">Custom…</option>
+          <option value="default">{t("Default (the type’s, else the Rules’)")}</option>
+          <option value="2 months">{t("2 months")}</option>
+          <option value="3 months">{t("3 months")}</option>
+          <option value="6 months">{t("6 months")}</option>
+          <option value="custom">{t("Custom…")}</option>
         </select>
         {state.mode === 'custom' && (
           <div className="flex items-center gap-1.5 shrink-0">
@@ -239,7 +243,7 @@ function FrequencyField({ fieldDef, value, isEdited, onChange }) {
               placeholder="#"
               className={`${base} w-20`}
             />
-            <span className="text-sm text-gray-500 dark:text-gray-400">months</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{t("months")}</span>
           </div>
         )}
       </div>
@@ -248,6 +252,7 @@ function FrequencyField({ fieldDef, value, isEdited, onChange }) {
 }
 
 function Field({ fieldDef, value, isEdited, onChange, row }) {
+  const t = useT()
   const { key, type, hint, span, rows: rowCount = 3 } = fieldDef
   const inputId = `vd-${key}`
   const [local, setLocal] = useState(value || '')
@@ -282,8 +287,8 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
           onChange={e => commit(e.target.checked ? 'TRUE' : '')}
           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
         />
-        <span className="font-medium text-gray-700 dark:text-gray-200">{fieldDef.label}</span>
-        {hint && <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">{hint}</span>}
+        <span className="font-medium text-gray-700 dark:text-gray-200">{t(fieldDef.label)}</span>
+        {hint && <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">{t(hint)}</span>}
       </label>
     )
   }
@@ -296,8 +301,8 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
   return (
     <div className={span === 2 ? 'col-span-2' : ''}>
       <label htmlFor={inputId} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-        {fieldDef.label}
-        {hint && <span className="ml-1 text-gray-300 dark:text-gray-600 font-normal">{hint}</span>}
+        {t(fieldDef.label)}
+        {hint && <span className="ml-1 text-gray-300 dark:text-gray-600 font-normal">{t(hint)}</span>}
       </label>
       {type === 'textarea' ? (
         <textarea
@@ -343,6 +348,7 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
 // add another. The tab shows the band's status colour, so a glance tells which
 // band needs something.
 function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
+  const t = useT()
   useChipColors()
   const bandOf = e => edits[e._idx]?.['Band'] ?? e['Band'] ?? ''
   const taken = new Set(entries.map(bandOf).filter(Boolean))
@@ -361,7 +367,7 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
               : 'text-gray-600 border-gray-300 hover:border-gray-400 dark:text-gray-300 dark:border-gray-600 dark:hover:border-gray-500'}`}
           >
             <span className="w-2 h-2 rounded-full" style={{ background: statusMeta(e._status).mapColor ?? '#9CA3AF' }} aria-hidden />
-            {bandOf(e) || <span className="italic">no band</span>}
+            {bandOf(e) || <span className="italic">{t("no band")}</span>}
           </button>
         )
       })}
@@ -370,9 +376,9 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
           value=""
           onChange={ev => { if (ev.target.value) onAdd(ev.target.value) }}
           className="rounded-md border-dashed border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 py-1 pl-2 pr-7"
-          title="Book this venue for another band too"
+          title={t("Book this venue for another band too")}
         >
-          <option value="">+ Add band…</option>
+          <option value="">{t("+ Add band…")}</option>
           {free.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
       )}
@@ -381,6 +387,7 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
 }
 
 export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand, onOpenSettings }) {
+  const t = useT()
   const [confirmDelete, setConfirmDelete] = useState(false) // false | 'band' | 'venue'
   const backdrop = useBackdropClose(onClose)
   useEscape(onClose)
@@ -409,39 +416,39 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between shrink-0">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{effective['Venue'] || 'Venue'}</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{effective['Venue'] || t('Venue')}</h2>
               <StatusBadge status={row._status} />
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                title={`${totalEmails} email${totalEmails !== 1 ? 's' : ''} sent all time`}
+                title={t('{n} email sent all time|{n} emails sent all time', { n: totalEmails })}
               >
-                {totalEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> all time
+                {totalEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {t("all time")}
               </span>
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                title={`${recentEmails} email${recentEmails !== 1 ? 's' : ''} sent since last reply`}
+                title={t('{n} email sent since the last reply|{n} emails sent since the last reply', { n: recentEmails })}
               >
-                {recentEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> since reply
+                {recentEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {t("since reply")}
               </span>
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${health.badge}`}
-                title={health.hint}
+                title={t(health.hint)}
               >
                 <span className={`w-2 h-2 rounded-full ${health.dot}`} aria-hidden />
-                {health.label}
+                {t(health.label)}
               </span>
               {duplicatePartners.map(partner => (
                 <span key={partner._idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
-                  Duplicate of {partner['Venue']}
+                  {t("Duplicate of")} {partner['Venue']}
                   <button
                     onClick={() => onOpenMerge(partner)}
                     className="ml-0.5 underline opacity-70 hover:opacity-100 leading-none"
-                    title="Merge venues"
-                  >Merge</button>
+                    title={t("Merge venues")}
+                  >{t("Merge")}</button>
                   <button
                     onClick={() => onDismissDuplicate(row, partner)}
                     className="opacity-60 hover:opacity-100 leading-none"
-                    title="Not a duplicate"
+                    title={t("Not a duplicate")}
                   >×</button>
                 </span>
               ))}
@@ -465,16 +472,16 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
           <div className="mx-6 mt-4 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md px-3 py-2 shrink-0">
             <span className="text-orange-500 text-sm">⚠</span>
             <span className="text-xs text-orange-700 dark:text-orange-400">
-              Missing: <span className="font-medium">{describeMissing(missing)}</span>
+              {t("Missing:")} <span className="font-medium">{describeMissing(missing, t)}</span>
             </span>
           </div>
         )}
 
         {isOnlineForm(effective) && (
           <div className="mx-6 mt-2 flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-md px-3 py-2 shrink-0 text-xs text-cyan-800 dark:text-cyan-300">
-            <span>Only takes enquiries through an online form, so it is never drafted.</span>
+            <span>{t("Only takes enquiries through an online form, so it is never drafted.")}</span>
             {formUrl && (
-              <a href={formUrl} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:no-underline whitespace-nowrap">Open form ↗</a>
+              <a href={formUrl} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:no-underline whitespace-nowrap">{t("Open form ↗")}</a>
             )}
           </div>
         )}
@@ -482,7 +489,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
         {Object.keys(rowEdits).length > 0 && (
           <div className="mx-6 mt-2 shrink-0">
             <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded px-2 py-0.5">
-              {Object.keys(rowEdits).length} unsaved edit{Object.keys(rowEdits).length !== 1 ? 's' : ''}
+              {t('{n} unsaved edit|{n} unsaved edits', { n: Object.keys(rowEdits).length })}
             </span>
           </div>
         )}
@@ -507,7 +514,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
             return (
             <div key={section.title}>
               <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
-                {section.title}
+                {t(section.title)}
                 {severalBands && (
                   <span className="ml-1.5 normal-case font-normal tracking-normal text-gray-300 dark:text-gray-600">
                     · {shared ? 'all bands' : mixed ? `${bandLabel} (Time Frame: all bands)` : bandLabel}
@@ -546,8 +553,8 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
             <div className="flex items-center gap-2">
               <span className="text-xs text-red-700 dark:text-red-400">
                 {confirmDelete === 'band'
-                  ? `Stop booking this venue for ${effective['Band']}?`
-                  : severalBands ? `Delete this venue for all ${entries.length} bands?` : 'Delete this venue?'}
+                  ? t('Stop booking this venue for {band}?', { band: effective['Band'] })
+                  : severalBands ? t('Delete this venue for all {n} bands?', { n: entries.length }) : t('Delete this venue?')}
               </span>
               <button
                 onClick={() => {
@@ -557,10 +564,10 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                 }}
                 className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200"
               >
-                {confirmDelete === 'band' ? 'Yes, remove' : 'Yes, delete'}
+                {confirmDelete === 'band' ? t('Yes, remove') : t('Yes, delete')}
               </button>
               <span className="text-red-300">·</span>
-              <button onClick={() => setConfirmDelete(false)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300">Cancel</button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300">{t("Cancel")}</button>
             </div>
           ) : (
             <div className="flex items-center gap-3">
@@ -569,14 +576,14 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                   onClick={() => setConfirmDelete('band')}
                   className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors whitespace-nowrap"
                 >
-                  Remove from {effective['Band']}
+                  {t("Remove from")} {effective['Band']}
                 </button>
               )}
               <button
                 onClick={() => setConfirmDelete('venue')}
                 className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors whitespace-nowrap"
               >
-                {severalBands ? 'Delete venue (all bands)' : 'Delete venue'}
+                {severalBands ? t('Delete venue (all bands)') : t('Delete venue')}
               </button>
             </div>
           )}
@@ -599,11 +606,11 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
               onClick={onSave}
               className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors shrink-0"
             >
-              Save
+              {t("Save")}
               <span className="bg-amber-400 text-amber-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{editCount}</span>
             </button>
           ) : (
-            <p className="text-xs text-gray-400 dark:text-gray-500">No unsaved changes</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t("No unsaved changes")}</p>
           )}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { applyGermanArticles, hasArticlePlaceholder } from './germanArticles.js'
+import { plainT } from './tr.js'
 
 // Email templates are keyed by band × language. The venue's Country decides the
 // language through the configurable country→language map; everything else falls
@@ -129,20 +130,21 @@ export function languageForRow(row, languages) {
 // Pick the template for a venue:
 //   band + its country's language  →  band + the default language  →  none.
 // Always reports which language was used and whether that was a fallback, so the
-// UI can warn before a draft goes out in the wrong language.
-export function resolveTemplate(templates, row, languages) {
+// UI can warn before a draft goes out in the wrong language. `t` translates
+// the reasons (tr.js).
+export function resolveTemplate(templates, row, languages, t = plainT) {
   const band = row?.['Band'] || ''
   const language = languageForRow(row, languages)
   const defaultLanguage = norm(languages?.default) || 'en'
   const list = templates || []
 
   if (!band) {
-    return { template: null, language, fallbackUsed: false, reason: 'This venue has no band set.' }
+    return { template: null, language, fallbackUsed: false, reason: t('This venue has no band set.') }
   }
 
   const forBand = list.filter(t => t.band === band)
   if (forBand.length === 0) {
-    return { template: null, language, fallbackUsed: false, reason: `No templates for "${band}" yet.` }
+    return { template: null, language, fallbackUsed: false, reason: t('No templates for “{band}” yet.', { band }) }
   }
 
   const exact = forBand.find(t => norm(t.language) === language)
@@ -154,7 +156,7 @@ export function resolveTemplate(templates, row, languages) {
       template: fallback,
       language: defaultLanguage,
       fallbackUsed: true,
-      reason: `No "${language}" template for ${band} — using "${defaultLanguage}".`,
+      reason: t('No “{language}” template for {band} — using “{fallback}”.', { language, band, fallback: defaultLanguage }),
     }
   }
 
@@ -162,7 +164,7 @@ export function resolveTemplate(templates, row, languages) {
     template: null,
     language,
     fallbackUsed: false,
-    reason: `No "${language}" or "${defaultLanguage}" template for ${band}.`,
+    reason: t('No “{language}” or “{fallback}” template for {band}.', { language, band, fallback: defaultLanguage }),
   }
 }
 

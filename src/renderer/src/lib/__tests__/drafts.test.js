@@ -49,7 +49,7 @@ describe('prepareDraft', () => {
   it('refuses a venue whose band has no template, and says why', () => {
     const p = prepareDraft({ ...ROW, Band: 'Other' }, [DE, EN], LANGUAGES)
     expect(p.ok).toBe(false)
-    expect(p.reason).toMatch(/no templates for "Other"/i)
+    expect(p.reason).toMatch(/no templates for “Other”/i)
   })
 
   it('every refusal carries a non-empty reason', () => {

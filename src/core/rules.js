@@ -1,3 +1,4 @@
+import { plainT } from './tr.js'
 // Every venue-selection number the app used to hardcode, in one editable object.
 // DEFAULT_RULES reproduces the webapp's behaviour exactly, so a fresh install
 // classifies identically; the Rules editor writes a full rules object into the
@@ -86,49 +87,49 @@ const NON_NEGATIVE_INTS = [
 
 // → array of human-readable error strings ([] when the rules are usable).
 // The Rules editor shows these inline and blocks Save while any exist.
-export function validateRules(rules) {
+export function validateRules(rules, t = plainT) {
   const errors = []
-  if (!isPlainObject(rules)) return ['Rules must be an object.']
+  if (!isPlainObject(rules)) return [t('Rules must be an object.')]
 
   for (const [key, label] of POSITIVE_INTS) {
     const v = rules[key]
-    if (!Number.isInteger(v) || v < 1) errors.push(`${label} must be a whole number of at least 1.`)
+    if (!Number.isInteger(v) || v < 1) errors.push(t('{label} must be a whole number of at least 1.', { label: t(label) }))
   }
   for (const [key, label] of NON_NEGATIVE_INTS) {
     const v = rules[key]
-    if (!Number.isInteger(v) || v < 0) errors.push(`${label} must be a whole number of 0 or more.`)
+    if (!Number.isInteger(v) || v < 0) errors.push(t('{label} must be a whole number of 0 or more.', { label: t(label) }))
   }
 
   if (!Array.isArray(rules.holdKeywords)) {
-    errors.push('Hold keywords must be a list.')
+    errors.push(t('Hold keywords must be a list.'))
   } else if (rules.holdKeywords.some(k => typeof k !== 'string' || !k.trim())) {
-    errors.push('Hold keywords must all be non-empty text.')
+    errors.push(t('Hold keywords must all be non-empty text.'))
   }
 
   if (!Array.isArray(rules.batchSortKeys) || rules.batchSortKeys.length === 0) {
-    errors.push('Pick at least one column to sort the next batch by.')
+    errors.push(t('Pick at least one column to sort the next batch by.'))
   } else if (rules.batchSortKeys.some(k => !BATCH_SORT_KEY_OPTIONS.includes(k))) {
-    errors.push(`Batch sort columns must be one of: ${BATCH_SORT_KEY_OPTIONS.join(', ')}.`)
+    errors.push(t('Batch sort columns must be one of: {columns}.', { columns: BATCH_SORT_KEY_OPTIONS.join(', ') }))
   }
 
   const dc = rules.dateColors
   if (!isPlainObject(dc)) {
-    errors.push('Date colors must be an object.')
+    errors.push(t('Date colors must be an object.'))
   } else {
     for (const key of Object.keys(DEFAULT_RULES.dateColors)) {
       const v = dc[key]
       if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
-        errors.push(`Date color "${key}" must be a number of 0 or more.`)
+        errors.push(t('Date color “{key}” must be a number of 0 or more.', { key }))
       }
     }
     if (dc.lastEmailedFreshRatio > dc.lastEmailedWarnRatio || dc.lastEmailedWarnRatio > dc.lastEmailedOverdueRatio) {
-      errors.push('Last-emailed color ratios must increase: fresh ≤ warn ≤ overdue.')
+      errors.push(t('Last-emailed color ratios must increase: fresh ≤ warn ≤ overdue.'))
     }
     if (dc.lastPlayedRedDays > dc.lastPlayedOrangeDays) {
-      errors.push('Last-played red threshold must not exceed the orange one.')
+      errors.push(t('Last-played red threshold must not exceed the orange one.'))
     }
     if (dc.lastReplyGreenDays > dc.lastReplyLimeDays || dc.lastReplyLimeDays > dc.lastReplyOrangeDays) {
-      errors.push('Last-reply color thresholds must increase: green ≤ lime ≤ orange.')
+      errors.push(t('Last-reply color thresholds must increase: green ≤ lime ≤ orange.'))
     }
   }
 

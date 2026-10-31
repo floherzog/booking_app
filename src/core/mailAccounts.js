@@ -7,6 +7,7 @@
 // settings.json written by an earlier version has to keep working untouched.
 
 import { bandName } from './bands.js'
+import { plainT } from './tr.js'
 
 export const DEFAULT_ACCOUNT_ID = 'default'
 
@@ -122,9 +123,9 @@ export function accountForRow(row, settings) {
 }
 
 // What to call an account in the UI.
-export function accountLabel(account) {
+export function accountLabel(account, t = plainT) {
   if (!account) return ''
-  return account.label || account.fromAddress || account.user || 'Unnamed account'
+  return account.label || account.fromAddress || account.user || t('Unnamed account')
 }
 
 export function hasMultipleAccounts(settings) {

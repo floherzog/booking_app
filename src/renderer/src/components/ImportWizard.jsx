@@ -4,11 +4,13 @@ import { parseCsvRaw } from '@core/csv'
 import { readFileText } from '../lib/csvFile'
 import { guessMapping, applyMapping, mappedCount } from '@core/importMap'
 import { api } from '../platform'
+import { t, useT } from '../i18n'
 
 const NONE = '' // sentinel: "don't import this app column"
 const REQUIRED = ['Venue', 'Band', 'Email']
 
 export default function ImportWizard({ rows = [], onImport, onBack, onClose, preloaded = null, multiBand = false }) {
+  const t = useT()
   const [step, setStep] = useState('file') // 'file' | 'mode' | 'map'
   const [parsed, setParsed] = useState(null) // { headers, rows, name, path }
   // Importing only fills the table; the file it came from is not the app's CSV
@@ -35,7 +37,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
     try {
       const { headers, rows: srcRows } = await parseCsvRaw(text)
       if (!headers.length || !srcRows.length) {
-        setError('No rows found in that file. Is it a CSV with a header row?')
+        setError(t('No rows found in that file. Is it a CSV with a header row?'))
         setBusy(false)
         return
       }
@@ -44,7 +46,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
       setStep(hasExisting ? 'mode' : 'map')
       if (!hasExisting) setMode('replace')
     } catch (err) {
-      setError('Could not read the file: ' + (err?.message || err))
+      setError(t('Could not read the file: {error}', { error: err?.message || err }))
     } finally {
       setBusy(false)
     }
@@ -97,13 +99,13 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
                 onClick={onBack}
                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 mb-1 -ml-1 px-1"
               >
-                ← Settings
+                {t("← Settings")}
               </button>
             )}
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Import CSV</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("Import CSV")}</h2>
             {parsed && (
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-md">
-                {parsed.name} · {parsed.rows.length} row{parsed.rows.length !== 1 ? 's' : ''} · {parsed.headers.length} column{parsed.headers.length !== 1 ? 's' : ''}
+                {parsed.name} · {t('{n} row|{n} rows', { n: parsed.rows.length })} · {t('{n} column|{n} columns', { n: parsed.headers.length })}
               </p>
             )}
           </div>
@@ -118,9 +120,9 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
           {/* Step 1: file */}
           {step === 'file' && (
             <div className="text-center py-8">
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">Choose a CSV file to import.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t("Choose a CSV file to import.")}</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-6">
-                Any CSV works — comma, semicolon, or tab separated. You'll match its columns to the app's on the next step.
+                {t("Any CSV works — comma, semicolon, or tab separated. You'll match its columns to the app's on the next step.")}
               </p>
               <button
                 type="button"
@@ -128,7 +130,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
                 disabled={busy}
                 className="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
               >
-                {busy ? 'Reading…' : 'Choose file…'}
+                {busy ? t('Reading…') : t('Choose file…')}
               </button>
               <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handlePick} className="hidden" />
             </div>
@@ -138,11 +140,11 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
           {step === 'mode' && (
             <div className="space-y-3">
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                You have {rows.length} venue{rows.length !== 1 ? 's' : ''} loaded. How should this file come in?
+                {t('You have {n} venue loaded. How should this file come in?|You have {n} venues loaded. How should this file come in?', { n: rows.length })}
               </p>
               {[
-                { value: 'replace', title: 'Replace the table', desc: 'Discard the current rows and load only this file. Nothing is written to GitHub until you Save.' },
-                { value: 'add', title: 'Add to existing', desc: 'Append this file as new venues, keeping your current rows and edits. Duplicates get flagged in the list so you can merge them.' },
+                { value: 'replace', title: t('Replace the table'), desc: t('Discard the current rows and load only this file. Nothing is written to GitHub until you Save.') },
+                { value: 'add', title: t('Add to existing'), desc: t('Append this file as new venues, keeping your current rows and edits. Duplicates get flagged in the list so you can merge them.') },
               ].map(opt => (
                 <button
                   key={opt.value}
@@ -165,8 +167,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
           {step === 'map' && (
             <div className="space-y-3">
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Match each booking-app column to a column from your file. We pre-filled the obvious ones —
-                adjust as needed. {nMapped} of {parsed.headers.length} file column{parsed.headers.length !== 1 ? 's' : ''} mapped.
+                {t("Match each booking-app column to a column from your file. We pre-filled the obvious ones — adjust as needed.")} {t('{mapped} of {n} file column mapped.|{mapped} of {n} file columns mapped.', { mapped: nMapped, n: parsed.headers.length })}
               </p>
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
                 {APP_COLUMNS.map(col => {
@@ -176,19 +177,19 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
                   return (
                     <div key={col.key} className="flex items-center gap-3 px-3 py-2">
                       <div className="w-32 shrink-0">
-                        <span className="text-sm text-gray-700 dark:text-gray-200">{col.label}</span>
-                        {isReq && <span className="ml-1 text-rose-500 text-xs" title="Recommended">*</span>}
+                        <span className="text-sm text-gray-700 dark:text-gray-200">{t(col.label)}</span>
+                        {isReq && <span className="ml-1 text-rose-500 text-xs" title={t("Recommended")}>*</span>}
                       </div>
                       <select
                         value={src}
                         onChange={e => setColumn(col.key, e.target.value)}
                         className="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
                       >
-                        <option value={NONE}>— Don't import</option>
+                        <option value={NONE}>{t("— Don't import")}</option>
                         {parsed.headers.map(h => <option key={h} value={h}>{h}</option>)}
                       </select>
                       <div className="w-32 shrink-0 truncate text-xs text-gray-400 dark:text-gray-500" title={previewVal || ''}>
-                        {src ? (previewVal || <span className="italic">empty</span>) : ''}
+                        {src ? (previewVal || <span className="italic">{t("empty")}</span>) : ''}
                       </div>
                     </div>
                   )
@@ -203,18 +204,16 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
                     className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
                   />
                   <span>
-                    <span className="block text-sm text-gray-800 dark:text-gray-100">Use this file as my CSV from now on</span>
+                    <span className="block text-sm text-gray-800 dark:text-gray-100">{t("Use this file as my CSV from now on")}</span>
                     <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Storage switches to <span className="font-mono">{parsed.path}</span>, so Save writes back to it and
-                      the app reloads from it next time. Leave it off to import the rows into the CSV you already use.
+                      {t("Storage switches to")} <span className="font-mono">{parsed.path}</span>{t(", so Save writes back to it and the app reloads from it next time. Leave it off to import the rows into the CSV you already use.")}
                     </span>
                   </span>
                 </label>
               )}
 
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                <span className="text-rose-500">*</span> recommended for outreach — rows missing them still import,
-                but show as “Missing info”. Values are copied exactly as written.
+                <span className="text-rose-500">*</span> {t("recommended for outreach — rows missing them still import, but show as “Missing info”. Values are copied exactly as written.")}
               </p>
             </div>
           )}
@@ -231,7 +230,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
             }}
             className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-2"
           >
-            {step !== 'file' || onBack ? 'Back' : 'Cancel'}
+            {step !== 'file' || onBack ? t('Back') : t('Cancel')}
           </button>
           {step === 'mode' && (
             <button
@@ -239,7 +238,7 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
               onClick={() => setStep('map')}
               className="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-md hover:bg-indigo-700 transition-colors"
             >
-              Next: match columns
+              {t("Next: match columns")}
             </button>
           )}
           {step === 'map' && (
@@ -249,7 +248,9 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
               disabled={nMapped === 0}
               className="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
             >
-              Import {parsed.rows.length} row{parsed.rows.length !== 1 ? 's' : ''} ({mode === 'add' ? 'add' : 'replace'})
+              {mode === 'add'
+                ? t('Import {n} row (add)|Import {n} rows (add)', { n: parsed.rows.length })
+                : t('Import {n} row (replace)|Import {n} rows (replace)', { n: parsed.rows.length })}
             </button>
           )}
         </div>

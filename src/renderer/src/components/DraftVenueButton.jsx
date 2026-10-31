@@ -4,6 +4,7 @@ import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
 import { prepareDraft, createDraft, createDraftViaAppleScript, sendEmail } from '../lib/drafts'
 import { useGenders, useContactGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
+import { t, useT } from '../i18n'
 
 // The per-venue draft action. The IMAP path is primary; the AppleScript one sits
 // in the overflow because it drives Mail's window by keystroke and needs macOS
@@ -12,6 +13,7 @@ import { languageForRow } from '@core/templates'
 // detail view sets it — there is room there, and sending one venue you are already
 // looking at is a normal thing to want. In the table row it stays in the overflow.
 export default function DraftVenueButton({ row, templates, languages, settings, draftedAtIso, onDraftCreated, onSent, onOpenSettings, showSend = false }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null) // { ok, message }
   const [overflow, setOverflow] = useState(false)
@@ -60,22 +62,22 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
         {prepared.ok && (
           <span className="text-xs text-gray-400 dark:text-gray-500">
             <span className="font-mono">{prepared.language}</span>
-            {prepared.fallbackUsed && <span className="text-amber-600 dark:text-amber-400"> (fallback)</span>}
+            {prepared.fallbackUsed && <span className="text-amber-600 dark:text-amber-400"> {t("(fallback)")}</span>}
             {prepared.empties.length > 0 && (
-              <span className="text-amber-600 dark:text-amber-400" title={`Empty: ${prepared.empties.join(', ')}`}>
-                {' '}· {prepared.empties.length} empty
+              <span className="text-amber-600 dark:text-amber-400" title={t('Empty: {fields}', { fields: prepared.empties.join(', ') })}>
+                {' '}· {prepared.empties.length} {t("empty")}
               </span>
             )}
           </span>
         )}
 
         <button
-          onClick={() => run(createDraft, 'Draft created in Mail')}
+          onClick={() => run(createDraft, t('Draft created in Mail'))}
           disabled={!prepared.ok || busy || noAccount}
-          title={noAccount ? 'Set up a mail account first (Settings ▸ Mail settings)' : prepared.ok ? 'Create a draft in your Drafts mailbox over IMAP' : prepared.reason}
+          title={noAccount ? t('Set up a mail account first (Settings ▸ Mail settings)') : prepared.ok ? t('Create a draft in your Drafts mailbox over IMAP') : prepared.reason}
           className="bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-gray-700 dark:hover:bg-white transition-colors disabled:opacity-40"
         >
-          {busy ? 'Drafting…' : 'Draft in Mail'}
+          {busy ? t('Drafting…') : t('Draft in Mail')}
         </button>
 
         {showSend && (
@@ -84,16 +86,16 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
               // Two clicks rather than a system confirm(): Electron's renderer
               // modals are worth avoiding, and this one actually sends mail.
               if (!confirmSend) { setConfirmSend(true); return }
-              run(sendEmail, 'Email sent', { sent: true })
+              run(sendEmail, t('Email sent'), { sent: true })
             }}
             onBlur={() => setTimeout(() => setConfirmSend(false), 150)}
             disabled={!prepared.ok || busy || noAccount}
-            title={noAccount ? 'Set up a mail account first (Settings ▸ Mail settings)' : prepared.ok ? `Send over SMTP to ${row['Email']} right now` : prepared.reason}
+            title={noAccount ? t('Set up a mail account first (Settings ▸ Mail settings)') : prepared.ok ? t('Send over SMTP to {email} right now', { email: row['Email'] }) : prepared.reason}
             className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors disabled:opacity-40 ${confirmSend
               ? 'bg-rose-600 text-white hover:bg-rose-700'
               : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'}`}
           >
-            {busy ? 'Sending…' : confirmSend ? 'Really send?' : 'Send now'}
+            {busy ? t('Sending…') : confirmSend ? t('Really send?') : t('Send now')}
           </button>
         )}
 
@@ -102,7 +104,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
             onClick={() => { setOverflow(v => !v); setConfirmSend(false) }}
             onBlur={() => setTimeout(() => setOverflow(false), 150)}
             disabled={!prepared.ok || busy}
-            title="Other ways to create this draft"
+            title={t("Other ways to create this draft")}
             className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-1.5 py-1.5 rounded transition-colors disabled:opacity-40"
           >
             ⋯
@@ -117,25 +119,25 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
                     // away from the ordinary draft button, and Electron's modal
                     // dialogs are worth avoiding in the renderer.
                     if (!confirmSend) { setConfirmSend(true); return }
-                    run(sendEmail, 'Email sent', { sent: true })
+                    run(sendEmail, t('Email sent'), { sent: true })
                   }}
                   className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700"
                 >
                   <span className={`block text-xs ${confirmSend ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
-                    {confirmSend ? `Really send to ${row['Email']}?` : 'Send now instead'}
+                    {confirmSend ? t('Really send to {email}?', { email: row['Email'] }) : t('Send now instead')}
                   </span>
                   <span className="block text-[11px] text-gray-400 dark:text-gray-500">
-                    Goes out over SMTP immediately and stages a “Last emailed” edit.
+                    {t("Goes out over SMTP immediately and stages a “Last emailed” edit.")}
                   </span>
                 </button>
               )}
               <button
-                onMouseDown={e => { e.preventDefault(); run(createDraftViaAppleScript, 'Compose window opened in Mail') }}
+                onMouseDown={e => { e.preventDefault(); run(createDraftViaAppleScript, t('Compose window opened in Mail')) }}
                 className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                <span className="block text-xs text-gray-700 dark:text-gray-200">Open in Mail.app instead</span>
+                <span className="block text-xs text-gray-700 dark:text-gray-200">{t("Open in Mail.app instead")}</span>
                 <span className="block text-[11px] text-gray-400 dark:text-gray-500">
-                  No server setup, but macOS will ask for Automation and Accessibility permission.
+                  {t("No server setup, but macOS will ask for Automation and Accessibility permission.")}
                 </span>
               </button>
             </div>
@@ -156,7 +158,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
       )}
       {draftedAtIso && !status && (
         <p className="text-xs text-gray-400 dark:text-gray-500">
-          Drafted <RelDate raw={draftedAtIso} colorFn={() => 'text-gray-400'} />
+          {t("Drafted")} <RelDate raw={draftedAtIso} colorFn={() => 'text-gray-400'} />
         </p>
       )}
     </div>

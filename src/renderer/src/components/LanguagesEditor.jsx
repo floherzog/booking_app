@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t, useT } from '../i18n'
 
 // Which email template language a venue gets, decided by its Country column.
 // Anything not listed falls back to the default language.
@@ -12,6 +13,7 @@ const COMMON_LANGUAGES = [
 ]
 
 export default function LanguagesEditor({ languages, onChange }) {
+  const t = useT()
   const [newCountry, setNewCountry] = useState('')
   const [newLang, setNewLang] = useState('de')
 
@@ -54,27 +56,27 @@ export default function LanguagesEditor({ languages, onChange }) {
       list="booking-language-codes"
       value={value}
       onChange={e => onSet(e.target.value.trim().toLowerCase())}
-      placeholder="de"
+      placeholder={t("de")}
     />
   )
 
   return (
     <div className="space-y-3">
       <datalist id="booking-language-codes">
-        {COMMON_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+        {COMMON_LANGUAGES.map(l => <option key={l.code} value={l.code}>{t(l.label)}</option>)}
       </datalist>
 
       <div className="flex items-center gap-3">
         <label className="text-sm text-gray-700 dark:text-gray-200 flex-1">
-          Default language
-          <span className="block text-xs text-gray-400 dark:text-gray-500">Used for any country not listed below.</span>
+          {t("Default language")}
+          <span className="block text-xs text-gray-400 dark:text-gray-500">{t("Used for any country not listed below.")}</span>
         </label>
         {langInput(languages.default || 'en', v => onChange({ ...languages, default: v || 'en' }))}
       </div>
 
       <div className="space-y-1.5">
         {rows.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-500">No country overrides — every venue uses the default language.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{t("No country overrides — every venue uses the default language.")}</p>
         )}
         {rows.map(([country, lang]) => (
           <div key={country} className="flex items-center gap-2">
@@ -100,7 +102,7 @@ export default function LanguagesEditor({ languages, onChange }) {
       <div className="flex items-center gap-2 pt-1">
         <input
           className={`${input} flex-1 min-w-0`}
-          placeholder="Add a country… (as spelled in the CSV)"
+          placeholder={t("Add a country… (as spelled in the CSV)")}
           value={newCountry}
           onChange={e => setNewCountry(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRow() } }}
@@ -112,13 +114,12 @@ export default function LanguagesEditor({ languages, onChange }) {
           onClick={addRow}
           className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
         >
-          Add
+          {t("Add")}
         </button>
       </div>
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        Country names are matched case-insensitively, so list every spelling you actually use
-        (“Germany” and “Deutschland” both need a row).
+        {t("Country names are matched case-insensitively, so list every spelling you actually use (“Germany” and “Deutschland” both need a row).")}
       </p>
     </div>
   )

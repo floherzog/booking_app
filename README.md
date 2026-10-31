@@ -102,6 +102,10 @@ inside the app bundle, so nothing is lost:
 - **Keeps `Last emailed` and the reply status honest** by reading the mail
   account itself, and always as edits you approve.
 - **Map view** of your venues, with offline-seeded coordinates.
+- **In English or German.** Settings ▸ General ▸ Language: *Automatic*
+  follows your system (German if it's German, English otherwise), or pick one.
+  It's kept per device and switches straight away, menu bar included. Your
+  templates, the CSV and its column names stay as they are.
 
 ## Building it yourself
 
@@ -687,6 +691,16 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   Apple's 1024 grid, so macOS 26 doesn't put it in a frame of its own.
   `node scripts/build-icon.mjs` renders it into `resources/icon.icns` and the
   web icons in `web/public` (the script says what it needs).
+- Translations: the English text is the key. Components call `const t = useT()`
+  (`src/renderer/src/i18n`) and write `t('Showing {n} of {total} venues', { n, total })`;
+  a plural is `'{n} venue|{n} venues'`. Core functions that build sentences
+  take an optional `t` (`src/core/tr.js`). German lives in
+  `src/renderer/src/i18n/de.js`, and `i18n/__tests__/coverage.test.js` fails
+  on any text without a German entry, or an entry nothing uses. Write whole
+  sentences — German puts words in another order, so `t('Save') + n + t('changes')`
+  can't be translated. The menu and update dialogs are in `src/main/i18n.js`.
+- `BOOKING_USER_DATA=/some/dir npm run dev` points a development run at a
+  scratch copy of its settings and templates instead of the real ones.
 - Only `date-fns`, `papaparse`, `imapflow` and `nodemailer` are runtime
   `dependencies` — everything the renderer uses is bundled by Vite, and
   listing it as a dependency would only copy it into the .app for nothing.

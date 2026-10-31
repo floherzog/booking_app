@@ -3,6 +3,7 @@ import { statusMeta, chipStyle, customChipStyle, useChipColors } from '../lib/pa
 import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOnlineForm, describeStatus } from '@core/constants'
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
 import { useRules, useClassifyCtx } from '../lib/rulesContext'
+import { t, useT } from '../i18n'
 
 // Three kinds of chip, three shapes (Filter / Chips ▸ Chips / saved filters explains them too):
 // - status pills (round): one per status. Every venue has exactly one status,
@@ -41,8 +42,8 @@ const SHORTCUT_STYLE = {
   },
 }
 const SHORTCUT_TITLES = {
-  missingInfo: 'Venues with something missing — everything behind the “Missing info” status, plus a missing contact or location, which don’t stop an email.',
-  onlineForm: 'Venues that only take enquiries through a form on their website. They keep their status but are never drafted.',
+  missingInfo: () => t('Venues with something missing — everything behind the “Missing info” status, plus a missing contact or location, which don’t stop an email.'),
+  onlineForm: () => t('Venues that only take enquiries through a form on their website. They keep their status but are never drafted.'),
 }
 // Shown even with nothing in them; the others only once they have a venue.
 const ALWAYS_SHOWN = new Set(['actionOnly', 'nextBatch'])
@@ -54,6 +55,7 @@ const BookmarkIcon = (
 )
 
 export function StatusPill({ status, count, active, onClick, title }) {
+  const t = useT()
   useChipColors()
   const meta = statusMeta(status)
   return (
@@ -65,7 +67,7 @@ export function StatusPill({ status, count, active, onClick, title }) {
         ${meta.badge}
         ${active ? 'ring-2 ring-offset-1 ring-current dark:ring-offset-gray-900' : 'hover:opacity-80'}`}
     >
-      <span>{meta.label}</span>
+      <span>{t(meta.label)}</span>
       {count !== undefined && <span className="font-bold">{count}</span>}
     </button>
   )
@@ -112,6 +114,7 @@ export const columnLabel = key => ADVANCED_COLUMNS.find(c => c.key === key)?.lab
 
 // `strip`: one row that scrolls sideways, for the pinned bar at the top.
 export default function StatsBar({ rows, filters, onChange, duplicateCount, isDuplicate, chips, batchWhyEmpty, strip = false }) {
+  const t = useT()
   useChipColors()
   const rules = useRules()
   const classify = useClassifyCtx()
@@ -161,8 +164,8 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
 
         {shortcuts.map(s => (
           <ShortcutChip
-            key={s.key} shortcut={s.key} label={s.label} count={counts[s.key]} active={!!filters[s.key]}
-            title={s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key]}
+            key={s.key} shortcut={s.key} label={t(s.label)} count={counts[s.key]} active={!!filters[s.key]}
+            title={s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key]?.()}
             onClick={() => onChange(f => toggleShortcut(f, s.key))}
           />
         ))}
@@ -174,7 +177,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
           return (
             <CustomChip
               key={c.id} name={c.name} color={c.color} count={customCounts[i]} active={active}
-              title={describeFilters(c.filters, columnLabel)}
+              title={describeFilters(c.filters, columnLabel, t)}
               onClick={() => onChange(active ? EMPTY_FILTERS : { ...EMPTY_FILTERS, ...c.filters })}
             />
           )
@@ -183,7 +186,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
 
       {activeMeta && !strip && (
         <p className={`text-xs px-3 py-1.5 rounded-md inline-block ${activeMeta.badge} bg-opacity-60`}>
-          <span className="font-medium">{activeMeta.label}:</span> {describeStatus(activeStatus, rules)}
+          <span className="font-medium">{t(activeMeta.label)}:</span> {describeStatus(activeStatus, rules, t)}
         </p>
       )}
     </div>

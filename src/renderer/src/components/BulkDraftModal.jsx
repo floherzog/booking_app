@@ -10,13 +10,15 @@ import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { api } from '../platform'
 import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
+import { t, useT, getLanguage } from '../i18n'
 
 function whenLabel(iso) {
   const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(getLanguage(), { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
+  const t = useT()
   const backdrop = useBackdropClose(onClose)
   // Opened from Select mode with venues picked: those are what it drafts.
   const [source, setSource] = useState(selected?.size ? 'selected' : 'nextBatch')
@@ -172,11 +174,11 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
     : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`
 
   const primaryLabel = (() => {
-    if (timing === 'later') return repeat === 'once' ? `Schedule ${eligible.length}` : `Schedule ${repeatLabel(repeat).toLowerCase()}`
-    if (confirmSend) return `Really send ${counts.send}?`
-    if (counts.send && counts.draft) return `Send ${counts.send}, draft ${counts.draft}`
-    if (counts.send) return `Send ${counts.send} email${counts.send !== 1 ? 's' : ''}`
-    return `Create ${counts.draft} draft${counts.draft !== 1 ? 's' : ''}`
+    if (timing === 'later') return repeat === 'once' ? t('Schedule {n}', { n: eligible.length }) : t('Schedule {when}', { when: t(repeatLabel(repeat)).toLowerCase() })
+    if (confirmSend) return t('Really send {n}?', { n: counts.send })
+    if (counts.send && counts.draft) return t('Send {send}, draft {draft}', { send: counts.send, draft: counts.draft })
+    if (counts.send) return t('Send {n} email|Send {n} emails', { n: counts.send })
+    return t('Create {n} draft|Create {n} drafts', { n: counts.draft })
   })()
 
   return (
@@ -185,12 +187,12 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {mode === 'draft' ? 'Create drafts in Mail' : mode === 'send' ? 'Send emails' : 'Send or draft'}
+              {mode === 'draft' ? t('Create drafts in Mail') : mode === 'send' ? t('Send emails') : t('Send or draft')}
             </h2>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {mode === 'draft'
-                ? 'Drafts land in your Drafts mailbox. Nothing is sent, and “Last emailed” is left untouched.'
-                : 'Sent mail is recorded as an unsaved “Last emailed” edit — press Save when the run is finished.'}
+                ? t('Drafts land in your Drafts mailbox. Nothing is sent, and “Last emailed” is left untouched.')
+                : t('Sent mail is recorded as an unsaved “Last emailed” edit — press Save when the run is finished.')}
             </p>
           </div>
           <button onClick={onClose} disabled={phase === 'running'} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none disabled:opacity-30">&times;</button>
@@ -213,31 +215,31 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                       key={s.id}
                       onClick={() => { setSource(s.id); setSkipped(new Set()) }}
                       disabled={unusable}
-                      title={unusable ? 'A repeating run cannot reuse the filters you have set right now.' : s.hint}
+                      title={unusable ? t('A repeating run cannot reuse the filters you have set right now.') : t(s.hint)}
                       className={`${pill(source === s.id)} disabled:opacity-40`}
                     >
-                      {s.label}
+                      {t(s.label)}
                     </button>
                   )
                 })}
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{SOURCES.find(s => s.id === source)?.hint}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{t(SOURCES.find(s => s.id === source)?.hint || '')}</p>
             </div>
 
             <div>
               <div className="flex flex-wrap gap-1.5">
                 {DELIVERY_MODES.map(m => (
-                  <button key={m.id} onClick={() => setMode(m.id)} title={m.hint} className={pill(mode === m.id)}>
-                    {m.label}
+                  <button key={m.id} onClick={() => setMode(m.id)} title={t(m.hint)} className={pill(mode === m.id)}>
+                    {t(m.label)}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{DELIVERY_MODES.find(m => m.id === mode)?.hint}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{t(DELIVERY_MODES.find(m => m.id === mode)?.hint || '')}</p>
             </div>
 
             <div className="flex items-center gap-1.5">
-              <button onClick={() => setTiming('now')} className={pill(timing === 'now')}>Run now</button>
-              <button onClick={() => setTiming('later')} className={pill(timing === 'later')}>At a time…</button>
+              <button onClick={() => setTiming('now')} className={pill(timing === 'now')}>{t("Run now")}</button>
+              <button onClick={() => setTiming('later')} className={pill(timing === 'later')}>{t("At a time…")}</button>
               {timing === 'later' && (
                 <>
                   <input
@@ -251,7 +253,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                     onChange={e => setRepeat(e.target.value)}
                     className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-1"
                   >
-                    {REPEAT_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    {REPEAT_OPTIONS.map(r => <option key={r.id} value={r.id}>{t(r.label)}</option>)}
                   </select>
                 </>
               )}
@@ -259,10 +261,10 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
             {timing === 'later' && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 {scheduleInPast && repeat === 'once'
-                  ? 'That time has already passed — the run would start immediately.'
+                  ? t('That time has already passed — the run would start immediately.')
                   : repeat !== 'once'
-                    ? `${scheduleInPast ? 'That time has passed today, so the first run is the next one. ' : ''}Runs ${repeatLabel(repeat).toLowerCase()} from then on, re-picking “${SOURCES.find(s => s.id === source)?.label}” each time — the ticks below apply to a one-off run only. Cancel it here whenever you like.`
-                    : 'Scheduled runs only fire while Booking is open. One that came due while it was closed runs at the next launch.'}
+                    ? `${scheduleInPast ? `${t('That time has passed today, so the first run is the next one.')} ` : ''}${t('Runs {when} from then on, re-picking “{source}” each time — the ticks below apply to a one-off run only. Cancel it here whenever you like.', { when: t(repeatLabel(repeat)).toLowerCase(), source: t(SOURCES.find(s => s.id === source)?.label || '') })}`
+                    : t('Scheduled runs only fire while Booking is open. One that came due while it was closed runs at the next launch.')}
               </p>
             )}
 
@@ -272,13 +274,13 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                   <div key={job.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
                     <p className="text-xs text-gray-600 dark:text-gray-300 truncate">
                       {job.recipe
-                        ? `${SOURCES.find(s => s.id === job.recipe.source)?.label || job.recipe.source}, ${repeatLabel(job.repeat).toLowerCase()}`
-                        : `${job.items.length} message${job.items.length !== 1 ? 's' : ''}`}
+                        ? `${t(SOURCES.find(s => s.id === job.recipe.source)?.label || job.recipe.source)}, ${t(repeatLabel(job.repeat)).toLowerCase()}`
+                        : t('{n} message|{n} messages', { n: job.items.length })}
                       {' · '}{whenLabel(job.runAt)}
                       <span className="text-gray-400 dark:text-gray-500"> · {job.mode}</span>
                     </p>
                     <button onClick={() => cancelJob(job.id)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 shrink-0">
-                      Cancel
+                      {t("Cancel")}
                     </button>
                   </div>
                 ))}
@@ -290,10 +292,10 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-1.5">
           {phase === 'scheduled' ? (
             <p className="text-sm text-gray-600 dark:text-gray-300 py-8 text-center">
-              Scheduled for {whenLabel(scheduledAt?.toISOString() || runAt)}
-              {repeat !== 'once' && `, then ${repeatLabel(repeat).toLowerCase()}`}.<br />
+              {t("Scheduled for")} {whenLabel(scheduledAt?.toISOString() || runAt)}
+              {repeat !== 'once' && `, ${t('then {when}', { when: t(repeatLabel(repeat)).toLowerCase() })}`}.<br />
               <span className="text-xs text-gray-400 dark:text-gray-500">
-                Leave Booking running, or open it again before then.
+                {t("Leave Booking running, or open it again before then.")}
               </span>
             </p>
           ) : candidates.length === 0 ? (
@@ -302,10 +304,10 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                 <span className="block max-w-md mx-auto text-gray-500 dark:text-gray-400">
                   {batchWhyEmpty.reason}
                   {batchWhyEmpty.action === 'rules' && onOpenSettings && (
-                    <button onClick={() => onOpenSettings('rules')} className="ml-2 font-medium text-indigo-600 dark:text-indigo-400 hover:underline">Open Rules</button>
+                    <button onClick={() => onOpenSettings('rules')} className="ml-2 font-medium text-indigo-600 dark:text-indigo-400 hover:underline">{t("Open Rules")}</button>
                   )}
                 </span>
-              ) : 'No venues in this selection.'}
+              ) : t('No venues in this selection.')}
             </p>
           ) : candidates.map(({ row, prepared, delivery }) => {
             const result = results[row._idx]
@@ -346,9 +348,9 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                   {prepared.ok ? (
                     <p className="text-xs text-gray-400 dark:text-gray-500">
                       {row['Email']} · <span className="font-mono">{prepared.language}</span>
-                      {prepared.fallbackUsed && <span className="text-amber-600 dark:text-amber-400"> · fallback language</span>}
+                      {prepared.fallbackUsed && <span className="text-amber-600 dark:text-amber-400"> {t("· fallback language")}</span>}
                       {prepared.empties.length > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400"> · empty: {prepared.empties.join(', ')}</span>
+                        <span className="text-amber-600 dark:text-amber-400"> {t("· empty:")} {prepared.empties.join(', ')}</span>
                       )}
                     </p>
                   ) : (
@@ -369,16 +371,16 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
           {phase === 'done' && (
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-gray-700 dark:text-gray-200">
-                {succeeded.length - sentCount} draft{succeeded.length - sentCount !== 1 ? 's' : ''} created
-                {sentCount > 0 && <span> · {sentCount} sent</span>}
-                {failed.length > 0 && <span className="text-red-600 dark:text-red-400"> · {failed.length} failed</span>}
+                {t('{n} draft created|{n} drafts created', { n: succeeded.length - sentCount })}
+                {sentCount > 0 && <span> · {t('{n} sent', { n: sentCount })}</span>}
+                {failed.length > 0 && <span className="text-red-600 dark:text-red-400"> · {t('{n} failed', { n: failed.length })}</span>}
               </p>
               {succeededFlagged.length > 0 && (
                 <button
                   onClick={() => { onClearDraftFlags(succeededFlagged); onClose() }}
                   className={outlineBtn}
                 >
-                  Clear “Draft” flag on {succeededFlagged.length}
+                  {t("Clear “Draft” flag on")} {succeededFlagged.length}
                 </button>
               )}
             </div>
@@ -386,16 +388,16 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
 
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              {phase === 'preflight' && `${eligible.length} ready${blocked.length ? ` · ${blocked.length} can't be sent` : ''}`}
-              {phase === 'running' && `Working on ${Object.keys(results).length + 1} of ${eligible.length}…`}
+              {phase === 'preflight' && `${t('{n} ready', { n: eligible.length })}${blocked.length ? ` · ${t('{n} can’t be sent', { n: blocked.length })}` : ''}`}
+              {phase === 'running' && t('Working on {i} of {n}…', { i: Object.keys(results).length + 1, n: eligible.length })}
               {phase === 'done' && (sentCount > 0
-                ? 'Sent mail is staged as a “Last emailed” edit — press Save to write it to the CSV.'
-                : 'Drafts may take a few seconds to appear in Mail.')}
-              {phase === 'scheduled' && 'You can close this window; the run is stored on disk.'}
+                ? t('Sent mail is staged as a “Last emailed” edit — press Save to write it to the CSV.')
+                : t('Drafts may take a few seconds to appear in Mail.'))}
+              {phase === 'scheduled' && t('You can close this window; the run is stored on disk.')}
             </p>
             <div className="flex gap-3 shrink-0">
               <button onClick={onClose} disabled={phase === 'running'} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-40">
-                {phase === 'done' || phase === 'scheduled' ? 'Close' : 'Cancel'}
+                {phase === 'done' || phase === 'scheduled' ? t('Close') : t('Cancel')}
               </button>
               {phase !== 'done' && phase !== 'scheduled' && (
                 <button
@@ -405,7 +407,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-indigo-600 hover:bg-indigo-700'}`}
                 >
-                  {phase === 'running' ? 'Working…' : primaryLabel}
+                  {phase === 'running' ? t('Working…') : primaryLabel}
                 </button>
               )}
             </div>

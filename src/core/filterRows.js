@@ -1,4 +1,5 @@
 import { ACTION_STATUSES, STATUS_META, CHIP_HUES, getMissingFields, isOnlineForm } from './constants.js'
+import { plainT } from './tr.js'
 import { replyHealth } from './replyStatus.js'
 
 // What the filter bar, the chips and the Filter / Chips panel together decide:
@@ -97,24 +98,26 @@ export function isEmptyFilters(f) {
 
 // What a filter set keeps, as a chip's tooltip. columnLabel maps a field key
 // to its label in the Filter / Chips panel.
-export function describeFilters(filters, columnLabel = k => k) {
+// `t` translates (tr.js); column labels are translated too.
+export function describeFilters(filters, columnLabel = k => k, t = plainT) {
   const f = { ...EMPTY_FILTERS, ...filters }
+  const col = k => t(columnLabel(k))
   const parts = []
-  if (f.status) parts.push(`Status: ${STATUS_META[f.status]?.label || f.status}`)
-  for (const s of SHORTCUTS) if (f[s.key]) parts.push(s.label)
-  if (f.band) parts.push(`Band: ${f.band}`)
-  if (f.country) parts.push(`Country: ${f.country}`)
-  if (f.type) parts.push(`Type: ${f.type}`)
-  if ((f.search || '').trim()) parts.push(`Search: “${f.search.trim()}”`)
+  if (f.status) parts.push(`${t('Status')}: ${t(STATUS_META[f.status]?.label || f.status)}`)
+  for (const s of SHORTCUTS) if (f[s.key]) parts.push(t(s.label))
+  if (f.band) parts.push(`${t('Band')}: ${f.band}`)
+  if (f.country) parts.push(`${t('Country')}: ${f.country}`)
+  if (f.type) parts.push(`${t('Type')}: ${f.type}`)
+  if ((f.search || '').trim()) parts.push(`${t('Search')}: “${f.search.trim()}”`)
   for (const r of f.advanced || []) {
     if (!r.field || !ruleTerms(r).length) continue
-    const value = r.field === '_status' ? (STATUS_META[r.value]?.label || r.value)
+    const value = r.field === '_status' ? t(STATUS_META[r.value]?.label || r.value)
       : r.field === '_health' ? r.value
-      : ruleTerms(r).map(t => `“${t}”`).join(r.op === 'none' ? ' or ' : ' / ')
-    parts.push(`${columnLabel(r.field)}: ${r.op === 'none' ? 'not ' : ''}${value}`)
+      : ruleTerms(r).map(term => `“${term}”`).join(r.op === 'none' ? ` ${t('or')} ` : ' / ')
+    parts.push(`${col(r.field)}: ${r.op === 'none' ? `${t('not')} ` : ''}${value}`)
   }
-  if (f.sort?.field) parts.push(`sorted by ${columnLabel(f.sort.field)} ${f.sort.dir === 'desc' ? '↓' : '↑'}`)
-  return parts.join(' · ') || 'No filters'
+  if (f.sort?.field) parts.push(`${t('sorted by {column}', { column: col(f.sort.field) })} ${f.sort.dir === 'desc' ? '↓' : '↑'}`)
+  return parts.join(' · ') || t('No filters')
 }
 
 // Settings ▸ which chips the bar shows. `hidden` holds status keys (SEND, …)

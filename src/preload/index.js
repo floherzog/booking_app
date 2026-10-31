@@ -84,6 +84,7 @@ const api = {
     return () => ipcRenderer.removeListener('updates:progress', handler)
   },
   getAppVersion: () => ipcRenderer.invoke('app:version'),
+  setLanguage: lang => ipcRenderer.invoke('app:setLanguage', lang),
 
   // Scheduled bulk runs (drafts and/or sends at a chosen time)
   listScheduledRuns: () => ipcRenderer.invoke('schedule:list'),

@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { displayDateText, normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
+import { t, useT } from '../i18n'
 
 const MULTILINE_FIELDS = ['Note', 'Text', 'Time Frame']
 
 export default function EditableCell({ value, rowIndex, field, edits, onEdit, className = '', isDate = false }) {
+  const t = useT()
   const edited = edits[rowIndex]?.[field]
   const rawValue = edited !== undefined ? edited : (value || '')
   const isEdited = edited !== undefined
@@ -71,7 +73,7 @@ export default function EditableCell({ value, rowIndex, field, edits, onEdit, cl
   }
 
   return (
-    <div className={`${base} ${highlight}`} onClick={e => { e.stopPropagation(); setEditing(true) }} title="Click to edit">
+    <div className={`${base} ${highlight}`} onClick={e => { e.stopPropagation(); setEditing(true) }} title={t("Click to edit")}>
       {displayValue || <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
     </div>
   )

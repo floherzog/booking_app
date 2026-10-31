@@ -55,19 +55,19 @@ describe('resolveTemplate', () => {
     expect(r.template).toBe(en)
     expect(r.language).toBe('en')
     expect(r.fallbackUsed).toBe(true)
-    expect(r.reason).toMatch(/no "de" template/i)
+    expect(r.reason).toMatch(/no “de” template/i)
   })
 
   it('returns nothing when neither language exists for the band', () => {
     const r = resolveTemplate([de], { Band: 'The Band', Country: 'France' }, LANGUAGES)
     expect(r.template).toBeNull()
-    expect(r.reason).toMatch(/no "en" or "en"|no "en"/i)
+    expect(r.reason).toMatch(/no “en” or “en”|no “en”/i)
   })
 
   it('returns nothing for a band with no templates at all', () => {
     const r = resolveTemplate([other], row('Germany'), LANGUAGES)
     expect(r.template).toBeNull()
-    expect(r.reason).toMatch(/no templates for "The Band"/i)
+    expect(r.reason).toMatch(/no templates for “The Band”/i)
   })
 
   it('returns nothing when the venue has no band', () => {

@@ -4,12 +4,14 @@ import { looksLikeAppCsv } from '@core/importMap'
 import { planOpenBandFiles, openBandFiles } from '../lib/multiBandSwitch'
 import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
+import { t, useT } from '../i18n'
 
 // Shown until a storage adapter is configured: pick an existing CSV, create a
 // fresh one with just the canonical header row, or point at a GitHub repo.
 // Also shown when the configured file has gone missing (`missingPath` set), with
 // one more choice: put an empty file back where the old one was.
 export default function FirstRun({ settings, missingPath = null, onConfigured, onNeedsMapping }) {
+  const t = useT()
   // The web build has no local files: GitHub is the only choice there.
   const [mode, setMode] = useState(caps.localFiles ? 'file' : 'github')
   const [repo, setRepo] = useState(settings?.storage?.github?.repo || '')
@@ -82,10 +84,10 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
 
   function connectGithub() {
     return run(async () => {
-      if (!repo.trim() || !path.trim()) throw new Error('Enter both a repository and a file path.')
+      if (!repo.trim() || !path.trim()) throw new Error(t('Enter both a repository and a file path.'))
       if (token.trim()) await api.setSecret('githubToken', token.trim())
       else if (!(await api.hasSecret('githubToken'))) {
-        throw new Error('A personal access token with repo access is required.')
+        throw new Error(t('A personal access token with repo access is required.'))
       }
       await onConfigured({ adapter: 'github', github: { repo: repo.trim(), path: path.trim() } })
     })
@@ -104,53 +106,50 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
       <div className="w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-xl p-8 space-y-6">
         {missingPath !== null && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2">
-            <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">Your booking file is gone.</p>
+            <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">{t("Your booking file is gone.")}</p>
             <p className="text-xs text-amber-700 dark:text-amber-400 break-all">
-              Nothing is at <span className="font-mono">{missingPath || '(no path)'}</span> any more — it was
-              deleted, moved or renamed. Start an empty list in the same place, or choose where it is now.
+              {t("Nothing is at")} <span className="font-mono">{missingPath || t('(no path)')}</span> {t("any more — it was deleted, moved or renamed. Start an empty list in the same place, or choose where it is now.")}
             </p>
             {missingPath && (
               <button onClick={recreate} disabled={busy} className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50">
-                Create an empty one there
+                {t("Create an empty one there")}
               </button>
             )}
           </div>
         )}
 
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Where is your booking list?</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t("Where is your booking list?")}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {caps.localFiles
-              ? <>The app reads and writes one semicolon-delimited CSV. Put it in iCloud Drive to keep
-                it in sync across your Macs — just don’t edit it in two places at once.</>
-              : <>The web app reads and writes one semicolon-delimited CSV in a GitHub repository.</>}
+              ? <>{t("The app reads and writes one semicolon-delimited CSV. Put it in iCloud Drive to keep it in sync across your Macs — just don’t edit it in two places at once.")}</>
+              : <>{t("The web app reads and writes one semicolon-delimited CSV in a GitHub repository.")}</>}
           </p>
         </div>
 
         {caps.localFiles && (
           <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden w-fit">
-            <button onClick={() => setMode('file')} className={tab(mode === 'file')}>Local file</button>
-            <button onClick={() => setMode('github')} className={`${tab(mode === 'github')} border-l border-gray-200 dark:border-gray-700`}>GitHub</button>
+            <button onClick={() => setMode('file')} className={tab(mode === 'file')}>{t("Local file")}</button>
+            <button onClick={() => setMode('github')} className={`${tab(mode === 'github')} border-l border-gray-200 dark:border-gray-700`}>{t("GitHub")}</button>
           </div>
         )}
 
         {mode === 'file' ? (
           <div className="space-y-3">
             <div className="flex gap-3">
-              <button onClick={choose} disabled={busy} className={primary}>Choose CSV…</button>
-              <button onClick={create} disabled={busy} className={secondary}>Create a new one…</button>
+              <button onClick={choose} disabled={busy} className={primary}>{t("Choose CSV…")}</button>
+              <button onClick={create} disabled={busy} className={secondary}>{t("Create a new one…")}</button>
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              A new file starts with the app’s 22 column headers and no venues.
+              {t("A new file starts with the app’s 22 column headers and no venues.")}
             </p>
             <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
               <div className="flex items-center gap-2">
-                <button onClick={pickBandFiles} disabled={busy} className={secondary}>Open band files…</button>
-                <span className="inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Multi-band mode</span>
+                <button onClick={pickBandFiles} disabled={busy} className={secondary}>{t("Open band files…")}</button>
+                <span className="inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("Multi-band mode")}</span>
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                Already keeping one CSV per band (multi-band mode on another Mac)? Pick any one of the band
-                files — the rest of the set is found in its folder, and multi-band mode is switched on.
+                {t("Already keeping one CSV per band (multi-band mode on another Mac)? Pick any one of the band files — the rest of the set is found in its folder, and multi-band mode is switched on.")}
               </p>
               <BandFilesPlan
                 plan={bandPlan}
@@ -165,23 +164,23 @@ export default function FirstRun({ settings, missingPath = null, onConfigured, o
         ) : (
           <div className="space-y-3">
             <div>
-              <label className={lbl}>Repository (owner/name)</label>
-              <input className={input} value={repo} onChange={e => setRepo(e.target.value)} placeholder="you/booking_list" />
+              <label className={lbl}>{t("Repository (owner/name)")}</label>
+              <input className={input} value={repo} onChange={e => setRepo(e.target.value)} placeholder={t("you/booking_list")} />
             </div>
             <div>
-              <label className={lbl}>File path in the repo</label>
-              <input className={input} value={path} onChange={e => setPath(e.target.value)} placeholder="data/booking.csv" />
+              <label className={lbl}>{t("File path in the repo")}</label>
+              <input className={input} value={path} onChange={e => setPath(e.target.value)} placeholder={t("data/booking.csv")} />
             </div>
             <div>
-              <label className={lbl}>Personal access token (repo scope)</label>
+              <label className={lbl}>{t("Personal access token (repo scope)")}</label>
               <input type="password" className={input} value={token} onChange={e => setToken(e.target.value)} placeholder="ghp_…" />
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                 {caps.localFiles
-                  ? 'Stored in your macOS keychain. It never leaves this Mac and is never shown again.'
-                  : 'Kept in this browser only.'}
+                  ? t('Stored in your macOS keychain. It never leaves this Mac and is never shown again.')
+                  : t('Kept in this browser only.')}
               </p>
             </div>
-            <button onClick={connectGithub} disabled={busy} className={primary}>Connect</button>
+            <button onClick={connectGithub} disabled={busy} className={primary}>{t("Connect")}</button>
           </div>
         )}
 

@@ -18,6 +18,7 @@ import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBand
 import { useEscape } from '../lib/useEscape'
 import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
+import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -38,6 +39,7 @@ const SECTIONS = [
 ].filter(s => !s.needs || caps[s.needs])
 
 export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose, initialSection }) {
+  const t = useT()
   const [form, setForm] = useState(config)
   const [section, setSection] = useState(() => (SECTIONS.some(s => s.id === initialSection) ? initialSection : 'general'))
   const [rulesView, setRulesView] = useState('numbers')
@@ -46,6 +48,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const [theme, setThemeState] = useState(getStoredTheme)
   const pinToolbar = usePinToolbar()
   const pinItems = usePinItems()
+  useLanguage() // redraw the choice when it changes
+  const languageSetting = getLanguageSetting()
   const [newBand, setNewBand] = useState('')
   const [newType, setNewType] = useState('')
   const [version, setVersion] = useState('')
@@ -96,8 +100,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // closes the panel, so it has to fade on its own.
   useEffect(() => {
     if (!savedAt) return undefined
-    const t = setTimeout(() => setSavedAt(0), 2500)
-    return () => clearTimeout(t)
+    const tx = setTimeout(() => setSavedAt(0), 2500)
+    return () => clearTimeout(tx)
   }, [savedAt])
 
   // Normalised so every band object has the same keys — bare strings and the
@@ -109,7 +113,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const mail = form.mail || {}
   const sync = mail.sync || {}
   const accounts = normalizeAccounts(mail)
-  const ruleErrors = validateRules(form.rules)
+  const ruleErrors = validateRules(form.rules, t)
   const storageDirty = JSON.stringify(form.storage) !== JSON.stringify(config.storage)
   // Cheap and good enough: the form is a few kB of plain JSON, and this only
   // drives the footer label.
@@ -226,7 +230,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     let alive = true
     api.articleAvailability()
       .then(r => { if (alive) setArticleState(r || { ok: false, status: 'failed' }) })
-      .catch(() => { if (alive) setArticleState({ ok: false, status: 'failed', error: 'Could not reach the language helper.' }) })
+      .catch(() => { if (alive) setArticleState({ ok: false, status: 'failed', error: t('Could not reach the language helper.') }) })
     return () => { alive = false }
   }, [section, articleState])
 
@@ -237,7 +241,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // A test has to run against what is on screen, so the password is written to
   // the keychain and the settings persisted before anything connects.
   async function testAccount(id, kind) {
-    setAccountTests(t => ({ ...t, [id]: { busy: kind } }))
+    setAccountTests(tx => ({ ...tx, [id]: { busy: kind } }))
     try {
       await savePasswords()
       // Persist without the band-propagation prompts a full Save runs.
@@ -249,25 +253,25 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
         if (!account?.draftsMailbox && suggestion) setAccount(id, { draftsMailbox: suggestion })
         if (!account?.sentMailbox && sentSuggestion) setAccount(id, { sentMailbox: sentSuggestion })
         const sent = account?.sentMailbox || sentSuggestion
-        setAccountTests(t => ({
-          ...t,
+        setAccountTests(tx => ({
+          ...tx,
           [id]: {
             ok: true,
-            message: `Connected — ${boxes.length} mailboxes. Drafts: ${account?.draftsMailbox || suggestion}. Sent: ${sent || 'not found — name it above, or sent mail is not copied there'}`,
+            message: t('Connected — {n} mailboxes. Drafts: {drafts}. Sent: {sent}', { n: boxes.length, drafts: account?.draftsMailbox || suggestion, sent: sent || t('not found — name it above, or sent mail is not copied there') }),
           },
         }))
         return
       }
 
       const r = await api.verifySmtp(id)
-      setAccountTests(t => ({
-        ...t,
+      setAccountTests(tx => ({
+        ...tx,
         [id]: r.ok
-          ? { ok: true, message: `Sending works — ${r.host}:${r.port} over ${r.encryption}${r.derived ? ' (server worked out from the IMAP host)' : ''}.` }
+          ? { ok: true, message: `${t('Sending works — {server} over {encryption}', { server: `${r.host}:${r.port}`, encryption: r.encryption })}${r.derived ? ` ${t('(server worked out from the IMAP host)')}` : ''}.` }
           : { ok: false, message: r.error },
       }))
     } catch (e) {
-      setAccountTests(t => ({ ...t, [id]: { ok: false, message: e.message } }))
+      setAccountTests(tx => ({ ...tx, [id]: { ok: false, message: e.message } }))
     }
   }
 
@@ -297,9 +301,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const builtInToken = !!api.githubTokenBuiltIn?.()
   // Why the switch can't be flipped right now, if it can't.
   const mbBlocked = config.storage?.adapter === 'github' && !multiBandOn
-    ? 'Only available with a local CSV file — GitHub storage keeps one file.'
-    : storageDirty ? 'Save the storage change first.'
-      : unsavedEdits > 0 ? `Save or discard your ${unsavedEdits} unsaved venue edit${unsavedEdits !== 1 ? 's' : ''} first.`
+    ? t('Only available with a local CSV file — GitHub storage keeps one file.')
+    : storageDirty ? t('Save the storage change first.')
+      : unsavedEdits > 0 ? t('Save or discard your unsaved venue edit first.|Save or discard your {n} unsaved venue edits first.', { n: unsavedEdits })
         : ''
 
   async function prepareMultiBand() {
@@ -328,10 +332,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
         const picked = fromPath || await api.pickCsvOpen()
         if (picked) plan = await planOpenBandFiles(picked)
       } else if (kind === 'newset') {
-        const target = await api.pickCsvSave('booking.csv', 'Name and place for the new band files')
+        const target = await api.pickCsvSave('booking.csv', t('Name and place for the new band files'))
         if (target) plan = await planNewBandSet(config, target)
       } else {
-        const paths = await api.pickCsvOpenMany('Choose the band files to import')
+        const paths = await api.pickCsvOpenMany(t('Choose the band files to import'))
         if (paths.length) plan = await planImportBandFiles(paths)
       }
       // Remember the mode as it was when asked: confirming may switch it on, and
@@ -349,11 +353,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
       if (bfPlan.kind === 'import') {
         const { saved, added } = await onImportBandFiles(bfPlan)
         setForm(f => ({ ...f, storage: saved.storage }))
-        setBfDone(`Added ${added} venue entr${added !== 1 ? 'ies' : 'y'} — close Settings and press Save to write them to the band files.`)
+        setBfDone(t('Added {n} venue entry — close Settings and press Save to write it to the band files.|Added {n} venue entries — close Settings and press Save to write them to the band files.', { n: added }))
       } else {
         const saved = await (bfPlan.kind === 'open' ? onOpenBandFiles : onNewBandSet)(bfPlan)
         setForm(f => ({ ...f, storage: saved.storage }))
-        setBfDone(bfPlan.kind === 'open' ? 'Done — the app now uses these band files.' : 'Done — the new, empty band files are in use.')
+        setBfDone(bfPlan.kind === 'open' ? t('Done — the app now uses these band files.') : t('Done — the new, empty band files are in use.'))
       }
     } catch (e) {
       setBfError(e.message)
@@ -363,8 +367,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   // Why the band-file actions can't run right now, if they can't.
-  const bfBlocked = storageDirty ? 'Save the storage change first.'
-    : unsavedEdits > 0 ? `Save or discard your ${unsavedEdits} unsaved venue edit${unsavedEdits !== 1 ? 's' : ''} first.`
+  const bfBlocked = storageDirty ? t('Save the storage change first.')
+    : unsavedEdits > 0 ? t('Save or discard your unsaved venue edit first.|Save or discard your {n} unsaved venue edits first.', { n: unsavedEdits })
       : ''
 
   const bandDir = config.storage?.multiBand?.enabled ? config.storage.multiBand.dir : ''
@@ -378,7 +382,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setBfDone('')
     setRelocPlan(null)
     try {
-      const picked = await api.pickFolder('Where are the band files now?', bandDirGone ? undefined : bandDir)
+      const picked = await api.pickFolder(t('Where are the band files now?'), bandDirGone ? undefined : bandDir)
       if (picked) setRelocPlan(await planRelocate(config, picked))
     } catch (e) {
       setBfError(e.message)
@@ -393,7 +397,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
       setForm(f => ({ ...f, storage: saved.storage }))
       setRelocPlan(null)
       setBandDirGone(false)
-      setBfDone('Done — the app now uses the band files in that folder.')
+      setBfDone(t('Done — the app now uses the band files in that folder.'))
     } catch (e) {
       setBfError(e.message)
     } finally {
@@ -498,20 +502,20 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
   // Deleting a type that does something, or that venues use, asks first.
   function requestRemoveType(i) {
-    const usage = typeUsage(typeRules, venueTypes[i], rows)
+    const usage = typeUsage(typeRules, venueTypes[i], rows, t)
     if (usage.rule.length || usage.venues) setTypeDelete({ index: i, ...usage })
     else removeType(i)
   }
   function removeType(i) {
-    const t = venueTypes[i]
+    const tx = venueTypes[i]
     setVenueTypes(venueTypes.filter((_, idx) => idx !== i))
-    setTypeRules(setTypeRule(typeRules, t, { behaves: 'normal', bands: null, frequencyDays: null }))
+    setTypeRules(setTypeRule(typeRules, tx, { behaves: 'normal', bands: null, frequencyDays: null }))
     setTypeDelete(null)
   }
 
   function addVenueType() {
     const name = newType.trim()
-    if (!name || venueTypes.some(t => t.toLowerCase() === name.toLowerCase())) { setNewType(''); return }
+    if (!name || venueTypes.some(tx => tx.toLowerCase() === name.toLowerCase())) { setNewType(''); return }
     setVenueTypes([...venueTypes, name])
     setNewType('')
   }
@@ -543,7 +547,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
           on every click in the rail. Long sections scroll inside it. */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[90vh] sm:h-[min(90vh,48rem)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("Settings")}</h2>
           <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
 
@@ -560,9 +564,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
                 >
-                  {s.label}
+                  {t(s.label)}
                   {s.id === 'rules' && ruleErrors.length > 0 && (
-                    <span className="ml-1.5 text-red-500" title="This section has errors">•</span>
+                    <span className="ml-1.5 text-red-500" title={t("This section has errors")}>•</span>
                   )}
                 </button>
               ))}
@@ -572,20 +576,42 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               {section === 'general' && (
                 <div className="space-y-4">
                   <div>
-                    <p className={lbl}>Appearance</p>
+                    <p className={lbl}>{t('Language')}</p>
                     <div className="flex gap-2">
-                      {THEMES.map(t => (
+                      {LANGUAGE_CHOICES.map(l => (
                         <button
-                          key={t.value}
+                          key={l.value}
                           type="button"
-                          onClick={() => handleTheme(t.value)}
+                          onClick={() => setLanguageSetting(l.value)}
                           className={`flex-1 py-1.5 rounded-md text-sm font-medium border transition-colors
-                            ${theme === t.value
+                            ${languageSetting === l.value
                               ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200'
                               : 'text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                             }`}
                         >
-                          {t.label}
+                          {l.value === 'auto' ? t(l.label) : l.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      {t('Automatic follows the language of your system. Your templates and the CSV stay as they are.')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className={lbl}>{t("Appearance")}</p>
+                    <div className="flex gap-2">
+                      {THEMES.map(tx => (
+                        <button
+                          key={tx.value}
+                          type="button"
+                          onClick={() => handleTheme(tx.value)}
+                          className={`flex-1 py-1.5 rounded-md text-sm font-medium border transition-colors
+                            ${theme === tx.value
+                              ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200'
+                              : 'text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                            }`}
+                        >
+                          {t(tx.label)}
                         </button>
                       ))}
                     </div>
@@ -597,9 +623,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                       />
                       <span className="text-sm text-gray-700 dark:text-gray-300">
-                        Keep the toolbar visible while scrolling
+                        {t("Keep the toolbar visible while scrolling")}
                         <span className="block text-xs text-gray-400 dark:text-gray-500">
-                          Once the toolbar has scrolled away, a bar at the top of the window holds what you tick here.
+                          {t("Once the toolbar has scrolled away, a bar at the top of the window holds what you tick here.")}
                         </span>
                       </span>
                     </label>
@@ -613,21 +639,21 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                               onChange={e => setPinItem(i.key, e.target.checked)}
                               className="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                             />
-                            {i.label}
+                            {t(i.label)}
                           </label>
                         ))}
                       </div>
                     )}
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                       {caps.localFiles
-                        ? 'Both apply straight away and are remembered per Mac, so they aren’t part of the settings file you might sync between machines.'
-                        : 'Both apply straight away and are remembered in this browser only.'}
+                        ? t('These apply straight away and are remembered per Mac, so they aren’t part of the settings file you might sync between machines.')
+                        : t('These apply straight away and are remembered in this browser only.')}
                     </p>
                   </div>
 
                   {caps.multiBand && (
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>Multi-band mode</p>
+                    <p className={lbl}>{t("Multi-band mode")}</p>
                     <label className={`flex items-start gap-2 ${mbBlocked || mbBusy ? 'opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
@@ -638,12 +664,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                       />
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Book several bands for the same venue
+                        {t("Book several bands for the same venue")}
                         <span className="block text-gray-400 dark:text-gray-500">
-                          Keeps one CSV per band (plus one for venues without a band) and shows them as one
-                          list. Venue details — name, type, city, country, contact, email, website, time
-                          frame — stay the same across bands; everything else is per band. Switching off
-                          merges them back into one CSV.
+                          {t("Keeps one CSV per band (plus one for venues without a band) and shows them as one list. Venue details — name, type, city, country, contact, email, website, time frame — stay the same across bands; everything else is per band. Switching off merges them back into one CSV.")}
                         </span>
                         {mbBlocked && <span className="block text-amber-600 dark:text-amber-400 mt-1">{mbBlocked}</span>}
                       </span>
@@ -653,26 +676,25 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2 text-xs text-amber-800 dark:text-amber-300">
                         {mbPlan.on ? (
                           <>
-                            <p className="font-semibold">This adds {mbPlan.files.length} files next to your CSV:</p>
+                            <p className="font-semibold">{t("This adds")} {mbPlan.files.length} {t("files next to your CSV:")}</p>
                             <p className="font-mono break-all text-amber-700 dark:text-amber-400">{mbPlan.dir}</p>
                             <ul className="space-y-0.5">
                               {mbPlan.files.map(f => (
                                 <li key={f.path} className="flex justify-between gap-3">
                                   <span className="font-mono truncate">{f.name}</span>
-                                  <span className="shrink-0">{f.count} venue{f.count !== 1 ? 's' : ''}{f.band ? '' : ' without a band'}</span>
+                                  <span className="shrink-0">{t('{n} venue|{n} venues', { n: f.count })}{f.band ? '' : ` ${t('without a band')}`}</span>
                                 </li>
                               ))}
                             </ul>
                             <p>
-                              Your current CSV, <span className="font-mono">{mbPlan.source}</span>, is renamed to{' '}
-                              <span className="font-mono">{mbPlan.backup}</span> and no longer used.{' '}
-                              <span className="font-semibold">The booking scripts and the web app only know the single
-                              CSV</span> — they won’t see anything you change while this mode is on.
+                              {t("Your current CSV,")} <span className="font-mono">{mbPlan.source}</span>{t(", is renamed to")}{' '}
+                              <span className="font-mono">{mbPlan.backup}</span> {t("and no longer used.")}{' '}
+                              <span className="font-semibold">{t("The booking scripts and the web app only know the single CSV")}</span> {t("— they won’t see anything you change while this mode is on.")}
                             </p>
                             {mbPlan.clashes.length > 0 && (
                               <div className="space-y-1.5">
                                 <p className="text-red-700 dark:text-red-400 font-medium">
-                                  Band files are already in that folder: {mbPlan.clashes.join(', ')}.
+                                  {t("Band files are already in that folder:")} {mbPlan.clashes.join(', ')}.
                                 </p>
                                 {mbPlan.files.some(f => mbPlan.clashes.includes(f.name)) && (
                                   <button
@@ -685,7 +707,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                     }}
                                     className="font-semibold underline hover:no-underline"
                                   >
-                                    Use the existing band files instead…
+                                    {t("Use the existing band files instead…")}
                                   </button>
                                 )}
                               </div>
@@ -693,11 +715,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           </>
                         ) : (
                           <>
-                            <p className="font-semibold">Merge the band files back into one CSV?</p>
+                            <p className="font-semibold">{t("Merge the band files back into one CSV?")}</p>
                             <p>
-                              Writes <span className="font-mono">{mbPlan.targetName}</span> with {mbPlan.lines} line{mbPlan.lines !== 1 ? 's' : ''} for {mbPlan.venues} venue{mbPlan.venues !== 1 ? 's' : ''} —
-                              a venue booked for several bands gets one line per band. The band files move into the
-                              folder <span className="font-mono">{mbPlan.backupName}</span>.
+                              {t('Writes')} <span className="font-mono">{mbPlan.targetName}</span>{' '}
+                              {t('with {n} line|with {n} lines', { n: mbPlan.lines })}{' '}
+                              {t('for {n} venue — a venue booked for several bands gets one line per band.|for {n} venues — a venue booked for several bands gets one line per band.', { n: mbPlan.venues })}{' '}
+                              {t('The band files move into the folder')} <span className="font-mono">{mbPlan.backupName}</span>.
                             </p>
                           </>
                         )}
@@ -708,9 +731,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             disabled={mbBusy || (mbPlan.on && mbPlan.clashes.length > 0)}
                             className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50"
                           >
-                            {mbBusy ? 'Working…' : mbPlan.on ? 'Split into band files' : 'Merge into one CSV'}
+                            {mbBusy ? t('Working…') : mbPlan.on ? t('Split into band files') : t('Merge into one CSV')}
                           </button>
-                          <button type="button" onClick={() => setMbPlan(null)} disabled={mbBusy} className={outlineBtn}>Cancel</button>
+                          <button type="button" onClick={() => setMbPlan(null)} disabled={mbBusy} className={outlineBtn}>{t("Cancel")}</button>
                         </div>
                       </div>
                     )}
@@ -719,12 +742,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   )}
 
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>Version</p>
+                    <p className={lbl}>{t("Version")}</p>
                     <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-800 dark:text-gray-200 font-mono">{version || '…'}</span>
                       {caps.updates && (
                         <button type="button" onClick={checkUpdates} disabled={updateState?.checking} className={outlineBtn}>
-                          {updateState?.checking ? 'Checking…' : 'Check for updates'}
+                          {updateState?.checking ? t('Checking…') : t('Check for updates')}
                         </button>
                       )}
                     </div>
@@ -733,7 +756,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         {updateState.error ? updateState.error
                           : updateState.newer ? (
                             <>
-                              Version <span className="font-mono">{updateState.latest}</span> is available.{' '}
+                              {t("Version")} <span className="font-mono">{updateState.latest}</span> {t("is available.")}{' '}
                               <button
                                 type="button"
                                 // The .dmg for this Mac when the release has one: the
@@ -741,11 +764,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                 onClick={() => api.openExternal(updateState.downloadUrl || updateState.url)}
                                 className="text-indigo-600 dark:text-indigo-400 hover:underline"
                               >
-                                Download it
+                                {t("Download it")}
                               </button>
-                              {updateState.downloadUrl ? ' (saves the .dmg to Downloads)' : ''}, then drag it into Applications over the old copy.
+                              {updateState.downloadUrl ? ` ${t('(saves the .dmg to Downloads)')}` : ''}{t(", then drag it into Applications over the old copy.")}
                             </>
-                          ) : 'You are running the latest published version.'}
+                          ) : t('You are running the latest published version.')}
                       </p>
                     )}
                     {caps.updates && (
@@ -757,16 +780,16 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                       />
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Check automatically when the app starts
+                        {t("Check automatically when the app starts")}
                         <span className="block text-gray-400 dark:text-gray-500">
-                          Only says something when a newer release exists — silent when you are up to date or offline.
+                          {t("Only says something when a newer release exists — silent when you are up to date or offline.")}
                         </span>
                       </span>
                     </label>
                     )}
                     {!caps.updates && (
                       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                        The web app updates itself: every change to the app is deployed here automatically.
+                        {t("The web app updates itself: every change to the app is deployed here automatically.")}
                       </p>
                     )}
                   </div>
@@ -778,8 +801,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   <div className="flex items-start justify-between gap-4">
                     <p className="text-xs text-gray-400 dark:text-gray-500">
                       {rulesView === 'flow'
-                        ? 'How a venue gets its status: the first gate that matches wins, the trunk continues on "no". Drawn from the numbers as they stand here.'
-                        : 'The numbers behind the statuses. Change one and the flow follows; Save applies them.'}
+                        ? t('How a venue gets its status: the first gate that matches wins, the trunk continues on “no”. Drawn from the numbers as they stand here.')
+                        : t('The numbers behind the statuses. Change one and the flow follows; Save applies them.')}
                     </p>
                     <div className="flex gap-1 bg-gray-50 dark:bg-gray-900 rounded-lg p-0.5 shrink-0">
                       {[['numbers', 'Numbers'], ['flow', 'Flow']].map(([id, label]) => (
@@ -791,7 +814,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
                             : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                         >
-                          {label}
+                          {t(label)}
                         </button>
                       ))}
                     </div>
@@ -813,27 +836,23 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               {section === 'venueTypes' && (
                 <div className="space-y-4">
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    The values offered in a venue’s Type dropdown, and what each one does. A type can be
-                    <span className="font-medium"> never contacted</span> (like “dead”), contacted only while its
-                    <span className="font-medium"> festival window</span> is open, booked by <span className="font-medium">only some
-                    bands</span> (like “filler”), and have its own follow-up interval. A type with none of these is just a label.
-                    The same choices appear as dropdowns in Rules ▸ Flow.
+                    {t('The values offered in a venue’s Type dropdown, and what each one does. A type can be never contacted (like “dead”), contacted only while its festival window is open, booked by only some bands (like “filler”), and have its own follow-up interval. A type with none of these is just a label. The same choices appear as dropdowns in Rules ▸ Flow.')}
                   </p>
 
                   {venueTypes.length === 0 && (
-                    <p className="text-sm text-gray-400 dark:text-gray-500">No types yet.</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">{t("No types yet.")}</p>
                   )}
 
                   <div className="space-y-2">
-                    {venueTypes.map((t, i) => (
+                    {venueTypes.map((tx, i) => (
                       <TypeRuleRow
                         key={i}
-                        type={t}
-                        rule={typeRuleFor(typeRules, t)}
+                        type={tx}
+                        rule={typeRuleFor(typeRules, tx)}
                         bandNames={bands.map(b => b.name).filter(Boolean)}
                         input={input}
                         onRename={value => renameType(i, value)}
-                        onRule={patch => setTypeRules(setTypeRule(typeRules, t, patch))}
+                        onRule={patch => setTypeRules(setTypeRule(typeRules, tx, patch))}
                         onRemove={() => requestRemoveType(i)}
                         confirming={typeDelete?.index === i ? typeDelete : null}
                         onConfirmRemove={() => removeType(i)}
@@ -846,16 +865,15 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     <input
                       className={input}
                       value={newType}
-                      placeholder="Add a type…"
+                      placeholder={t("Add a type…")}
                       onChange={e => setNewType(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addVenueType() } }}
                     />
-                    <button type="button" onClick={addVenueType} className={outlineBtn}>Add</button>
+                    <button type="button" onClick={addVenueType} className={outlineBtn}>{t("Add")}</button>
                   </div>
 
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    Removing a type here never changes a venue — rows keep what they say, and their value stays
-                    selectable in the dropdown. They just stop being treated specially.
+                    {t("Removing a type here never changes a venue — rows keep what they say, and their value stays selectable in the dropdown. They just stop being treated specially.")}
                   </p>
                 </div>
               )}
@@ -865,8 +883,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   {caps.storageChoice && (
                   <div className="space-y-2">
                     {[
-                      { value: 'file', label: 'Local CSV file', hint: 'Anywhere on this Mac — iCloud Drive keeps it in sync.' },
-                      { value: 'github', label: 'GitHub repository', hint: 'Shares one list with the web app and the booking script.' },
+                      { value: 'file', label: t('Local CSV file'), hint: t('Anywhere on this Mac — iCloud Drive keeps it in sync.') },
+                      { value: 'github', label: t('GitHub repository'), hint: t('Shares one list with the web app and the booking script.') },
                     ].map(o => (
                       <label key={o.value} className="flex items-start gap-2.5 cursor-pointer">
                         <input
@@ -890,32 +908,32 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   {storage.adapter === 'github' ? (
                     <div className="space-y-3">
                       <div>
-                        <label className={lbl}>Repository (owner/name)</label>
-                        <input className={monoInput} value={storage.github?.repo || ''} placeholder="you/booking_list"
+                        <label className={lbl}>{t("Repository (owner/name)")}</label>
+                        <input className={monoInput} value={storage.github?.repo || ''} placeholder={t("you/booking_list")}
                           onChange={e => setStorage({ github: { ...storage.github, repo: e.target.value } })} />
                       </div>
                       <div>
-                        <label className={lbl}>File path in the repo</label>
-                        <input className={monoInput} value={storage.github?.path || ''} placeholder="data/booking.csv"
+                        <label className={lbl}>{t("File path in the repo")}</label>
+                        <input className={monoInput} value={storage.github?.path || ''} placeholder={t("data/booking.csv")}
                           onChange={e => setStorage({ github: { ...storage.github, path: e.target.value } })} />
                       </div>
                       {!builtInToken && (
                       <div>
-                        <label className={lbl}>Personal access token (repo scope)</label>
+                        <label className={lbl}>{t("Personal access token (repo scope)")}</label>
                         <input
                           type="password"
                           className={monoInput}
                           value={githubToken}
                           onChange={e => setGithubToken(e.target.value)}
-                          placeholder={hasGithubToken ? '•••••••• (stored — type to replace)' : 'ghp_…'}
+                          placeholder={hasGithubToken ? t('•••••••• (stored — type to replace)') : 'ghp_…'}
                         />
                         <div className="mt-1 flex items-center justify-between gap-3">
                           <p className="text-xs text-gray-400 dark:text-gray-500">
-                            {caps.localFiles ? 'Kept in your macOS keychain, never in the settings file.' : 'Kept in this browser, never in the settings.'}
+                            {caps.localFiles ? t('Kept in your macOS keychain, never in the settings file.') : t('Kept in this browser, never in the settings.')}
                           </p>
                           {hasGithubToken && (
                             <button type="button" onClick={forgetToken} className="shrink-0 text-xs text-gray-400 hover:text-red-600 dark:hover:text-red-400 underline">
-                              Forget token
+                              {t("Forget token")}
                             </button>
                           )}
                         </div>
@@ -925,54 +943,53 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   ) : (
                     multiBandOn ? (
                     <div>
-                      <label className={lbl}>Band files folder</label>
+                      <label className={lbl}>{t("Band files folder")}</label>
                       <div className="flex gap-2 items-center">
                         <input className={`${monoInput} flex-1`} value={bandDir} readOnly />
                         <button type="button" onClick={prepareRelocate} disabled={!!bfBlocked || bfBusy} className={`${outlineBtn} shrink-0`}
-                          title="Point the app at the folder the band files are in now, or move them to another folder">
-                          Choose folder…
+                          title={t("Point the app at the folder the band files are in now, or move them to another folder")}>
+                          {t("Choose folder…")}
                         </button>
                       </div>
                       {bandDirGone ? (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                          This folder no longer exists — it was moved, renamed or deleted. Choose where the band files are
-                          now, or let go of them and go back to a single CSV.
+                          {t("This folder no longer exists — it was moved, renamed or deleted. Choose where the band files are now, or let go of them and go back to a single CSV.")}
                         </p>
                       ) : (
                         <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                          Multi-band mode is on: one CSV per band in this folder. Choose another folder to move them there.
+                          {t("Multi-band mode is on: one CSV per band in this folder. Choose another folder to move them there.")}
                         </p>
                       )}
                       {relocPlan && (
                         <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2 text-xs text-amber-800 dark:text-amber-300">
-                          <p className="font-semibold">Use this folder for the band files?</p>
+                          <p className="font-semibold">{t("Use this folder for the band files?")}</p>
                           <p className="font-mono break-all text-amber-700 dark:text-amber-400">{relocPlan.dir}</p>
-                          {relocPlan.found.length > 0 && <p>Already there: {relocPlan.found.join(', ')}.</p>}
-                          {relocPlan.toMove.length > 0 && <p>Moved there from the old folder: {relocPlan.toMove.join(', ')}.</p>}
-                          {relocPlan.missing.length > 0 && <p>Not found anywhere, so they start empty: {relocPlan.missing.join(', ')}.</p>}
+                          {relocPlan.found.length > 0 && <p>{t("Already there:")} {relocPlan.found.join(', ')}.</p>}
+                          {relocPlan.toMove.length > 0 && <p>{t("Moved there from the old folder:")} {relocPlan.toMove.join(', ')}.</p>}
+                          {relocPlan.missing.length > 0 && <p>{t("Not found anywhere, so they start empty:")} {relocPlan.missing.join(', ')}.</p>}
                           {relocPlan.clashes.length > 0 && (
-                            <p className="text-red-700 dark:text-red-400 font-medium">In both folders: {relocPlan.clashes.join(', ')}. Move one copy away first.</p>
+                            <p className="text-red-700 dark:text-red-400 font-medium">{t("In both folders:")} {relocPlan.clashes.join(', ')}{t(". Move one copy away first.")}</p>
                           )}
                           <div className="flex gap-2 pt-1">
                             <button type="button" onClick={confirmRelocate} disabled={bfBusy || relocPlan.clashes.length > 0}
                               className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50">
-                              {bfBusy ? 'Working…' : relocPlan.toMove.length ? 'Move and use' : 'Use this folder'}
+                              {bfBusy ? t('Working…') : relocPlan.toMove.length ? t('Move and use') : t('Use this folder')}
                             </button>
-                            <button type="button" onClick={() => setRelocPlan(null)} disabled={bfBusy} className={outlineBtn}>Cancel</button>
+                            <button type="button" onClick={() => setRelocPlan(null)} disabled={bfBusy} className={outlineBtn}>{t("Cancel")}</button>
                           </div>
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {bandDirGone ? (
                           <button type="button" onClick={forgetBandFiles} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
-                            title="Multi-band mode off, without merging — there is nothing left to merge">
-                            Let go of the band files
+                            title={t("Multi-band mode off, without merging — there is nothing left to merge")}>
+                            {t("Let go of the band files")}
                           </button>
                         ) : (
                           <button type="button" disabled={!!mbBlocked || mbBusy}
                             onClick={() => { setSection('general'); prepareMultiBand() }} className={outlineBtn}
-                            title="Merge the band files back into one CSV (General ▸ Multi-band mode)">
-                            Switch back to a single CSV…
+                            title={t("Merge the band files back into one CSV (General ▸ Multi-band mode)")}>
+                            {t("Switch back to a single CSV…")}
                           </button>
                         )}
                       </div>
@@ -980,14 +997,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
                     ) : (
                     <div>
-                      <label className={lbl}>CSV file</label>
+                      <label className={lbl}>{t("CSV file")}</label>
                       <div className="flex gap-2 items-center">
-                        <input className={`${monoInput} flex-1`} value={storage.filePath || ''} readOnly placeholder="No file chosen" />
-                        <button type="button" onClick={chooseFile} className={`${outlineBtn} shrink-0`}>Choose…</button>
+                        <input className={`${monoInput} flex-1`} value={storage.filePath || ''} readOnly placeholder={t("No file chosen")} />
+                        <button type="button" onClick={chooseFile} className={`${outlineBtn} shrink-0`}>{t("Choose…")}</button>
                       </div>
                       <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                        Saving rewrites this file in place. If it lives in iCloud Drive, don’t edit it on two
-                        Macs at once — the app warns you if it changed underneath, but it can’t merge.
+                        {t("Saving rewrites this file in place. If it lives in iCloud Drive, don’t edit it on two Macs at once — the app warns you if it changed underneath, but it can’t merge.")}
                       </p>
                     </div>
                     )
@@ -995,74 +1011,72 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                   {caps.openclawPolicy && (
                     <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
-                      <p className={lbl}>OpenClaw script</p>
+                      <p className={lbl}>{t("OpenClaw script")}</p>
                       <p className="text-xs text-gray-400 dark:text-gray-500 -mt-2">
-                        Read to warn when its hold keywords or override window differ from the Rules. Leave empty to skip the check.
+                        {t("Read to warn when its hold keywords or override window differ from the Rules. Leave empty to skip the check.")}
                       </p>
                       <div>
-                        <label className={lbl}>Repository (owner/name)</label>
-                        <input className={monoInput} value={form.openclaw?.repo || ''} placeholder="you/openclaw-backup"
+                        <label className={lbl}>{t("Repository (owner/name)")}</label>
+                        <input className={monoInput} value={form.openclaw?.repo || ''} placeholder={t("you/openclaw-backup")}
                           onChange={e => setForm(f => ({ ...f, openclaw: { ...f.openclaw, repo: e.target.value } }))} />
                       </div>
                       <div>
-                        <label className={lbl}>Script path in the repo</label>
-                        <input className={monoInput} value={form.openclaw?.path || ''} placeholder="scripts/create_booking_batch.py"
+                        <label className={lbl}>{t("Script path in the repo")}</label>
+                        <input className={monoInput} value={form.openclaw?.path || ''} placeholder={t("scripts/create_booking_batch.py")}
                           onChange={e => setForm(f => ({ ...f, openclaw: { ...f.openclaw, path: e.target.value } }))} />
                       </div>
                     </div>
                   )}
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>Import and export</p>
+                    <p className={lbl}>{t("Import and export")}</p>
                     <div className="flex gap-2">
                       <button type="button" onClick={handleExport} disabled={rows.length === 0} className={`${outlineBtn} flex-1`}>
-                        Export CSV
+                        {t("Export CSV")}
                       </button>
                       <button type="button" onClick={() => onOpenImport?.()} className={`${outlineBtn} flex-1`}>
-                        Import CSV…
+                        {t("Import CSV…")}
                       </button>
                     </div>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      Export {caps.localFiles ? 'writes a copy wherever you point it' : 'downloads a copy'}. Import opens a guided wizard — replace the table
-                      or add to it, and match your file's columns to the app's. Changes stay in the app until you
-                      press Save.
+                      {t("Export")} {caps.localFiles ? 'writes a copy wherever you point it' : 'downloads a copy'}{t(". Import opens a guided wizard — replace the table or add to it, and match your file's columns to the app's. Changes stay in the app until you press Save.")}
                     </p>
                   </div>
 
                   {caps.multiBand && (
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>
-                      Band files
-                      <span className="ml-1.5 inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Multi-band mode</span>
+                      {t("Band files")}
+                      <span className="ml-1.5 inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("Multi-band mode")}</span>
                     </p>
                     <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                      One CSV per band, for booking several bands at the same venue.{' '}
+                      {t("One CSV per band, for booking several bands at the same venue.")}{' '}
                       {multiBandOn
-                        ? 'Multi-band mode is on.'
-                        : <>Multi-band mode is off — <span className="font-medium">each of these switches it on</span>, after showing you what it will do.</>}
+                        ? t('Multi-band mode is on.')
+                        : <>{t("Multi-band mode is off —")} <span className="font-medium">{t("each of these switches it on")}</span>{t(", after showing you what it will do.")}</>}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => prepareBandFiles('open')} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
-                        title="A set of band files that already exists — from another Mac, or a copy someone sent you">
-                        Open band files…
+                        title={t("A set of band files that already exists — from another Mac, or a copy someone sent you")}>
+                        {t("Open band files…")}
                       </button>
                       <button type="button" onClick={() => prepareBandFiles('import')} disabled={!!bfBlocked || bfBusy || (!multiBandOn && config.storage?.adapter === 'github')} className={outlineBtn}
-                        title="Add the venues of several band files to your list">
-                        Import band files…
+                        title={t("Add the venues of several band files to your list")}>
+                        {t("Import band files…")}
                       </button>
                       <button type="button" onClick={() => prepareBandFiles('newset')} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
-                        title="Empty band files in a folder you choose; the current files stay as they are">
-                        New set of band files…
+                        title={t("Empty band files in a folder you choose; the current files stay as they are")}>
+                        {t("New set of band files…")}
                       </button>
                     </div>
                     <ul className="mt-2 space-y-0.5 text-xs text-gray-400 dark:text-gray-500">
-                      <li><span className="font-medium text-gray-500 dark:text-gray-400">Open</span> — use a set of band files that already exists, e.g. from your other Mac. Pick any one of them; the rest of the set is found in its folder.</li>
-                      <li><span className="font-medium text-gray-500 dark:text-gray-400">Import</span> — add the venues of several band files to your list{multiBandOn ? '' : ' (your current CSV is split into band files first)'}.</li>
-                      <li><span className="font-medium text-gray-500 dark:text-gray-400">New set</span> — start over with empty band files somewhere else. Your current files are not touched.</li>
+                      <li><span className="font-medium text-gray-500 dark:text-gray-400">{t("Open")}</span> {t("— use a set of band files that already exists, e.g. from your other Mac. Pick any one of them; the rest of the set is found in its folder.")}</li>
+                      <li><span className="font-medium text-gray-500 dark:text-gray-400">{t("Import")}</span> {t("— add the venues of several band files to your list")}{multiBandOn ? '' : ` ${t('(your current CSV is split into band files first)')}`}.</li>
+                      <li><span className="font-medium text-gray-500 dark:text-gray-400">{t("New set")}</span> {t("— start over with empty band files somewhere else. Your current files are not touched.")}</li>
                     </ul>
                     {bfBlocked && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{bfBlocked}</p>}
                     {!multiBandOn && config.storage?.adapter === 'github' && (
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Import needs a local CSV to split first — Open and New set work from GitHub storage too.</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t("Import needs a local CSV to split first — Open and New set work from GitHub storage too.")}</p>
                     )}
                     <BandFilesPlan
                       plan={bfPlan}
@@ -1078,7 +1092,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   )}
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>Start over</p>
+                    <p className={lbl}>{t("Start over")}</p>
                     {wipeStep === 0 ? (
                       <button
                         type="button"
@@ -1088,40 +1102,40 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         disabled={storageDirty}
                         className="disabled:opacity-40 py-1.5 px-3 rounded-md text-sm font-medium border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
-                        New, empty CSV…
+                        {t("New, empty CSV…")}
                       </button>
                     ) : (
                       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 space-y-2">
                         <p className="text-sm font-semibold text-red-700 dark:text-red-400">
-                          {wipeStep === 1 ? 'ARE YOU SURE?' : 'ARE YOU REALLY SURE? This cannot be undone.'}
+                          {wipeStep === 1 ? t('ARE YOU SURE?') : t('ARE YOU REALLY SURE? This cannot be undone.')}
                         </p>
                         <p className="text-xs text-red-700 dark:text-red-400">
                           {wipeStep === 1
-                            ? <>All {rows.length} venue{rows.length !== 1 ? 's' : ''} will be removed from your booking CSV, along with any unsaved edits. Only the column headers stay. Export a copy first if you might want them back.</>
-                            : <>Your booking CSV is overwritten right now — not staged for Save. There is no undo.</>}
+                            ? t('{n} venue will be removed from your booking CSV, along with any unsaved edits. Only the column headers stay. Export a copy first if you might want it back.|All {n} venues will be removed from your booking CSV, along with any unsaved edits. Only the column headers stay. Export a copy first if you might want them back.', { n: rows.length })
+                            : <>{t("Your booking CSV is overwritten right now — not staged for Save. There is no undo.")}</>}
                         </p>
                         <div className="flex gap-2">
                           {wipeStep === 1 ? (
                             <button type="button" onClick={() => setWipeStep(2)} className="bg-red-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-red-700 transition-colors">
-                              Yes, continue
+                              {t("Yes, continue")}
                             </button>
                           ) : (
                             <button type="button" onClick={handleWipe} disabled={wiping} className="bg-red-700 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-red-800 transition-colors disabled:opacity-50">
-                              {wiping ? 'Emptying…' : 'Yes, empty it for good'}
+                              {wiping ? t('Emptying…') : t('Yes, empty it for good')}
                             </button>
                           )}
-                          <button type="button" onClick={() => setWipeStep(0)} disabled={wiping} className={outlineBtn}>Cancel</button>
+                          <button type="button" onClick={() => setWipeStep(0)} disabled={wiping} className={outlineBtn}>{t("Cancel")}</button>
                         </div>
                       </div>
                     )}
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                       {storageDirty
-                        ? 'Save the storage change first — this empties the CSV the app currently has open.'
+                        ? t('Save the storage change first — this empties the CSV the app currently has open.')
                         : wiped
-                        ? 'Done — the list is empty. Add venues with + New Venue, or import a CSV.'
+                        ? t('Done — the list is empty. Add venues with + New Venue, or import a CSV.')
                         : multiBandOn
-                          ? 'Empties every band file so you can start from a blank list. Settings, bands and templates are kept.'
-                          : 'Empties the CSV above so you can start from a blank list. Settings, bands and templates are kept.'}
+                          ? t('Empties every band file so you can start from a blank list. Settings, bands and templates are kept.')
+                          : t('Empties the CSV above so you can start from a blank list. Settings, bands and templates are kept.')}
                     </p>
                   </div>
                 </div>
@@ -1135,7 +1149,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                 <div>
                   <div className="space-y-2">
                     {bands.length === 0 && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500">No bands yet — add one below.</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{t("No bands yet — add one below.")}</p>
                     )}
                     {bands.map((b, i) => (
                       <div key={i} className="rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-2">
@@ -1143,24 +1157,24 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           <input
                             className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
                             value={b.name}
-                            placeholder="Band name"
+                            placeholder={t("Band name")}
                             onChange={e => updateBand(i, { name: e.target.value })}
                           />
                           <button
                             type="button"
                             onClick={() => removeBand(i)}
                             className="shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 px-2 py-1 rounded transition-colors"
-                            title="Remove band"
+                            title={t("Remove band")}
                           >
                             &times;
                           </button>
                         </div>
                         <div className="flex gap-2 items-center">
-                          <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">Dates</label>
+                          <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">{t("Dates")}</label>
                           <input
                             type="text"
                             className="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            placeholder="e.g. Jun–Aug 2027, or any note"
+                            placeholder={t("e.g. Jun–Aug 2027, or any note")}
                             value={b.tourDates}
                             onChange={e => updateBand(i, { tourDates: e.target.value })}
                           />
@@ -1169,31 +1183,31 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         {/* Only worth asking once there is a choice to make. */}
                         {accounts.length > 1 && (
                           <div className="flex gap-2 items-center">
-                            <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">Sends as</label>
+                            <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">{t("Sends as")}</label>
                             <select
                               className="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
                               value={b.mailAccountId || ''}
                               onChange={e => updateBand(i, { mailAccountId: e.target.value })}
                             >
-                              <option value="">{accountLabel(accounts[0])} (default)</option>
+                              <option value="">{accountLabel(accounts[0], t)} {t("(default)")}</option>
                               {accounts.slice(1).map(a => (
-                                <option key={a.id} value={a.id}>{accountLabel(a)}</option>
+                                <option key={a.id} value={a.id}>{accountLabel(a, t)}</option>
                               ))}
                             </select>
                           </div>
                         )}
                         {/* Types only some bands book (Venue types ▸ Booked by), from the band's side. */}
-                        {restrictedTypes.map(t => (
-                          <label key={t} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                        {restrictedTypes.map(tx => (
+                          <label key={tx} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                             <input
                               type="checkbox"
-                              checked={!!b.name && bandBooksType(typeRules, t, b.name)}
+                              checked={!!b.name && bandBooksType(typeRules, tx, b.name)}
                               disabled={!b.name}
-                              onChange={e => setBandBooksType(t, b.name, e.target.checked)}
+                              onChange={e => setBandBooksType(tx, b.name, e.target.checked)}
                               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
                             />
-                            Books “{t}” venues
-                            <span className="text-xs text-gray-400 dark:text-gray-500">— they show up in Send and the other lists for this band</span>
+                            {t("Books “")}{tx}{t("” venues")}
+                            <span className="text-xs text-gray-400 dark:text-gray-500">{t("— they show up in Send and the other lists for this band")}</span>
                           </label>
                         ))}
                       </div>
@@ -1201,7 +1215,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     <div className="flex gap-2 items-center pt-1">
                       <input
                         className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        placeholder="Add a band…"
+                        placeholder={t("Add a band…")}
                         value={newBand}
                         onChange={e => setNewBand(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBand() } }}
@@ -1211,15 +1225,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         onClick={addBand}
                         className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
                       >
-                        Add
+                        {t("Add")}
                       </button>
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                    A band's Dates fill in the <span className="font-mono">Dates</span> of its venues that have none —
-                    on Save you're asked whether to write a change onto them. A venue with no Dates whose band has none
-                    either can't be emailed, and shows as Missing info. Renaming only changes this list — it doesn't
-                    rewrite existing venues.
+                    {t("A band's Dates fill in the")} <span className="font-mono">{t("Dates")}</span> {t("of its venues that have none — on Save you're asked whether to write a change onto them. A venue with no Dates whose band has none either can't be emailed, and shows as Missing info. Renaming only changes this list — it doesn't rewrite existing venues.")}
                   </p>
                 </div>
               )}
@@ -1228,17 +1239,15 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                 <div className="space-y-5">
                   <div>
                     <button type="button" onClick={() => onOpenTemplates?.()} className={outlineBtn}>
-                      Manage email templates…
+                      {t("Manage email templates…")}
                     </button>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      One template per band and language. A venue's Country picks the language through
-                      the map in the Languages section; anything unlisted falls back to the default.
-                      Templates live in the app's own folder, separate from your settings file.
+                      {t("One template per band and language. A venue's Country picks the language through the map in the Languages section; anything unlisted falls back to the default. Templates live in the app's own folder, separate from your settings file.")}
                     </p>
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>German articles — <span className="font-mono">{'{{article}}'}</span></p>
+                    <p className={lbl}>{t("German articles —")} <span className="font-mono">{'{{article}}'}</span></p>
                     <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1247,54 +1256,46 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                       />
                       <span className="text-xs text-gray-600 dark:text-gray-300">
-                        Work out der/die/das for each venue — and Liebe / Lieber for each contact
+                        {t("Work out der/die/das for each venue — and Liebe / Lieber for each contact")}
                         <span className="block text-gray-400 dark:text-gray-500">
-                          Put <span className="font-mono">{'{{article}}'}</span> where the article belongs —
-                          <span className="font-mono"> in {'{{article}}'} {'{{venue}}'}</span> becomes
-                          “in der Kulturfabrik” but “im Kulturzentrum”. The case comes from the words around it
-                          (für → die, wegen → der), and “in dem” contracts to “im” on its own.
+                          {t("Put")} <span className="font-mono">{'{{article}}'}</span> {t("where the article belongs —")}
+                          <span className="font-mono"> in {'{{article}}'} {'{{venue}}'}</span> {t("becomes “in der Kulturfabrik” but “im Kulturzentrum”. The case comes from the words around it (für → die, wegen → der), and “in dem” contracts to “im” on its own.")}
                         </span>
                       </span>
                     </label>
 
                     <div className="mt-2 rounded-md bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
-                      {!articleState ? 'Checking Apple Intelligence…'
+                      {!articleState ? t('Checking Apple Intelligence…')
                         : articleState.ok ? (
                           <>
-                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Ready.</span>{' '}
-                            The gender is worked out by Apple’s on-device model — nothing leaves your Mac, and each
-                            venue is only ever asked about once.
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t("Ready.")}</span>{' '}
+                            {t("The gender is worked out by Apple’s on-device model — nothing leaves your Mac, and each venue is only ever asked about once.")}
                           </>
                         ) : articleState.status === 'disabled' ? (
                           <>
-                            <span className="text-amber-600 dark:text-amber-400 font-medium">Apple Intelligence is switched off.</span>{' '}
-                            Turn it on in <span className="font-medium">System Settings → Apple Intelligence &amp; Siri</span>, then
-                            reopen this panel. Until then <span className="font-mono">{'{{article}}'}</span> is left out of drafts
-                            and flagged as missing.
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">{t("Apple Intelligence is switched off.")}</span>{' '}
+                            {t("Turn it on in")} <span className="font-medium">{t("System Settings → Apple Intelligence & Siri")}</span>{t(", then reopen this panel. Until then")} <span className="font-mono">{'{{article}}'}</span> {t("is left out of drafts and flagged as missing.")}
                           </>
                         ) : articleState.status === 'downloading' ? (
-                          <>The on-device model is still downloading. This works once macOS has finished.</>
+                          <>{t("The on-device model is still downloading. This works once macOS has finished.")}</>
                         ) : articleState.status === 'ineligible' || articleState.status === 'unsupported' ? (
-                          <>This Mac can’t run Apple’s on-device model — it needs Apple Silicon and macOS 26 or newer.
-                            Drafts still work; <span className="font-mono">{'{{article}}'}</span> is left out and flagged.</>
+                          <>{t("This Mac can’t run Apple’s on-device model — it needs Apple Silicon and macOS 26 or newer. Drafts still work;")} <span className="font-mono">{'{{article}}'}</span> {t("is left out and flagged.")}</>
                         ) : (
-                          <>{articleState.error || 'The language helper is unavailable.'}</>
+                          <>{articleState.error || t('The language helper is unavailable.')}</>
                         )}
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>Addressing the contact — <span className="font-mono">{'{{greeting}}'}</span> and <span className="font-mono">{'{{contact}}'}</span></p>
+                    <p className={lbl}>{t("Addressing the contact —")} <span className="font-mono">{'{{greeting}}'}</span> {t("and")} <span className="font-mono">{'{{contact}}'}</span></p>
                     <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                      Write <span className="font-mono">{'{{greeting}},'}</span> and it becomes the whole salutation.
-                      In German, Apple’s on-device model reads the first name for Liebe / Lieber
-                      (and Frau / Herr); a name it can’t place gets the neutral form.
+                      {t("Write")} <span className="font-mono">{'{{greeting}},'}</span> {t("and it becomes the whole salutation. In German, Apple’s on-device model reads the first name for Liebe / Lieber (and Frau / Herr); a name it can’t place gets the neutral form.")}
                     </p>
                     <div className="space-y-1.5">
                       {[
-                        { value: 'first', label: 'First name', hint: 'Liebe Anna · Lieber Thomas · Hallo Kim · Dear Anna' },
-                        { value: 'full', label: 'Full name', hint: 'Liebe Anna Müller · Lieber Thomas Schmidt · Dear Anna Müller' },
-                        { value: 'formal', label: 'Formal', hint: 'Sehr geehrte Frau Müller · Sehr geehrter Herr Schmidt · Guten Tag Kim Weber · Dear Ms Müller' },
+                        { value: 'first', label: t('First name'), hint: 'Liebe Anna · Lieber Thomas · Hallo Kim · Dear Anna' },
+                        { value: 'full', label: t('Full name'), hint: 'Liebe Anna Müller · Lieber Thomas Schmidt · Dear Anna Müller' },
+                        { value: 'formal', label: t('Formal'), hint: 'Sehr geehrte Frau Müller · Sehr geehrter Herr Schmidt · Guten Tag Kim Weber · Dear Ms Müller' },
                       ].map(o => (
                         <label key={o.value} className="flex items-start gap-2.5 cursor-pointer">
                           <input
@@ -1314,18 +1315,18 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>Video links</p>
+                    <p className={lbl}>{t("Video links")}</p>
                     <div className="space-y-1.5">
                       {[
                         {
                           key: 'showLabel',
-                          label: 'Text link under the thumbnail',
-                          hint: 'The “▶ Video title” line. Turn this off for a bare thumbnail.',
+                          label: t('Text link under the thumbnail'),
+                          hint: t('The “▶ Video title” line. Turn this off for a bare thumbnail.'),
                         },
                         {
                           key: 'playOverlay',
-                          label: 'Play button on the thumbnail',
-                          hint: 'Drawn into the image — mail clients cannot position an overlay reliably.',
+                          label: t('Play button on the thumbnail'),
+                          hint: t('Drawn into the image — mail clients cannot position an overlay reliably.'),
                         },
                       ].map(o => (
                         <label key={o.key} className="flex items-start gap-2.5 cursor-pointer">
@@ -1343,17 +1344,14 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      Both are applied when you insert a video, so changing them here affects the next
-                      video you add — videos already in a template keep the look they were inserted with.
+                      {t("Both are applied when you insert a video, so changing them here affects the next video you add — videos already in a template keep the look they were inserted with.")}
                     </p>
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>When a venue has no contact name</p>
+                    <p className={lbl}>{t("When a venue has no contact name")}</p>
                     <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                      Used instead of an empty <span className="font-mono">{'{{contact}}'}</span>, per language.
-                      It can itself contain placeholders — <span className="font-mono">{'{{venue}} Team'}</span> becomes
-                      “Kulturzentrum Team”.
+                      {t("Used instead of an empty")} <span className="font-mono">{'{{contact}}'}</span>{t(", per language. It can itself contain placeholders —")} <span className="font-mono">{'{{venue}} Team'}</span> {t("becomes “Kulturzentrum Team”.")}
                     </p>
                     <div className="space-y-2">
                       {[...new Set([
@@ -1366,15 +1364,14 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           <input
                             className={input}
                             value={templateOpts.contactFallbacks?.[lang] ?? ''}
-                            placeholder="{{venue}} team"
+                            placeholder={t("{{venue}} team")}
                             onChange={e => setContactFallback(lang, e.target.value)}
                           />
                         </div>
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      Leave one empty to keep the old behaviour for that language: the placeholder resolves to
-                      nothing and the venue is flagged in the draft preflight.
+                      {t("Leave one empty to keep the old behaviour for that language: the placeholder resolves to nothing and the venue is flagged in the draft preflight.")}
                     </p>
                   </div>
                 </div>
@@ -1383,17 +1380,14 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               {section === 'mail' && (
                 <div className="space-y-4">
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    One entry per mailbox you send from. Bands pick one in the <span className="font-medium">Bands</span>
-                    {' '}section; everything else uses the first. Drafts go straight into that account's Drafts mailbox
-                    over IMAP. iCloud needs an <span className="font-medium">app-specific password</span>, not your
-                    Apple ID password.{' '}
+                    {t("One entry per mailbox you send from. Bands pick one in the")} <span className="font-medium">{t("Bands")}</span>
+                    {' '}{t("section; everything else uses the first. Drafts go straight into that account's Drafts mailbox over IMAP. iCloud needs an")} <span className="font-medium">{t("app-specific password")}</span>{t(", not your Apple ID password.")}{' '}
                     <button type="button" onClick={() => api.openExternal('https://appleid.apple.com')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                      Create one at appleid.apple.com
+                      {t("Create one at appleid.apple.com")}
                     </button>
-                    . Gmail needs an <span className="font-medium">app password</span> too, which Google only offers once
-                    2-Step Verification is on.{' '}
+                    {t(". Gmail needs an")} <span className="font-medium">{t("app password")}</span> {t("too, which Google only offers once 2-Step Verification is on.")}{' '}
                     <button type="button" onClick={() => api.openExternal('https://myaccount.google.com/apppasswords')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                      Create one at myaccount.google.com
+                      {t("Create one at myaccount.google.com")}
                     </button>
                   </p>
 
@@ -1409,9 +1403,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         >
                           <span className="min-w-0">
                             <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
-                              {accountLabel(acct)}
+                              {accountLabel(acct, t)}
                             </span>
-                            {i === 0 && <span className="ml-2 text-[11px] text-gray-400 dark:text-gray-500">default</span>}
+                            {i === 0 && <span className="ml-2 text-[11px] text-gray-400 dark:text-gray-500">{t("default")}</span>}
                             <span className="block text-xs text-gray-400 dark:text-gray-500 truncate">
                               {acct.user || 'not set up yet'}
                               {bandsUsing(acct.id).length > 0 && ` · ${bandsUsing(acct.id).join(', ')}`}
@@ -1424,20 +1418,20 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           <div className="px-3 pb-3 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
                             <div className="grid grid-cols-3 gap-3">
                               <div className="col-span-2">
-                                <label className={lbl}>Name for this account</label>
-                                <input className={input} value={acct.label} placeholder="e.g. Band A mail"
+                                <label className={lbl}>{t("Name for this account")}</label>
+                                <input className={input} value={acct.label} placeholder={t("e.g. Band A mail")}
                                   onChange={e => setAccount(acct.id, { label: e.target.value })} />
                               </div>
                             </div>
 
                             <div className="grid grid-cols-3 gap-3">
                               <div className="col-span-2">
-                                <label className={lbl}>IMAP server</label>
-                                <input className={monoInput} value={acct.host} placeholder="imap.mail.me.com"
+                                <label className={lbl}>{t("IMAP server")}</label>
+                                <input className={monoInput} value={acct.host} placeholder={t("imap.mail.me.com")}
                                   onChange={e => setAccount(acct.id, { host: e.target.value })} />
                               </div>
                               <div>
-                                <label className={lbl}>Port</label>
+                                <label className={lbl}>{t("Port")}</label>
                                 <input className={monoInput} value={acct.port}
                                   onChange={e => setAccount(acct.id, { port: Number(e.target.value) || 993 })} />
                               </div>
@@ -1445,37 +1439,37 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                             <div className="grid grid-cols-3 gap-3">
                               <div className="col-span-2">
-                                <label className={lbl}>SMTP server (sending)</label>
+                                <label className={lbl}>{t("SMTP server (sending)")}</label>
                                 <input className={monoInput} value={acct.smtpHost}
                                   placeholder={defaultSmtpHost(acct.host) || 'smtp.…'}
                                   onChange={e => setAccount(acct.id, { smtpHost: e.target.value })} />
                                 <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                  Left blank, it is worked out from the IMAP server above.
+                                  {t("Left blank, it is worked out from the IMAP server above.")}
                                 </p>
                               </div>
                               <div>
-                                <label className={lbl}>Port</label>
+                                <label className={lbl}>{t("Port")}</label>
                                 <select className={input} value={acct.smtpPort}
                                   onChange={e => setAccount(acct.id, { smtpPort: Number(e.target.value) })}>
-                                  <option value={587}>587 — STARTTLS</option>
-                                  <option value={465}>465 — TLS</option>
-                                  <option value={25}>25 — plain</option>
+                                  <option value={587}>{t("587 — STARTTLS")}</option>
+                                  <option value={465}>{t("465 — TLS")}</option>
+                                  <option value={25}>{t("25 — plain")}</option>
                                 </select>
                               </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className={lbl}>Username</label>
-                                <input className={monoInput} value={acct.user} placeholder="you@icloud.com"
+                                <label className={lbl}>{t("Username")}</label>
+                                <input className={monoInput} value={acct.user} placeholder={t("you@icloud.com")}
                                   onChange={e => setAccount(acct.id, { user: e.target.value })} />
                               </div>
                               <div>
-                                <label className={lbl}>Password</label>
+                                <label className={lbl}>{t("Password")}</label>
                                 <input
                                   type="password" className={input}
                                   value={accountPasswords[acct.id] || ''}
-                                  placeholder={hasPassword[acct.id] ? '•••••••• stored' : 'app-specific password'}
+                                  placeholder={hasPassword[acct.id] ? t('•••••••• stored') : t('app-specific password')}
                                   onChange={e => setAccountPasswords(p => ({ ...p, [acct.id]: e.target.value }))}
                                 />
                               </div>
@@ -1483,12 +1477,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className={lbl}>From address</label>
-                                <input className={monoInput} value={acct.fromAddress} placeholder="same as username"
+                                <label className={lbl}>{t("From address")}</label>
+                                <input className={monoInput} value={acct.fromAddress} placeholder={t("same as username")}
                                   onChange={e => setAccount(acct.id, { fromAddress: e.target.value })} />
                               </div>
                               <div>
-                                <label className={lbl}>From name</label>
+                                <label className={lbl}>{t("From name")}</label>
                                 <input className={input} value={acct.fromName}
                                   onChange={e => setAccount(acct.id, { fromName: e.target.value })} />
                               </div>
@@ -1496,31 +1490,31 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className={lbl}>Drafts mailbox</label>
-                                <input className={monoInput} value={acct.draftsMailbox} placeholder="found automatically"
+                                <label className={lbl}>{t("Drafts mailbox")}</label>
+                                <input className={monoInput} value={acct.draftsMailbox} placeholder={t("found automatically")}
                                   onChange={e => setAccount(acct.id, { draftsMailbox: e.target.value })} />
                               </div>
                               <div>
-                                <label className={lbl}>Sent mailbox</label>
-                                <input className={monoInput} value={acct.sentMailbox} placeholder="found automatically"
+                                <label className={lbl}>{t("Sent mailbox")}</label>
+                                <input className={monoInput} value={acct.sentMailbox} placeholder={t("found automatically")}
                                   onChange={e => setAccount(acct.id, { sentMailbox: e.target.value })} />
                               </div>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
                               <button type="button" onClick={() => testAccount(acct.id, 'imap')} disabled={!!test.busy} className={outlineBtn}>
-                                {test.busy === 'imap' ? 'Connecting…' : 'Test receiving (IMAP)'}
+                                {test.busy === 'imap' ? t('Connecting…') : t('Test receiving (IMAP)')}
                               </button>
                               <button type="button" onClick={() => testAccount(acct.id, 'smtp')} disabled={!!test.busy} className={outlineBtn}>
-                                {test.busy === 'smtp' ? 'Checking…' : 'Test sending (SMTP)'}
+                                {test.busy === 'smtp' ? t('Checking…') : t('Test sending (SMTP)')}
                               </button>
                               {confirmRemove === acct.id ? (
                                 <span className="ml-auto flex items-center gap-2 text-xs text-red-700 dark:text-red-400">
-                                  Remove it, and its password from the keychain?
+                                  {t("Remove it, and its password from the keychain?")}
                                   <button type="button" onClick={() => { setConfirmRemove(null); removeAccount(acct.id) }}
-                                    className="font-semibold underline hover:no-underline">Remove</button>
+                                    className="font-semibold underline hover:no-underline">{t("Remove")}</button>
                                   <button type="button" onClick={() => setConfirmRemove(null)}
-                                    className="text-gray-500 dark:text-gray-400 underline hover:no-underline">Cancel</button>
+                                    className="text-gray-500 dark:text-gray-400 underline hover:no-underline">{t("Cancel")}</button>
                                 </span>
                               ) : (
                                 <button
@@ -1528,7 +1522,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                   onClick={() => setConfirmRemove(acct.id)}
                                   className="ml-auto text-xs text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                 >
-                                  Remove account
+                                  {t("Remove account")}
                                 </button>
                               )}
                             </div>
@@ -1544,17 +1538,17 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   })}
 
                   <button type="button" onClick={addAccount} className={outlineBtn}>
-                    Add another account…
+                    {t("Add another account…")}
                   </button>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">
                     <div>
-                      <p className={lbl}>Keeping “Last emailed” up to date</p>
+                      <p className={lbl}>{t("Keeping “Last emailed” up to date")}</p>
                       <div className="space-y-1.5">
                         {[
-                          { v: 'onSend', label: 'Stamp today’s date when I draft or send', hint: 'No server access needed. Misses anything you sent from Mail itself.' },
-                          { v: 'imap', label: 'Read the real date from my Sent mailbox', hint: 'Catches everything, however you sent it. Needs the IMAP details above.' },
-                          { v: 'off', label: 'Leave it to me', hint: 'The column is only ever changed by hand.' },
+                          { v: 'onSend', label: t('Stamp today’s date when I draft or send'), hint: t('No server access needed. Misses anything you sent from Mail itself.') },
+                          { v: 'imap', label: t('Read the real date from my Sent mailbox'), hint: t('Catches everything, however you sent it. Needs the IMAP details above.') },
+                          { v: 'off', label: t('Leave it to me'), hint: t('The column is only ever changed by hand.') },
                         ].map(o => (
                           <label key={o.v} className="flex items-start gap-2 cursor-pointer">
                             <input
@@ -1573,7 +1567,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
 
                     <div>
-                      <p className={lbl}>Reply status</p>
+                      <p className={lbl}>{t("Reply status")}</p>
                       <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -1582,10 +1576,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                         />
                         <span className="text-xs text-gray-600 dark:text-gray-300">
-                          Read the last reply date from my inbox
+                          {t("Read the last reply date from my inbox")}
                           <span className="block text-gray-400 dark:text-gray-500">
-                            Fills the Reply status column, telling a real answer apart from an
-                            out-of-office auto-responder. Only possible over IMAP.
+                            {t("Fills the Reply status column, telling a real answer apart from an out-of-office auto-responder. Only possible over IMAP.")}
                           </span>
                         </span>
                       </label>
@@ -1593,7 +1586,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                     <div className="grid grid-cols-3 gap-3 items-end">
                       <div>
-                        <label className={lbl}>Look back</label>
+                        <label className={lbl}>{t("Look back")}</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="number" min="1" max="240"
@@ -1601,7 +1594,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             value={sync.months ?? 24}
                             onChange={e => setSync({ months: Number(e.target.value) })}
                           />
-                          <span className="text-xs text-gray-400 dark:text-gray-500">months</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">{t("months")}</span>
                         </div>
                       </div>
                       <label className="col-span-2 flex items-start gap-2 cursor-pointer pb-1">
@@ -1612,18 +1605,16 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                         />
                         <span className="text-xs text-gray-600 dark:text-gray-300">
-                          Check once when the app opens
+                          {t("Check once when the app opens")}
                           <span className="block text-gray-400 dark:text-gray-500">
-                            Otherwise only when you press ↻.
+                            {t("Otherwise only when you press ↻.")}
                           </span>
                         </span>
                       </label>
                     </div>
 
                     <p className="text-xs text-gray-400 dark:text-gray-500">
-                      A sync never writes to your CSV. It stages the dates as pending edits, exactly like
-                      typing them in — you review them and press Save. Dates already in the CSV are only
-                      ever moved forward, never back.
+                      {t("A sync never writes to your CSV. It stages the dates as pending edits, exactly like typing them in — you review them and press Save. Dates already in the CSV are only ever moved forward, never back.")}
                     </p>
                   </div>
                 </div>
@@ -1636,24 +1627,24 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
             <p className="text-xs min-h-[1rem]">
               {error || ruleErrors.length > 0 ? (
                 <span className="text-red-600 dark:text-red-400">
-                  {error || `${ruleErrors.length} problem${ruleErrors.length !== 1 ? 's' : ''} in Rules`}
+                  {error || t('{n} problem in Rules|{n} problems in Rules', { n: ruleErrors.length })}
                 </span>
               ) : savedAt ? (
-                <span className="text-green-600 dark:text-green-400">Saved</span>
+                <span className="text-green-600 dark:text-green-400">{t("Saved")}</span>
               ) : dirty ? (
-                <span className="text-gray-400 dark:text-gray-500">Unsaved changes</span>
+                <span className="text-gray-400 dark:text-gray-500">{t("Unsaved changes")}</span>
               ) : null}
             </p>
             <div className="flex gap-3 shrink-0">
               <button type="button" onClick={onClose} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                {dirty ? 'Discard & close' : 'Close'}
+                {dirty ? t('Discard & close') : t('Close')}
               </button>
               <button
                 type="submit"
                 disabled={saving || ruleErrors.length > 0}
                 className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
               >
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? t('Saving…') : t('Save')}
               </button>
             </div>
           </div>
@@ -1666,23 +1657,24 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 // Under an empty band Dates field: what the band's venues already carry, to
 // pick from.
 function DatesSuggestions({ rows, band, current, onUse }) {
+  const t = useT()
   const shown = band && !current.trim() ? datesSuggestions(rows, band) : []
   if (!shown.length) return null
   return (
     <div className="pl-16 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-      <p>{shown.length === 1 ? 'Its venues say:' : 'Its venues don’t agree — pick one, or type your own:'}</p>
+      <p>{shown.length === 1 ? t('Its venues say:') : t('Its venues don’t agree — pick one, or type your own:')}</p>
       <ul className="space-y-0.5">
         {shown.slice(0, 6).map(x => (
           <li key={x.text} className="flex items-center gap-2">
             <button type="button" onClick={() => onUse(x.text)}
-              className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">Use</button>
+              className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">{t("Use")}</button>
             <span className={x.past ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'}>{x.text}</span>
-            <span className="text-gray-400 dark:text-gray-500">· {x.count} venue{x.count !== 1 ? 's' : ''}{x.past ? ' · past' : ''}</span>
+            <span className="text-gray-400 dark:text-gray-500">· {t('{n} venue|{n} venues', { n: x.count })}{x.past ? ` · ${t('past')}` : ''}</span>
           </li>
         ))}
       </ul>
       {shown.length > 1 && (
-        <p className="text-gray-400 dark:text-gray-500">Venues with other dates are listed in the banner above the list afterwards — overwrite them there, or keep each one’s own.</p>
+        <p className="text-gray-400 dark:text-gray-500">{t("Venues with other dates are listed in the banner above the list afterwards — overwrite them there, or keep each one’s own.")}</p>
       )}
     </div>
   )
@@ -1690,6 +1682,7 @@ function DatesSuggestions({ rows, band, current, onUse }) {
 
 // One venue type and its rule (Settings ▸ Venue types).
 function TypeRuleRow({ type, rule, bandNames, input, onRename, onRule, onRemove, confirming, onConfirmRemove, onCancelRemove }) {
+  const t = useT()
   const restricted = rule.bands !== null
   const small = 'rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-xs py-1 focus:border-indigo-500 focus:ring-indigo-500'
   const toggleBand = name => {
@@ -1699,14 +1692,14 @@ function TypeRuleRow({ type, rule, bandNames, input, onRename, onRule, onRemove,
   return (
     <div className="rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-2">
       <div className="flex items-center gap-2">
-        <input className={input} value={type} onChange={e => onRename(e.target.value)} aria-label="Type name" />
-        <select className={`${small} shrink-0`} value={rule.behaves} onChange={e => onRule({ behaves: e.target.value })} title="What venues of this type do">
-          {TYPE_BEHAVIOURS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+        <input className={input} value={type} onChange={e => onRename(e.target.value)} aria-label={t("Type name")} />
+        <select className={`${small} shrink-0`} value={rule.behaves} onChange={e => onRule({ behaves: e.target.value })} title={t("What venues of this type do")}>
+          {TYPE_BEHAVIOURS.map(b => <option key={b.id} value={b.id}>{t(b.label)}</option>)}
         </select>
         <button
           type="button"
           onClick={onRemove}
-          title="Remove from the dropdown (venues keep their value)"
+          title={t("Remove from the dropdown (venues keep their value)")}
           className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 px-2 text-lg leading-none"
         >
           &times;
@@ -1714,14 +1707,14 @@ function TypeRuleRow({ type, rule, bandNames, input, onRename, onRule, onRemove,
       </div>
       {rule.behaves !== 'never' && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
-          <span className="w-16 shrink-0">Booked by</span>
+          <span className="w-16 shrink-0">{t("Booked by")}</span>
           <label className="inline-flex items-center gap-1">
             <input type="radio" checked={!restricted} onChange={() => onRule({ bands: null })} className="text-indigo-600 focus:ring-indigo-500" />
-            all bands
+            {t("all bands")}
           </label>
           <label className="inline-flex items-center gap-1">
             <input type="radio" checked={restricted} onChange={() => onRule({ bands: [] })} className="text-indigo-600 focus:ring-indigo-500" />
-            only
+            {t("only")}
           </label>
           {restricted && (bandNames.length ? bandNames.map(name => {
             const on = rule.bands.some(b => b.toLowerCase() === name.toLowerCase())
@@ -1733,37 +1726,41 @@ function TypeRuleRow({ type, rule, bandNames, input, onRename, onRule, onRemove,
                 {name}
               </button>
             )
-          }) : <span className="text-gray-400">no bands yet (Bands section)</span>)}
+          }) : <span className="text-gray-400">{t("no bands yet (Bands section)")}</span>)}
           {restricted && !rule.bands.length && bandNames.length > 0 && (
-            <span className="text-amber-600 dark:text-amber-400">no band books these right now</span>
+            <span className="text-amber-600 dark:text-amber-400">{t("no band books these right now")}</span>
           )}
         </div>
       )}
       {rule.behaves !== 'never' && (
         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <span className="w-16 shrink-0">Follow up</span>
-          every
+          <span className="w-16 shrink-0">{t("Follow up")}</span>
+          {t("every")}
           <input
             type="number" min="1" className={`${small} w-20`}
             value={rule.frequencyDays ?? ''}
-            placeholder="default"
+            placeholder={t("default")}
             onChange={e => onRule({ frequencyDays: e.target.value ? Number(e.target.value) : null })}
           />
-          days <span className="text-gray-400 dark:text-gray-500">— empty: the Rules default. A venue’s own Follow-up Interval still wins.</span>
+          {t("days")} <span className="text-gray-400 dark:text-gray-500">{t("— empty: the Rules default. A venue’s own Follow-up Interval still wins.")}</span>
         </div>
       )}
       {confirming && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-2.5 space-y-2 text-xs text-amber-800 dark:text-amber-300">
           <p>
-            <span className="font-semibold">“{type}”</span> is{' '}
-            {confirming.rule.length > 0 && <>used in the Rules flow ({confirming.rule.join('; ')})</>}
-            {confirming.rule.length > 0 && confirming.venues > 0 && ' and '}
-            {confirming.venues > 0 && <>set on {confirming.venues} venue{confirming.venues !== 1 ? 's' : ''}</>}.
-            {' '}Deleting it {confirming.rule.length > 0 ? 'turns those venues into ordinary ones' : 'only removes it from the dropdown'} — the venues keep the word.
+            <span className="font-semibold">“{type}”</span>{' '}
+            {confirming.rule.length > 0 && confirming.venues > 0
+              ? t('is used in the Rules flow ({rules}) and set on {n} venue.|is used in the Rules flow ({rules}) and set on {n} venues.', { rules: confirming.rule.join('; '), n: confirming.venues })
+              : confirming.rule.length > 0
+                ? t('is used in the Rules flow ({rules}).', { rules: confirming.rule.join('; ') })
+                : t('is set on {n} venue.|is set on {n} venues.', { n: confirming.venues })}
+            {' '}{confirming.rule.length > 0
+              ? t('Deleting it turns those venues into ordinary ones — the venues keep the word.')
+              : t('Deleting it only removes it from the dropdown — the venues keep the word.')}
           </p>
           <div className="flex gap-2">
-            <button type="button" onClick={onConfirmRemove} className="bg-amber-600 text-white font-medium px-2.5 py-1 rounded-md hover:bg-amber-700">Delete</button>
-            <button type="button" onClick={onCancelRemove} className="px-2.5 py-1 rounded-md border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40">Cancel</button>
+            <button type="button" onClick={onConfirmRemove} className="bg-amber-600 text-white font-medium px-2.5 py-1 rounded-md hover:bg-amber-700">{t("Delete")}</button>
+            <button type="button" onClick={onCancelRemove} className="px-2.5 py-1 rounded-md border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40">{t("Cancel")}</button>
           </div>
         </div>
       )}

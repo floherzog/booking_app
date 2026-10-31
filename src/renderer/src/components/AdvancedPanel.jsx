@@ -3,6 +3,7 @@ import { ADVANCED_COLUMNS, STATUS_META, HEALTH_OPTIONS } from '@core/constants'
 import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS, KEYWORD_FIELDS } from '@core/filterRows'
 import { ORDERED_STATUSES, StatusPill, ShortcutChip, CustomChip, columnLabel } from './StatsBar'
 import ColorDot from './ColorDot'
+import { t, useT } from '../i18n'
 
 // What a shortcut chip and a custom chip look like before any colour is chosen.
 const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#F97316', duplicate: '#F43F5E', onlineForm: '#0891B2', autoSend: '#0D9488' }
@@ -19,6 +20,7 @@ const STATUS_OPTIONS = Object.entries(STATUS_META)
 const SORTED_COLUMNS = [...ADVANCED_COLUMNS].sort((a, b) => a.label.localeCompare(b.label))
 
 export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsChange }) {
+  const t = useT()
   const advanced = filters.advanced || []
   const sort = filters.sort || { field: '', dir: 'asc' }
 
@@ -48,10 +50,10 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
     <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-3 space-y-3">
       {/* Sort */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 w-14 shrink-0">Sort by</span>
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 w-14 shrink-0">{t("Sort by")}</span>
         <select className={sel} value={sort.field} onChange={e => setSort({ field: e.target.value })}>
-          <option value="">— None (default) —</option>
-          {SORTED_COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          <option value="">{t("— None (default) —")}</option>
+          {SORTED_COLUMNS.map(c => <option key={c.key} value={c.key}>{t(c.label)}</option>)}
         </select>
         <div className={`flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden text-xs ${sort.field ? '' : 'opacity-40 pointer-events-none'}`}>
           {['asc', 'desc'].map(dir => (
@@ -62,7 +64,7 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
                 ? 'bg-indigo-600 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}
             >
-              {dir === 'asc' ? '↑ Asc' : '↓ Desc'}
+              {dir === 'asc' ? t('↑ Asc') : t('↓ Desc')}
             </button>
           ))}
         </div>
@@ -73,17 +75,17 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
       {/* Column filters */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Filters (all must match)</span>
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("Filters (all must match)")}</span>
           <button
             onClick={addRule}
             className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
           >
-            + Add filter
+            {t("+ Add filter")}
           </button>
         </div>
 
         {advanced.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-500">No column filters — add one to narrow by any field (status, contact, time frame, …). Note, Outreach Text and Reply Status take keywords: “formular, web form” matches either.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{t("No column filters — add one to narrow by any field (status, contact, time frame, …). Note, Outreach Text and Reply Status take keywords: “formular, web form” matches either.")}</p>
         )}
 
         {advanced.map((rule, i) => (
@@ -93,24 +95,24 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
               value={rule.field}
               onChange={e => updateRule(i, { field: e.target.value, value: '' })}
             >
-              {SORTED_COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              {SORTED_COLUMNS.map(c => <option key={c.key} value={c.key}>{t(c.label)}</option>)}
             </select>
             {rule.field !== '_status' && rule.field !== '_health' && (
               <select
                 className={`${sel} w-36 shrink-0`}
                 value={rule.op === 'none' ? 'none' : 'any'}
                 onChange={e => updateRule(i, { op: e.target.value })}
-                aria-label="Contains or doesn’t contain"
+                aria-label={t("Contains or doesn’t contain")}
               >
-                <option value="any">contains</option>
-                <option value="none">doesn’t contain</option>
+                <option value="any">{t("contains")}</option>
+                <option value="none">{t("doesn’t contain")}</option>
               </select>
             )}
             <ValueInput rule={rule} distinct={distinct} onValue={v => updateRule(i, { value: v })} />
             <button
               onClick={() => removeRule(i)}
               className="shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 text-lg leading-none px-1"
-              title="Remove filter"
+              title={t("Remove filter")}
             >
               &times;
             </button>
@@ -131,6 +133,7 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
 // Which chips the bar above the list shows, and the saved ones. The three
 // kinds are drawn in their own shapes, so what each shape means is learnt here.
 function ChipSettings({ chips, filters, onChipsChange }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const hidden = new Set(chips.hidden)
@@ -173,8 +176,8 @@ function ChipSettings({ chips, filters, onChipsChange }) {
           <path d="M4 2h8a1 1 0 0 1 1 1v11l-5-3-5 3V3a1 1 0 0 1 1-1z" />
         </svg>
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">Chips / saved filters</span>
-          <span className="block text-xs text-gray-400 dark:text-gray-500">Show, hide or recolour the chips above the list, and save filters as chips of your own</span>
+          <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">{t("Chips / saved filters")}</span>
+          <span className="block text-xs text-gray-400 dark:text-gray-500">{t("Show, hide or recolour the chips above the list, and save filters as chips of your own")}</span>
         </span>
         <svg viewBox="0 0 16 16" className={`ml-auto w-4 h-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M6 3l5 5-5 5" />
@@ -184,47 +187,43 @@ function ChipSettings({ chips, filters, onChipsChange }) {
       {open && (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <p className={head}>Round — statuses</p>
+            <p className={head}>{t("Round — statuses")}</p>
             <p className={blurb}>
-              One per status. Every venue has exactly one status, so these split the list and their counts add up to all
-              venues. Click to show or hide one in the bar; a status with no venues is never shown. The dot next to
-              a chip sets its colour — for a status that's also its badge, its row marking and its map pin.
+              {t("One per status. Every venue has exactly one status, so these split the list and their counts add up to all venues. Click to show or hide one in the bar; a status with no venues is never shown. The dot next to a chip sets its colour — for a status that's also its badge, its row marking and its map pin.")}
             </p>
             <div className="flex flex-wrap gap-x-3 gap-y-2">
               {ORDERED_STATUSES.map(([key, meta]) => (
                 <span key={key} className="inline-flex items-center gap-1.5">
-                  <ToggleChip on={!hidden.has(key)} label={meta.label} onToggle={() => toggle(key)}>
+                  <ToggleChip on={!hidden.has(key)} label={t(meta.label)} onToggle={() => toggle(key)}>
                     <StatusPill status={key} />
                   </ToggleChip>
-                  <ColorDot value={chips.colors?.[key]} fallbackHex={meta.mapColor} label={meta.label} onChange={h => setColor(key, h)} />
+                  <ColorDot value={chips.colors?.[key]} fallbackHex={meta.mapColor} label={t(meta.label)} onChange={h => setColor(key, h)} />
                 </span>
               ))}
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <p className={head}>Square — shortcuts</p>
+            <p className={head}>{t("Square — shortcuts")}</p>
             <p className={blurb}>
-              Lists that cut across the statuses: a venue can be in several. Incomplete details, Online form, Duplicates and
-              Auto-send appear only while they have venues.
+              {t("Lists that cut across the statuses: a venue can be in several. Incomplete details, Online form, Duplicates and Auto-send appear only while they have venues.")}
             </p>
             <div className="flex flex-wrap gap-x-3 gap-y-2">
               {SHORTCUTS.map(s => (
                 <span key={s.key} className="inline-flex items-center gap-1.5">
-                  <ToggleChip on={!hidden.has(s.key)} label={s.label} onToggle={() => toggle(s.key)}>
-                    <ShortcutChip shortcut={s.key} label={s.label} />
+                  <ToggleChip on={!hidden.has(s.key)} label={t(s.label)} onToggle={() => toggle(s.key)}>
+                    <ShortcutChip shortcut={s.key} label={t(s.label)} />
                   </ToggleChip>
-                  <ColorDot value={chips.colors?.[s.key]} fallbackHex={SHORTCUT_HEX[s.key]} label={s.label} onChange={h => setColor(s.key, h)} />
+                  <ColorDot value={chips.colors?.[s.key]} fallbackHex={SHORTCUT_HEX[s.key]} label={t(s.label)} onChange={h => setColor(s.key, h)} />
                 </span>
               ))}
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <p className={head}>Custom — saved filters</p>
+            <p className={head}>{t("Custom — saved filters")}</p>
             <p className={blurb}>
-              Any mix of band, country, type, search, a status or shortcut chip, the column filters and the sort above.
-              Set them up, then save them as a chip. Clicking it later brings back exactly those filters.
+              {t("Any mix of band, country, type, search, a status or shortcut chip, the column filters and the sort above. Set them up, then save them as a chip. Clicking it later brings back exactly those filters.")}
             </p>
             {chips.custom.length > 0 && (
               <ul className="space-y-1.5">
@@ -250,19 +249,19 @@ function ChipSettings({ chips, filters, onChipsChange }) {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') save() }}
-                placeholder="Name for a new chip"
+                placeholder={t("Name for a new chip")}
               />
               <button
                 type="button"
                 onClick={save}
                 disabled={!canSave}
-                title={isEmptyFilters(current) ? 'Set some filters first' : describeFilters(current, columnLabel)}
+                title={isEmptyFilters(current) ? t('Set some filters first') : describeFilters(current, columnLabel, t)}
                 className="shrink-0 text-xs font-medium px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600"
               >
-                Save current filters
+                {t("Save current filters")}
               </button>
             </div>
-            <p className={blurb}>Now: {describeFilters(current, columnLabel)}</p>
+            <p className={blurb}>{t("Now:")} {describeFilters(current, columnLabel, t)}</p>
           </div>
         </div>
       )}
@@ -272,8 +271,9 @@ function ChipSettings({ chips, filters, onChipsChange }) {
 
 // A chip drawn as itself, switched on and off by clicking it.
 function ToggleChip({ on, label, onToggle, children }) {
+  const t = useT()
   return (
-    <label className="relative inline-flex cursor-pointer" title={on ? `Shown — click to hide ${label}` : `Hidden — click to show ${label}`}>
+    <label className="relative inline-flex cursor-pointer" title={on ? t('Shown — click to hide {name}', { name: label }) : t('Hidden — click to show {name}', { name: label })}>
       <input type="checkbox" checked={on} onChange={onToggle} className="sr-only peer" aria-label={label} />
       <span className={`pointer-events-none transition-opacity ${on ? '' : 'opacity-35 line-through'}`}>{children}</span>
       <span className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full text-[9px] leading-none flex items-center justify-center pointer-events-none
@@ -286,6 +286,7 @@ function ToggleChip({ on, label, onToggle, children }) {
 }
 
 function CustomChipRow({ chip, onRename, onColor, onUseCurrent, onRemove }) {
+  const t = useT()
   const [draft, setDraft] = useState(chip.name)
   const commit = () => { const n = draft.trim(); if (n && n !== chip.name) onRename(n); else setDraft(chip.name) }
   return (
@@ -298,15 +299,15 @@ function CustomChipRow({ chip, onRename, onColor, onUseCurrent, onRemove }) {
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-        aria-label="Chip name"
+        aria-label={t("Chip name")}
       />
-      <span className="flex-1 min-w-[10rem] text-xs text-gray-400 dark:text-gray-500">{describeFilters(chip.filters, columnLabel)}</span>
+      <span className="flex-1 min-w-[10rem] text-xs text-gray-400 dark:text-gray-500">{describeFilters(chip.filters, columnLabel, t)}</span>
       {onUseCurrent && (
         <button type="button" onClick={onUseCurrent} className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
-          Use current filters
+          {t("Use current filters")}
         </button>
       )}
-      <button type="button" onClick={onRemove} title="Delete this chip" className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 text-lg leading-none px-1">
+      <button type="button" onClick={onRemove} title={t("Delete this chip")} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 text-lg leading-none px-1">
         &times;
       </button>
     </li>
@@ -314,19 +315,20 @@ function CustomChipRow({ chip, onRename, onColor, onUseCurrent, onRemove }) {
 }
 
 function ValueInput({ rule, distinct, onValue }) {
+  const t = useT()
   if (rule.field === '_status') {
     return (
       <select className={`${sel} flex-1 min-w-0`} value={rule.value} onChange={e => onValue(e.target.value)}>
-        <option value="">Any status</option>
-        {STATUS_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        <option value="">{t("Any status")}</option>
+        {STATUS_OPTIONS.map(o => <option key={o.key} value={o.key}>{t(o.label)}</option>)}
       </select>
     )
   }
   if (rule.field === '_health') {
     return (
       <select className={`${sel} flex-1 min-w-0`} value={rule.value} onChange={e => onValue(e.target.value)}>
-        <option value="">Any reply health</option>
-        {HEALTH_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        <option value="">{t("Any reply health")}</option>
+        {HEALTH_OPTIONS.map(o => <option key={o.key} value={o.key}>{t(o.label)}</option>)}
       </select>
     )
   }

@@ -1,4 +1,5 @@
 import { DEFAULT_RULES } from './rules.js'
+import { plainT } from './tr.js'
 
 // Frequency column → re-contact window in days. Empty/unset falls back to the
 // configured default. Presets and custom values are stored as "N months"
@@ -116,24 +117,25 @@ export const STATUS_META = {
 }
 
 // Status blurbs, with every threshold read from the active rules rather than
-// baked into the text. StatsBar and the Rules editor render these.
+// baked into the text. StatsBar and the Rules editor render these; `t`
+// translates them (see tr.js).
 const STATUS_DESCRIPTIONS = {
-  [STATUS.SEND]: r => `Last contacted more than ${r.defaultFrequencyDays} days ago (or the venue's own Frequency) — eligible to email again.`,
-  [STATUS.FOLLOW_UP_DUE]: () => 'Scheduled follow-up date has passed — time to check in.',
-  [STATUS.NEVER_CONTACTED]: () => 'No outreach on record — fresh candidate for a first email.',
-  [STATUS.FOLLOW_UP_PENDING]: () => 'Follow-up date is set in the future — check back then.',
-  [STATUS.RECENT_CONTACT]: r => `Emailed within the last ${r.defaultFrequencyDays} days (or the venue's own Frequency) — too soon to follow up.`,
-  [STATUS.ON_HOLD]: r => `Note contains a hold marker (e.g. ${r.holdKeywords.slice(0, 3).map(k => `"${k}"`).join(', ')}) — skipped for outreach until ${r.holdOverrideDays} days have passed.`,
-  [STATUS.CONFIRMED]: () => 'Last Played is a date still to come — a confirmed gig. Skipped for booking outreach.',
-  [STATUS.RECENTLY_PLAYED]: r => `Last played less than ${r.recentlyPlayedDays} days ago — skipped for booking outreach until then.`,
-  [STATUS.FESTIVAL_INELIGIBLE]: r => `Festival booking window is not open right now — must be more than ${r.festivalFutureMonths} months out or more than ${r.festivalPastMonths} months past.`,
-  [STATUS.FILLER_OFF]: () => 'Only some bands book venues of this type (Settings ▸ Venue types ▸ Booked by), and this venue’s band isn’t one of them — kept out of every send/follow-up list.',
-  [STATUS.MISSING_INFO]: () => 'Can’t be emailed yet: the venue name, band or a real email address is missing, or its band has no Dates or no mail template. Hover the red “!” to see what — hidden from send/follow-up lists until it’s fixed.',
-  [STATUS.DEAD]: () => 'Its type is never contacted (Settings ▸ Venue types) — no longer being booked, excluded from all outreach.',
+  [STATUS.SEND]: (r, t) => t('Last contacted more than {days} days ago (or the venue’s own Frequency) — eligible to email again.', { days: r.defaultFrequencyDays }),
+  [STATUS.FOLLOW_UP_DUE]: (r, t) => t('Scheduled follow-up date has passed — time to check in.'),
+  [STATUS.NEVER_CONTACTED]: (r, t) => t('No outreach on record — fresh candidate for a first email.'),
+  [STATUS.FOLLOW_UP_PENDING]: (r, t) => t('Follow-up date is set in the future — check back then.'),
+  [STATUS.RECENT_CONTACT]: (r, t) => t('Emailed within the last {days} days (or the venue’s own Frequency) — too soon to follow up.', { days: r.defaultFrequencyDays }),
+  [STATUS.ON_HOLD]: (r, t) => t('Note contains a hold marker (e.g. {examples}) — skipped for outreach until {days} days have passed.', { examples: r.holdKeywords.slice(0, 3).map(k => `"${k}"`).join(', '), days: r.holdOverrideDays }),
+  [STATUS.CONFIRMED]: (r, t) => t('Last Played is a date still to come — a confirmed gig. Skipped for booking outreach.'),
+  [STATUS.RECENTLY_PLAYED]: (r, t) => t('Last played less than {days} days ago — skipped for booking outreach until then.', { days: r.recentlyPlayedDays }),
+  [STATUS.FESTIVAL_INELIGIBLE]: (r, t) => t('Festival booking window is not open right now — must be more than {future} months out or more than {past} months past.', { future: r.festivalFutureMonths, past: r.festivalPastMonths }),
+  [STATUS.FILLER_OFF]: (r, t) => t('Only some bands book venues of this type (Settings ▸ Venue types ▸ Booked by), and this venue’s band isn’t one of them — kept out of every send/follow-up list.'),
+  [STATUS.MISSING_INFO]: (r, t) => t('Can’t be emailed yet: the venue name, band or a real email address is missing, or its band has no Dates or no mail template. Hover the red “!” to see what — hidden from send/follow-up lists until it’s fixed.'),
+  [STATUS.DEAD]: (r, t) => t('Its type is never contacted (Settings ▸ Venue types) — no longer being booked, excluded from all outreach.'),
 }
 
-export function describeStatus(status, rules = DEFAULT_RULES) {
-  return STATUS_DESCRIPTIONS[status]?.(rules) || ''
+export function describeStatus(status, rules = DEFAULT_RULES, t = plainT) {
+  return STATUS_DESCRIPTIONS[status]?.(rules, t) || ''
 }
 
 // The colours chips and statuses can be given; the classes for each are in
@@ -298,7 +300,11 @@ export function getMissingSeverity(row, ctx) {
 }
 
 // The same list in words, for the red "!" and the venue panel.
-const MISSING_WORDS = { Email: 'a real email address', Dates: 'Dates (its band has none either)', Template: 'a mail template for its band' }
-export function describeMissing(missing) {
-  return missing.map(f => MISSING_WORDS[f] || f).join(', ')
+const MISSING_WORDS = {
+  Email: t => t('a real email address'),
+  Dates: t => t('Dates (its band has none either)'),
+  Template: t => t('a mail template for its band'),
+}
+export function describeMissing(missing, t = plainT) {
+  return missing.map(f => MISSING_WORDS[f]?.(t) || t(fieldLabel(f))).join(', ')
 }

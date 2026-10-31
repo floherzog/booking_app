@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import { geocodeCity, loadSeedCache } from '../lib/geocode'
 import { STATUS_META } from '@core/constants'
 import StatusBadge from './StatusBadge'
+import { t, useT } from '../i18n'
 
 function loadStoredCache() {
   try { return JSON.parse(localStorage.getItem('booking_geo_cache') || '{}') } catch { return {} }
@@ -106,6 +107,7 @@ function SmoothWheelZoom() {
 }
 
 function ClusteredMarkers({ locations, onVenueClick }) {
+  const t = useT()
   useChipColors() // markers redraw in a newly chosen colour
   const map = useMap()
   const [clusters, setClusters] = useState(() => cluster(locations, map))
@@ -153,7 +155,7 @@ function ClusteredMarkers({ locations, onVenueClick }) {
                     {v['Venue'] || '—'}
                   </button>
                   {perVenue[v._venueId] > 1 && (
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>{v['Band'] || 'no band'}</span>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>{v['Band'] || t('no band')}</span>
                   )}
                 </div>
               ))}
@@ -165,6 +167,7 @@ function ClusteredMarkers({ locations, onVenueClick }) {
 }
 
 export default function MapView({ filteredRows, onVenueClick, focusRow }) {
+  const t = useT()
   useChipColors()
   const [geoCache, setGeoCache] = useState(loadStoredCache)
 
@@ -270,23 +273,23 @@ export default function MapView({ filteredRows, onVenueClick, focusRow }) {
           {progress ? (
             <>
               <span className="bg-white/90 rounded px-2.5 py-1 text-xs text-gray-600 shadow-sm border border-gray-200">
-                Locating cities… {progress.done}/{progress.total}
+                {t("Locating cities…")} {progress.done}/{progress.total}
               </span>
               <button
                 onClick={stopLocating}
                 className="bg-white/90 rounded px-2.5 py-1 text-xs text-gray-500 shadow-sm border border-gray-200 hover:text-gray-800 hover:border-gray-300 transition-colors"
               >
-                Stop
+                {t("Stop")}
               </button>
             </>
           ) : (
             <button
               onClick={locate}
-              title="Looks up coordinates via OpenStreetMap, one city per second — results are saved, so this only ever runs once per city."
+              title={t("Looks up coordinates via OpenStreetMap, one city per second — results are saved, so this only ever runs once per city.")}
               className="bg-white/90 rounded px-2.5 py-1 text-xs text-gray-500 shadow-sm border border-gray-200 hover:text-gray-800 hover:border-gray-300 transition-colors"
             >
-              {pendingKeys.length} cit{pendingKeys.length !== 1 ? 'ies' : 'y'} not located — locate{' '}
-              ({pendingKeys.length < 60 ? `~${Math.max(1, Math.round(pendingKeys.length * 1.05))} sec` : `~${Math.ceil(pendingKeys.length * 1.05 / 60)} min`})
+              {t('{n} city not located — locate|{n} cities not located — locate', { n: pendingKeys.length })}{' '}
+              ({pendingKeys.length < 60 ? t('~{n} sec', { n: Math.max(1, Math.round(pendingKeys.length * 1.05)) }) : t('~{n} min', { n: Math.ceil(pendingKeys.length * 1.05 / 60) })})
             </button>
           )}
         </div>
@@ -298,12 +301,12 @@ export default function MapView({ filteredRows, onVenueClick, focusRow }) {
             onClick={() => setShowUnplaced(v => !v)}
             className="bg-white/90 rounded px-2.5 py-1 text-xs text-gray-400 shadow-sm border border-gray-200 hover:text-gray-600 hover:border-gray-300 transition-colors"
           >
-            {unplacedVenues.length} venue{unplacedVenues.length !== 1 ? 's' : ''} couldn't be placed {showUnplaced ? '▲' : '▼'}
+            {t('{n} venue couldn’t be placed|{n} venues couldn’t be placed', { n: unplacedVenues.length })} {showUnplaced ? '▲' : '▼'}
           </button>
           {showUnplaced && (
             <div className="mt-1 bg-white rounded-lg shadow-lg border border-gray-200 text-xs w-64 max-h-48 overflow-y-auto">
               <div className="px-3 py-2 border-b border-gray-100 text-gray-500 font-medium">
-                No coordinates found for:
+                {t("No coordinates found for:")}
               </div>
               {unplacedVenues.map(v => (
                 <button
@@ -312,7 +315,7 @@ export default function MapView({ filteredRows, onVenueClick, focusRow }) {
                   className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between gap-2"
                 >
                   <span className="font-medium text-gray-700 truncate">{v['Venue'] || '—'}</span>
-                  <span className="text-gray-400 shrink-0">{[v['City'], v['Country']].filter(Boolean).join(', ') || 'no location'}</span>
+                  <span className="text-gray-400 shrink-0">{[v['City'], v['Country']].filter(Boolean).join(', ') || t('no location')}</span>
                 </button>
               ))}
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../platform'
+import { t, useT } from '../i18n'
 
 // A newer release, said once at the top of the window instead of in a dialog
 // that has to be dismissed before anything else works. Download fetches the
@@ -9,6 +10,7 @@ import { api } from '../platform'
 // still a click away. What's new opens the release notes. × hides it for this
 // version — the next one shows again.
 export default function UpdateBanner({ update, onDismiss }) {
+  const t = useT()
   // idle → downloading → done | failed
   const [phase, setPhase] = useState('idle')
   const [progress, setProgress] = useState({ received: 0, total: 0 })
@@ -38,41 +40,41 @@ export default function UpdateBanner({ update, onDismiss }) {
       <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
         <span className="text-indigo-900 dark:text-indigo-100 min-w-0">
           {phase === 'downloading' ? (
-            <>Downloading <span className="font-semibold">Booking {update.latest}</span>
+            <>{t("Downloading")} <span className="font-semibold">Booking {update.latest}</span>
               <span className="text-indigo-700/70 dark:text-indigo-300/70"> · {pct != null ? `${pct} %` : mb(progress.received)}</span></>
           ) : phase === 'done' ? (
-            <><span className="font-semibold">Booking {update.latest}</span> is in Downloads
-              <span className="text-indigo-700/70 dark:text-indigo-300/70"> · open it and drag Booking into Applications</span></>
+            <><span className="font-semibold">Booking {update.latest}</span> {t("is in Downloads")}
+              <span className="text-indigo-700/70 dark:text-indigo-300/70"> {t("· open it and drag Booking into Applications")}</span></>
           ) : phase === 'failed' ? (
-            <span className="text-red-700 dark:text-red-300">Download failed: {result?.error}</span>
+            <span className="text-red-700 dark:text-red-300">{t("Download failed:")} {result?.error}</span>
           ) : (
-            <><span className="font-semibold">Booking {update.latest}</span> is available
-              <span className="text-indigo-700/70 dark:text-indigo-300/70"> · you have {update.current}</span></>
+            <><span className="font-semibold">Booking {update.latest}</span> {t("is available")}
+              <span className="text-indigo-700/70 dark:text-indigo-300/70"> {t("· you have")} {update.current}</span></>
           )}
         </span>
         <span className="ml-auto flex items-center gap-3 shrink-0">
-          {phase === 'idle' && <button onClick={download} className={link}>Download</button>}
-          {phase === 'downloading' && <button onClick={() => api.cancelUpdateDownload()} className={link}>Cancel</button>}
+          {phase === 'idle' && <button onClick={download} className={link}>{t("Download")}</button>}
+          {phase === 'downloading' && <button onClick={() => api.cancelUpdateDownload()} className={link}>{t("Cancel")}</button>}
           {phase === 'done' && (
             <>
-              <button onClick={() => api.openUpdate()} className={link}>Open</button>
-              <button onClick={() => api.revealUpdate()} className={link}>Show in Finder</button>
+              <button onClick={() => api.openUpdate()} className={link}>{t("Open")}</button>
+              <button onClick={() => api.revealUpdate()} className={link}>{t("Show in Finder")}</button>
             </>
           )}
           {phase === 'failed' && (
             <>
-              <button onClick={download} className={link}>Try again</button>
-              <button onClick={browserDownload} className={link}>Download in browser</button>
+              <button onClick={download} className={link}>{t("Try again")}</button>
+              <button onClick={browserDownload} className={link}>{t("Download in browser")}</button>
             </>
           )}
           {phase !== 'downloading' && phase !== 'done' && (
-            <button onClick={() => open(update.url)} className={link}>What’s new</button>
+            <button onClick={() => open(update.url)} className={link}>{t("What’s new")}</button>
           )}
           {phase !== 'downloading' && (
             <button
               onClick={onDismiss}
-              aria-label="Dismiss"
-              title="Hide until the next version"
+              aria-label={t("Dismiss")}
+              title={t("Hide until the next version")}
               className="text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200 text-lg leading-none px-1.5"
             >
               &times;
@@ -90,7 +92,7 @@ export default function UpdateBanner({ update, onDismiss }) {
       )}
       {phase === 'done' && result && !result.quarantineCleared && (
         <p className="px-4 pb-2.5 text-xs text-indigo-800 dark:text-indigo-200">
-          macOS still has this file marked as downloaded from the internet. Before opening it, run in Terminal:{' '}
+          {t("macOS still has this file marked as downloaded from the internet. Before opening it, run in Terminal:")}{' '}
           <code className="font-mono select-all">xattr -dr com.apple.quarantine ~/Downloads/"{result.name}"</code>
         </p>
       )}

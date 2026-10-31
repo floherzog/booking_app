@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useEscape } from '../lib/useEscape'
+import { t, useT } from '../i18n'
 
 // Electron does not implement window.prompt() — it is a silent no-op, which is
 // why the link and video buttons appeared to do nothing. This is the in-app
@@ -15,7 +16,7 @@ export function useInlinePrompt() {
     return new Promise(resolve => {
       resolveRef.current = resolve
       setState({
-        label: 'Value',
+        label: t('Value'),
         initial: '',
         placeholder: '',
         confirmLabel: 'OK',
@@ -40,6 +41,7 @@ export function useInlinePrompt() {
 }
 
 function PromptDialog({ state, inputRef, onCancel, onConfirm }) {
+  const t = useT()
   const [value, setValue] = useState(state.initial || '')
 
   useEffect(() => {
@@ -71,7 +73,7 @@ function PromptDialog({ state, inputRef, onCancel, onConfirm }) {
         {state.hint && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{state.hint}</p>}
         <div className="mt-4 flex justify-end gap-3">
           <button type="button" onClick={onCancel} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="button"
@@ -98,7 +100,7 @@ export function useConfirm() {
   const confirm = useCallback(opts => new Promise(resolve => {
     resolveRef.current = resolve
     const o = typeof opts === 'string' ? { title: opts } : opts
-    setState({ cancelLabel: 'Cancel', choices: [{ value: true, label: 'OK' }], ...o })
+    setState({ cancelLabel: t('Cancel'), choices: [{ value: true, label: t('OK') }], ...o })
   }), [])
 
   function finish(value) {

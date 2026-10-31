@@ -7,9 +7,11 @@ import { useRules, useClassifyCtx } from '../lib/rulesContext'
 import RulesEditor from './RulesEditor'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
+import { t, useT } from '../i18n'
 
 // A leaf: either a status outcome (blue-ish status pill) or a "keep going" fall-through.
 function Outcome({ value }) {
+  const t = useT()
   useChipColors()
   if (typeof value === 'object') {
     return (
@@ -22,7 +24,7 @@ function Outcome({ value }) {
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${meta.badge}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />
-      {meta.label}
+      {t(meta.label)}
     </span>
   )
 }
@@ -54,6 +56,7 @@ function Branches({ children }) {
 
 // A nested decision reached on a parent's "yes" branch: an orange sub-node then two leaves.
 function SubDecision({ sub }) {
+  const t = useT()
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -61,8 +64,8 @@ function SubDecision({ sub }) {
         <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{sub.q}</span>
       </div>
       <Branches>
-        <BranchRow label="yes"><Outcome value={sub.yes} /></BranchRow>
-        <BranchRow label="no" muted><Outcome value={sub.no} /></BranchRow>
+        <BranchRow label={t("yes")}><Outcome value={sub.yes} /></BranchRow>
+        <BranchRow label={t("no")} muted><Outcome value={sub.no} /></BranchRow>
       </Branches>
     </div>
   )
@@ -72,22 +75,23 @@ function SubDecision({ sub }) {
 // `onChange` (Settings ▸ Rules ▸ Flow) they can be added and removed, which
 // edits the types' rules — the same ones Settings ▸ Venue types shows.
 function TypeGateQuestion({ node, typeRules, venueTypes = [], bandNames = [], onChange }) {
+  const t = useT()
   const gate = TYPE_GATES[node.gate]
-  const others = venueTypes.filter(t => !node.types.includes(t.toLowerCase()))
+  const others = venueTypes.filter(tx => !node.types.includes(tx.toLowerCase()))
   const chip = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
-        <span>Type is</span>
-        {node.types.length === 0 && <span className="text-gray-400 dark:text-gray-500 font-normal">(no type)</span>}
-        {node.types.map((t, i) => (
-          <span key={t} className="inline-flex items-center gap-1">
-            {i > 0 && <span className="font-normal text-gray-400">or</span>}
+        <span>{t("Type is")}</span>
+        {node.types.length === 0 && <span className="text-gray-400 dark:text-gray-500 font-normal">{t("(no type)")}</span>}
+        {node.types.map((tx, i) => (
+          <span key={tx} className="inline-flex items-center gap-1">
+            {i > 0 && <span className="font-normal text-gray-400">{t("or")}</span>}
             <span className={chip}>
-              {t}
+              {tx}
               {onChange && (
-                <button type="button" onClick={() => onChange(setTypeRule(typeRules, t, gate.remove))}
-                  className="text-gray-400 hover:text-red-500 leading-none" title={`Take “${t}” out of this gate`} aria-label={`Remove ${t}`}>×</button>
+                <button type="button" onClick={() => onChange(setTypeRule(typeRules, tx, gate.remove))}
+                  className="text-gray-400 hover:text-red-500 leading-none" title={t('Take “{type}” out of this gate', { type: tx })} aria-label={t('Remove {name}', { name: tx })}>×</button>
               )}
             </span>
           </span>
@@ -97,26 +101,26 @@ function TypeGateQuestion({ node, typeRules, venueTypes = [], bandNames = [], on
             value=""
             onChange={e => e.target.value && onChange(setTypeRule(typeRules, e.target.value, gate.add))}
             className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-0.5 pl-2 pr-7"
-            aria-label="Add a venue type to this gate"
+            aria-label={t("Add a venue type to this gate")}
           >
-            <option value="">+ type…</option>
-            {others.map(t => <option key={t} value={t}>{t}</option>)}
+            <option value="">{t("+ type…")}</option>
+            {others.map(tx => <option key={tx} value={tx}>{tx}</option>)}
           </select>
         )}
         {node.rest && <span>{node.rest}</span>}
         <span>?</span>
       </div>
-      {onChange && node.gate === 'bands' && node.types.map(t => {
-        const booked = typeRuleFor(typeRules, t).bands || []
+      {onChange && node.gate === 'bands' && node.types.map(tx => {
+        const booked = typeRuleFor(typeRules, tx).bands || []
         return (
-          <div key={t} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-            <span className="font-mono">{t}</span> is booked by
-            {bandNames.length === 0 && <span>— no bands yet</span>}
+          <div key={tx} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-mono">{tx}</span> {t("is booked by")}
+            {bandNames.length === 0 && <span>{t("— no bands yet")}</span>}
             {bandNames.map(name => {
               const on = booked.some(b => b.toLowerCase() === name.toLowerCase())
               return (
                 <button key={name} type="button" aria-pressed={on}
-                  onClick={() => onChange(setTypeRule(typeRules, t, {
+                  onClick={() => onChange(setTypeRule(typeRules, tx, {
                     bands: on ? booked.filter(b => b.toLowerCase() !== name.toLowerCase()) : [...booked, name],
                   }))}
                   className={`px-2 py-0.5 rounded-full border transition-colors ${on
@@ -134,6 +138,7 @@ function TypeGateQuestion({ node, typeRules, venueTypes = [], bandNames = [], on
 }
 
 function Gate({ node, isLast, typeProps }) {
+  const t = useT()
   return (
     <div className="flex gap-3">
       {/* Trunk: orange decision node + the "no" connector down to the next gate */}
@@ -143,7 +148,7 @@ function Gate({ node, isLast, typeProps }) {
           <div className="relative flex-1 w-px bg-gray-300 dark:bg-gray-600 my-1">
             {/* At the foot of the connector, in the gap between gates, so a tall
                 gate's text never runs into it. */}
-            <span className="absolute bottom-1 left-1.5 text-[9px] font-bold uppercase tracking-wider text-rose-400 dark:text-rose-400/80">no</span>
+            <span className="absolute bottom-1 left-1.5 text-[9px] font-bold uppercase tracking-wider text-rose-400 dark:text-rose-400/80">{t("no")}</span>
           </div>
         )}
       </div>
@@ -164,16 +169,16 @@ function Gate({ node, isLast, typeProps }) {
 
         {node.terminal ? (
           <Branches>
-            <BranchRow label="yes"><Outcome value={node.yes} /></BranchRow>
-            <BranchRow label="no" muted><Outcome value={node.no} /></BranchRow>
+            <BranchRow label={t("yes")}><Outcome value={node.yes} /></BranchRow>
+            <BranchRow label={t("no")} muted><Outcome value={node.no} /></BranchRow>
           </Branches>
         ) : node.sub ? (
           <Branches>
-            <BranchRow label="yes"><SubDecision sub={node.sub} /></BranchRow>
+            <BranchRow label={t("yes")}><SubDecision sub={node.sub} /></BranchRow>
           </Branches>
         ) : (
           <Branches>
-            <BranchRow label="yes"><Outcome value={node.yes} /></BranchRow>
+            <BranchRow label={t("yes")}><Outcome value={node.yes} /></BranchRow>
           </Branches>
         )}
       </div>
@@ -185,9 +190,10 @@ function Gate({ node, isLast, typeProps }) {
 // Settings ▸ Rules shows it too, drawn from the numbers being edited there, and
 // there the type gates are editable (`onTypeRulesChange`).
 export function LogicFlow({ rules, typeRules, venueTypes, bandNames, onTypeRulesChange }) {
+  const t = useT()
   const saved = useClassifyCtx().typeRules
   const activeTypeRules = typeRules || saved
-  const nodes = buildLogicNodes(rules, activeTypeRules)
+  const nodes = buildLogicNodes(rules, activeTypeRules, t)
   const typeProps = { typeRules: activeTypeRules, venueTypes, bandNames, onChange: onTypeRulesChange }
   return (
     <>
@@ -198,8 +204,8 @@ export function LogicFlow({ rules, typeRules, venueTypes, bandNames, onTypeRules
           <div className="flex-1 w-px bg-gray-300 dark:bg-gray-600 my-1 min-h-[14px]" />
         </div>
         <div className="flex-1 min-w-0 pb-6">
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">Every venue</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Evaluated top to bottom.</p>
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{t("Every venue")}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t("Evaluated top to bottom.")}</p>
         </div>
       </div>
 
@@ -211,6 +217,7 @@ export function LogicFlow({ rules, typeRules, venueTypes, bandNames, onTypeRules
 }
 
 export default function LogicModal({ onClose, onSaveRules }) {
+  const t = useT()
   const backdrop = useBackdropClose(onClose)
   useEscape(onClose)
   const rules = useRules()
@@ -223,15 +230,15 @@ export default function LogicModal({ onClose, onSaveRules }) {
   const [savedAt, setSavedAt] = useState(0)
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(rules)
-  const ruleErrors = validateRules(draft)
+  const ruleErrors = validateRules(draft, t)
   const editable = typeof onSaveRules === 'function'
 
   // Adopt whatever was persisted, unless there are unsaved edits in flight.
   useEffect(() => { if (!dirty) setDraft(rules) }, [rules]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!savedAt) return
-    const t = setTimeout(() => setSavedAt(0), 2500)
-    return () => clearTimeout(t)
+    const tx = setTimeout(() => setSavedAt(0), 2500)
+    return () => clearTimeout(tx)
   }, [savedAt])
 
   async function save() {
@@ -263,20 +270,20 @@ export default function LogicModal({ onClose, onSaveRules }) {
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {tab === 'flow' ? 'How venues get classified' : 'The numbers behind it'}
+              {tab === 'flow' ? t('How venues get classified') : t('The numbers behind it')}
             </h2>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {tab === 'flow'
-                ? 'First gate that matches wins — the orange trunk continues on "no"'
-                : 'Change a number and the flow above updates with it'}
+                ? t('First gate that matches wins — the orange trunk continues on “no”')
+                : t('Change a number and the flow above updates with it')}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {editable && (
               <div className="flex gap-1 bg-gray-50 dark:bg-gray-900 rounded-lg p-0.5">
-                <button type="button" onClick={() => setTab('flow')} className={tabBtn(tab === 'flow')}>Flow</button>
+                <button type="button" onClick={() => setTab('flow')} className={tabBtn(tab === 'flow')}>{t("Flow")}</button>
                 <button type="button" onClick={() => setTab('rules')} className={tabBtn(tab === 'rules')}>
-                  Rules{ruleErrors.length > 0 && <span className="ml-1 text-red-400">•</span>}
+                  {t("Rules")}{ruleErrors.length > 0 && <span className="ml-1 text-red-400">•</span>}
                 </button>
               </div>
             )}
@@ -295,18 +302,18 @@ export default function LogicModal({ onClose, onSaveRules }) {
         <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
           {tab === 'flow' && (
             <div className="flex items-center gap-4 mb-1.5 text-[11px] text-gray-400 dark:text-gray-500">
-              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400" /> gate</span>
-              <span className="inline-flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 font-bold">yes</span> / <span className="text-rose-400 font-bold">no</span> branch</span>
-              <span className="inline-flex items-center gap-1.5"><span className="px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700">pill</span> outcome</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400" /> {t("gate")}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="text-emerald-600 dark:text-emerald-400 font-bold">{t("yes")}</span> / <span className="text-rose-400 font-bold">{t("no")}</span> {t("branch")}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700">{t("pill")}</span> {t("outcome")}</span>
             </div>
           )}
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs text-gray-400 dark:text-gray-500 min-w-0">
               {error ? <span className="text-red-500">{error}</span>
                 : ruleErrors.length > 0 ? <span className="text-red-500">{ruleErrors[0]}</span>
-                : savedAt ? <span className="text-emerald-600 dark:text-emerald-400">Saved</span>
-                : dirty ? 'Unsaved changes'
-                : <>{describeWindow(draft)} {describeBatchRule(draft)} "Action needed" = Send + Follow up + Never contacted.</>}
+                : savedAt ? <span className="text-emerald-600 dark:text-emerald-400">{t("Saved")}</span>
+                : dirty ? t('Unsaved changes')
+                : <>{describeWindow(draft, t)} {describeBatchRule(draft, t)} {t('“Action needed” = Send + Follow up + Never contacted.')}</>}
             </p>
             {editable && (
               <div className="flex items-center gap-2 shrink-0">
@@ -316,7 +323,7 @@ export default function LogicModal({ onClose, onSaveRules }) {
                     onClick={() => setDraft(rules)}
                     className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-gray-400 transition-colors"
                   >
-                    Revert
+                    {t("Revert")}
                   </button>
                 )}
                 <button
@@ -325,7 +332,7 @@ export default function LogicModal({ onClose, onSaveRules }) {
                   disabled={!dirty || saving || ruleErrors.length > 0}
                   className="bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-40"
                 >
-                  {saving ? 'Saving…' : 'Save'}
+                  {saving ? t('Saving…') : t('Save')}
                 </button>
               </div>
             )}

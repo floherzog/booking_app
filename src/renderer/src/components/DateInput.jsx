@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { normalizeDateText, toInputValue, fromInputValue } from '@core/parseDate'
+import { t, useT } from '../i18n'
 
 // About as wide as the browser's own calendar (Chromium's is the widest).
 const PICKER_WIDTH = 260
@@ -13,7 +14,8 @@ const PICKER_WIDTH = 260
 // hears every keystroke — for a form that reads the field without waiting.
 // The calendar is a hidden <input type="date"> inside this component, so
 // moving to it does not count as leaving the field.
-export default function DateInput({ id, value, onCommit, onCancel, onTextChange, autoFocus = false, className = '', placeholder = 'dd.mm.yy or month' }) {
+export default function DateInput({ id, value, onCommit, onCancel, onTextChange, autoFocus = false, className = '', placeholder }) {
+  const t = useT()
   const [text, setText] = useState(value || '')
   const committed = useRef(value || '')
   const textRef = useRef(null)
@@ -68,7 +70,7 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
         id={id}
         type="text"
         value={text}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('dd.mm.yy or month')}
         onChange={e => { setText(e.target.value); onTextChange?.(e.target.value) }}
         onKeyDown={e => {
           if (e.key === 'Enter') { e.preventDefault(); commit(text) }
@@ -85,8 +87,8 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
       <button
         type="button"
         tabIndex={-1}
-        title="Pick a day"
-        aria-label="Pick a day"
+        title={t("Pick a day")}
+        aria-label={t("Pick a day")}
         // Keep the typing focus until the click has opened the calendar.
         onMouseDown={e => e.preventDefault()}
         onClick={openPicker}

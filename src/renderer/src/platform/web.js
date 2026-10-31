@@ -391,6 +391,7 @@ export const api = {
   geocode,
   geoCacheSnapshot,
   getAppVersion: async () => (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''),
+  setLanguage: async () => {}, // the browser has no menu to translate
   openExternal: async url => { window.open(url, '_blank', 'noopener') },
   // Nothing on the web pushes menu, update or scheduler events.
   onMenu: noopSubscription,

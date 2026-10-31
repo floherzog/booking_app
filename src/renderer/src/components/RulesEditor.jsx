@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DEFAULT_RULES, BATCH_SORT_KEY_OPTIONS, validateRules } from '@core/rules'
+import { t, useT } from '../i18n'
 
 // The numbers that actually change which venues get emailed. Everything here
 // writes into one rules object; App persists it and reclassifies on the spot.
@@ -26,8 +27,9 @@ const DATE_COLORS = [
 ]
 
 export default function RulesEditor({ rules, onChange }) {
+  const t = useT()
   const [showColors, setShowColors] = useState(false)
-  const errors = validateRules(rules)
+  const errors = validateRules(rules, t)
 
   function set(key, value) {
     onChange({ ...rules, [key]: value })
@@ -67,8 +69,8 @@ export default function RulesEditor({ rules, onChange }) {
         {NUMBERS.map(f => (
           <div key={f.key} className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <label className="block text-sm text-gray-700 dark:text-gray-200">{f.label}</label>
-              <p className="text-xs text-gray-400 dark:text-gray-500">{f.hint}</p>
+              <label className="block text-sm text-gray-700 dark:text-gray-200">{t(f.label)}</label>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{t(f.hint)}</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
               <input
@@ -78,15 +80,15 @@ export default function RulesEditor({ rules, onChange }) {
                 value={rules[f.key]}
                 onChange={e => set(f.key, num(e.target.value, false))}
               />
-              <span className="text-xs text-gray-400 dark:text-gray-500 w-12">{f.unit}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 w-12">{t(f.unit)}</span>
             </div>
           </div>
         ))}
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 dark:text-gray-200">Next batch sorted by</label>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-1.5">Applied in order — ties broken by the next column.</p>
+        <label className="block text-sm text-gray-700 dark:text-gray-200">{t("Next batch sorted by")}</label>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-1.5">{t("Applied in order — ties broken by the next column.")}</p>
         <div className="flex gap-2">
           {[0, 1, 2].map(i => (
             <select
@@ -100,7 +102,7 @@ export default function RulesEditor({ rules, onChange }) {
                 set('batchSortKeys', next.filter(Boolean))
               }}
             >
-              <option value="">{i === 0 ? '—' : 'then… (none)'}</option>
+              <option value="">{i === 0 ? '—' : t('then… (none)')}</option>
               {BATCH_SORT_KEY_OPTIONS.map(k => <option key={k} value={k}>{k}</option>)}
             </select>
           ))}
@@ -108,9 +110,9 @@ export default function RulesEditor({ rules, onChange }) {
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 dark:text-gray-200">Hold keywords</label>
+        <label className="block text-sm text-gray-700 dark:text-gray-200">{t("Hold keywords")}</label>
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-1.5">
-          A venue whose Note contains any of these is put On Hold. Matched lowercase, anywhere in the note.
+          {t("A venue whose Note contains any of these is put On Hold. Matched lowercase, anywhere in the note.")}
         </p>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {rules.holdKeywords.map(kw => (
@@ -120,20 +122,20 @@ export default function RulesEditor({ rules, onChange }) {
                 type="button"
                 onClick={() => removeKeyword(kw)}
                 className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 leading-none px-0.5"
-                title={`Remove "${kw}"`}
+                title={t('Remove “{name}”', { name: kw })}
               >
                 &times;
               </button>
             </span>
           ))}
           {rules.holdKeywords.length === 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500">No keywords — nothing is put on hold automatically.</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t("No keywords — nothing is put on hold automatically.")}</p>
           )}
         </div>
         <div className="flex gap-2">
           <input
             className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Add a keyword…"
+            placeholder={t("Add a keyword…")}
             value={newKeyword}
             onChange={e => setNewKeyword(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addKeyword() } }}
@@ -143,7 +145,7 @@ export default function RulesEditor({ rules, onChange }) {
             onClick={addKeyword}
             className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
           >
-            Add
+            {t("Add")}
           </button>
         </div>
       </div>
@@ -154,16 +156,16 @@ export default function RulesEditor({ rules, onChange }) {
           onClick={() => setShowColors(v => !v)}
           className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
         >
-          {showColors ? '▾' : '▸'} Advanced: date colours
+          {showColors ? '▾' : '▸'} {t("Advanced: date colours")}
         </button>
         {showColors && (
           <div className="mt-2 space-y-2 border-l-2 border-gray-100 dark:border-gray-700 pl-3">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              Only affects how dates are tinted in the table — never which venues are picked.
+              {t("Only affects how dates are tinted in the table — never which venues are picked.")}
             </p>
             {DATE_COLORS.map(f => (
               <div key={f.key} className="flex items-center gap-3">
-                <label className="flex-1 min-w-0 text-xs text-gray-600 dark:text-gray-300">{f.label}</label>
+                <label className="flex-1 min-w-0 text-xs text-gray-600 dark:text-gray-300">{t(f.label)}</label>
                 <input
                   type="number"
                   min="0"
@@ -172,7 +174,7 @@ export default function RulesEditor({ rules, onChange }) {
                   value={rules.dateColors[f.key]}
                   onChange={e => setColor(f.key, num(e.target.value, !!f.step))}
                 />
-                <span className="text-xs text-gray-400 dark:text-gray-500 w-20 shrink-0">{f.unit}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 w-20 shrink-0">{t(f.unit)}</span>
               </div>
             ))}
           </div>
@@ -192,7 +194,7 @@ export default function RulesEditor({ rules, onChange }) {
         onClick={() => onChange({ ...DEFAULT_RULES, dateColors: { ...DEFAULT_RULES.dateColors } })}
         className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
       >
-        Reset rules to defaults
+        {t("Reset rules to defaults")}
       </button>
     </div>
   )

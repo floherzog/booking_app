@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { fieldLabel } from '@core/constants'
+import { t, useT } from '../i18n'
 
 const FIELDS = [
   'Venue', 'Band', 'Type', 'City', 'Country', 'Contact', 'Email', 'Website', 'Time Frame', 'Dates', 'Text',
@@ -9,6 +10,7 @@ const FIELDS = [
 ].map(key => ({ key, label: fieldLabel(key) }))
 
 export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClose }) {
+  const t = useT()
   const backdrop = useBackdropClose(onClose)
   useEscape(onClose)
   const effA = { ...rowA, ...(editsA[rowA._idx] || {}) }
@@ -34,8 +36,8 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
     onMerge(keepIdx, deleteIdx, mergedFields)
   }
 
-  const nameA = effA['Venue'] || 'Venue A'
-  const nameB = effB['Venue'] || 'Venue B'
+  const nameA = effA['Venue'] || t('Venue A')
+  const nameB = effB['Venue'] || t('Venue B')
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" {...backdrop}>
@@ -44,15 +46,15 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Merge venues</h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Click a cell to pick which value to keep</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("Merge venues")}</h2>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t("Click a cell to pick which value to keep")}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
 
         {/* Keep which? */}
         <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
-          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Keep as the surviving record</p>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{t("Keep as the surviving record")}</p>
           <div className="grid grid-cols-2 gap-2">
             {[{ idx: rowA._idx, name: nameA }, { idx: rowB._idx, name: nameB }].map(opt => (
               <label key={opt.idx} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm
@@ -72,12 +74,12 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
         {/* Field picker */}
         <div className="overflow-y-auto flex-1 px-6 py-4">
           {diffFields.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500">All fields are identical — just choose which record to keep above.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">{t("All fields are identical — just choose which record to keep above.")}</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                  <th className="text-left pb-3 font-medium w-1/5">Field</th>
+                  <th className="text-left pb-3 font-medium w-1/5">{t("Field")}</th>
                   <th className="text-left pb-3 font-medium w-[42.5%] pr-2">{nameA}</th>
                   <th className="text-left pb-3 font-medium w-[42.5%]">{nameB}</th>
                 </tr>
@@ -85,7 +87,7 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                 {diffFields.map(({ key, label }) => (
                   <tr key={key}>
-                    <td className="py-2 pr-3 text-xs text-gray-400 dark:text-gray-500 align-top pt-3">{label}</td>
+                    <td className="py-2 pr-3 text-xs text-gray-400 dark:text-gray-500 align-top pt-3">{t(label)}</td>
                     {(['A', 'B']).map(side => {
                       const val = side === 'A' ? effA[key] : effB[key]
                       const active = sel[key] === side
@@ -99,7 +101,7 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
                                 : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                               }`}
                           >
-                            {val || <span className="italic opacity-50">empty</span>}
+                            {val || <span className="italic opacity-50">{t("empty")}</span>}
                           </button>
                         </td>
                       )
@@ -112,24 +114,24 @@ export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClos
 
           {sameFields.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
-              {sameFields.length} field{sameFields.length !== 1 ? 's' : ''} identical and kept as-is:
-              {' '}{sameFields.map(f => f.label).join(', ')}.
+              {t('{n} field identical and kept as-is:|{n} fields identical and kept as-is:', { n: sameFields.length })}
+              {' '}{sameFields.map(f => t(f.label)).join(', ')}.
             </p>
           )}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3 shrink-0">
-          <p className="text-xs text-gray-400 dark:text-gray-500">The other record will be marked for deletion — review in Save before pushing.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{t("The other record will be marked for deletion — review in Save before pushing.")}</p>
           <div className="flex gap-3 shrink-0">
             <button onClick={onClose} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-4 py-2">
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               onClick={handleMerge}
               className="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-md hover:bg-indigo-700 transition-colors"
             >
-              Merge
+              {t("Merge")}
             </button>
           </div>
         </div>

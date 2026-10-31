@@ -2,6 +2,7 @@ import { ACTION_STATUSES, STATUS } from './constants.js'
 import { DEFAULT_RULES } from './rules.js'
 import { EMPTY_FILTERS, matchesFilters, describeFilters } from './filterRows.js'
 import { parseDate, formatDateDDMMYY } from './parseDate.js'
+import { plainT } from './tr.js'
 
 // The next batch is simply the first N rows whose classified status is
 // actionable (see classifyBooking / ACTION_STATUSES). Deriving it from the
@@ -30,18 +31,17 @@ export function computeNextBatch(rows, today, rules = DEFAULT_RULES) {
 //   due, and how many would qualify but are missing info → { action: 'missingInfo' | null }
 // `rows` are the live rows (with _status and _nextBatch); `filters` what the
 // list is filtered by; `ctx` the matchesFilters context; `columnLabel` names
-// columns in the description of the other filters.
-export function explainEmptyBatch({ rows, filters, rules = DEFAULT_RULES, today = new Date(), ctx = {}, columnLabel }) {
-  const n = (k, one, many) => `${k} ${k === 1 ? one : many}`
+// columns in the description of the other filters; `t` translates (tr.js).
+export function explainEmptyBatch({ rows, filters, rules = DEFAULT_RULES, today = new Date(), ctx = {}, columnLabel, t = plainT }) {
   if (!Number(rules.batchSize)) {
-    return { reason: 'The next batch size is 0, so it never picks any venues.', action: 'rules' }
+    return { reason: t('The next batch size is 0, so it never picks any venues.'), action: 'rules' }
   }
   const inBatch = rows.filter(r => r._nextBatch || r['Draft'] === 'TRUE')
   if (inBatch.length) {
     const others = { ...EMPTY_FILTERS, ...filters, nextBatch: false }
     if (!inBatch.some(r => matchesFilters(r, { ...others, nextBatch: true }, ctx))) {
       return {
-        reason: `The next batch has ${n(inBatch.length, 'venue', 'venues')}, but your other filters (${describeFilters(others, columnLabel)}) hide ${inBatch.length === 1 ? 'it' : 'them'}.`,
+        reason: t('The next batch has {n} venue, but your other filters ({filters}) hide it.|The next batch has {n} venues, but your other filters ({filters}) hide them.', { n: inBatch.length, filters: describeFilters(others, columnLabel, t) }),
         action: 'onlyBatch',
       }
     }
@@ -56,13 +56,16 @@ export function explainEmptyBatch({ rows, filters, rules = DEFAULT_RULES, today 
     const d = parseDate(r['Follow Up Date'])
     if (d && d >= start && (!next || d < next.date)) next = { date: d, venue: r['Venue'] }
   }
-  let reason = 'No venue needs contacting right now'
+  let reason = t('No venue needs contacting right now')
   const parts = []
-  if (waiting) parts.push(`${n(waiting, 'venue is', 'venues are')} waiting for a reply or their next turn`)
-  if (next) parts.push(`the next follow-up is due on ${formatDateDDMMYY(next.date)}${next.venue ? ` (${next.venue})` : ''}`)
-  reason += parts.length ? ` — ${parts.join(', and ')}.` : '.'
+  if (waiting) parts.push(t('{n} venue is waiting for a reply or their next turn|{n} venues are waiting for a reply or their next turn', { n: waiting }))
+  if (next) {
+    const date = formatDateDDMMYY(next.date)
+    parts.push(next.venue ? t('the next follow-up is due on {date} ({venue})', { date, venue: next.venue }) : t('the next follow-up is due on {date}', { date }))
+  }
+  reason += parts.length ? ` — ${parts.join(`, ${t('and')} `)}.` : '.'
   if (missing) {
-    reason += ` ${n(missing, 'more venue', 'more venues')} would qualify but ${missing === 1 ? 'is' : 'are'} missing info.`
+    reason += ` ${t('{n} more venue would qualify but is missing info.|{n} more venues would qualify but are missing info.', { n: missing })}`
     return { reason, action: 'missingInfo' }
   }
   return { reason, action: null }

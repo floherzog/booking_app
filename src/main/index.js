@@ -1,11 +1,17 @@
 import { join } from 'node:path'
-import { app, shell, dialog, BrowserWindow, Menu, protocol, net } from 'electron'
+import { app, shell, dialog, BrowserWindow, Menu, protocol, net, ipcMain } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { registerIpc } from './ipc/index.js'
 import { checkForUpdates } from './ipc/updates.js'
 import { startScheduler } from './scheduler.js'
+import { tm, setMainLanguage } from './i18n.js'
 
 const isDev = !app.isPackaged
+
+// Development only: BOOKING_USER_DATA points the app at a scratch copy of its
+// settings, templates and caches, so it can be poked at without touching the
+// real ones.
+if (isDev && process.env.BOOKING_USER_DATA) app.setPath('userData', process.env.BOOKING_USER_DATA)
 
 // TipTap inline images live in userData/templates/assets and are served to the
 // renderer through this scheme (a plain file:// URL is blocked by the CSP).
@@ -49,9 +55,9 @@ async function promptForUpdate({ preloaded = null } = {}) {
   if (result.error) {
     await dialog.showMessageBox(parent, {
       type: 'info',
-      message: 'Could not check for updates',
+      message: tm('Could not check for updates'),
       detail: result.error,
-      buttons: ['OK'],
+      buttons: [tm('OK')],
     })
     return
   }
@@ -59,9 +65,9 @@ async function promptForUpdate({ preloaded = null } = {}) {
   if (!result.newer) {
     await dialog.showMessageBox(parent, {
       type: 'info',
-      message: `Booking ${result.current} is up to date.`,
-      detail: `The latest published release is ${result.latest}.`,
-      buttons: ['OK'],
+      message: tm('Booking {version} is up to date.', { version: result.current }),
+      detail: tm('The latest published release is {version}.', { version: result.latest }),
+      buttons: [tm('OK')],
     })
     return
   }
@@ -72,50 +78,74 @@ async function promptForUpdate({ preloaded = null } = {}) {
 }
 
 function buildMenu() {
+  // Built-in items get labels too: Electron only names them in English.
+  const name = { name: app.name }
   const template = [
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
+        { role: 'about', label: tm('About {name}', name) },
         { type: 'separator' },
-        { label: 'Check for Updates…', click: () => { promptForUpdate() } },
+        { label: tm('Check for Updates…'), click: () => { promptForUpdate() } },
         { type: 'separator' },
-        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => sendToRenderer('menu:openSettings') },
+        { label: tm('Settings…'), accelerator: 'CmdOrCtrl+,', click: () => sendToRenderer('menu:openSettings') },
         { type: 'separator' },
-        { role: 'services' },
+        { role: 'services', label: tm('Services') },
         { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
+        { role: 'hide', label: tm('Hide {name}', name) },
+        { role: 'hideOthers', label: tm('Hide Others') },
+        { role: 'unhide', label: tm('Show All') },
         { type: 'separator' },
-        { role: 'quit' },
+        { role: 'quit', label: tm('Quit {name}', name) },
       ],
     },
     {
-      label: 'File',
+      label: tm('File'),
       submenu: [
-        { label: 'Email Templates…', accelerator: 'CmdOrCtrl+T', click: () => sendToRenderer('menu:openTemplates') },
+        { label: tm('Email Templates…'), accelerator: 'CmdOrCtrl+T', click: () => sendToRenderer('menu:openTemplates') },
         { type: 'separator' },
-        { role: 'close' },
+        { role: 'close', label: tm('Close Window') },
       ],
     },
     // Required: without a real Edit menu ⌘C/⌘V/⌘Z do nothing in the renderer.
-    { role: 'editMenu' },
     {
-      label: 'View',
+      label: tm('Edit'),
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        { role: 'undo', label: tm('Undo') },
+        { role: 'redo', label: tm('Redo') },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
+        { role: 'cut', label: tm('Cut') },
+        { role: 'copy', label: tm('Copy') },
+        { role: 'paste', label: tm('Paste') },
+        { role: 'pasteAndMatchStyle', label: tm('Paste and Match Style') },
+        { role: 'delete', label: tm('Delete') },
+        { role: 'selectAll', label: tm('Select All') },
       ],
     },
-    { role: 'windowMenu' },
+    {
+      label: tm('View'),
+      submenu: [
+        { role: 'reload', label: tm('Reload') },
+        { role: 'forceReload', label: tm('Force Reload') },
+        { role: 'toggleDevTools', label: tm('Toggle Developer Tools') },
+        { type: 'separator' },
+        { role: 'resetZoom', label: tm('Actual Size') },
+        { role: 'zoomIn', label: tm('Zoom In') },
+        { role: 'zoomOut', label: tm('Zoom Out') },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: tm('Toggle Full Screen') },
+      ],
+    },
+    {
+      label: tm('Window'),
+      role: 'window',
+      submenu: [
+        { role: 'minimize', label: tm('Minimize') },
+        { role: 'zoom', label: tm('Zoom') },
+        { type: 'separator' },
+        { role: 'front', label: tm('Bring All to Front') },
+      ],
+    },
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
@@ -182,6 +212,8 @@ function createWindow() {
 app.whenReady().then(() => {
   registerAssetProtocol()
   registerIpc()
+  // The window says which language it speaks; the menu follows.
+  ipcMain.handle('app:setLanguage', (_e, lang) => { setMainLanguage(lang); buildMenu() })
   buildMenu()
   createWindow()
   // Scheduled runs only fire while the app is open; this also picks up any that
