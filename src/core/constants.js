@@ -37,14 +37,14 @@ export const STATUS_META = {
     priority: 1,
   },
   [STATUS.FOLLOW_UP_DUE]: {
-    label: 'Follow Up',
+    label: 'Follow up',
     badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
     row: 'border-l-4 border-red-500',
     mapColor: '#EF4444',
     priority: 2,
   },
   [STATUS.NEVER_CONTACTED]: {
-    label: 'Never Contacted',
+    label: 'Never contacted',
     badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
     row: 'border-l-4 border-violet-400',
     mapColor: '#8B5CF6',
@@ -65,7 +65,7 @@ export const STATUS_META = {
     priority: 5,
   },
   [STATUS.ON_HOLD]: {
-    label: 'On Hold',
+    label: 'On hold',
     badge: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
     row: 'opacity-60',
     mapColor: '#9CA3AF',
@@ -79,7 +79,7 @@ export const STATUS_META = {
     priority: 6.5,
   },
   [STATUS.RECENTLY_PLAYED]: {
-    label: 'Recently Played',
+    label: 'Recently played',
     badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
     row: 'opacity-70',
     mapColor: '#14B8A6',
@@ -93,14 +93,14 @@ export const STATUS_META = {
     priority: 8,
   },
   [STATUS.FILLER_OFF]: {
-    label: 'Filler (not booking)',
+    label: 'Not for this band',
     badge: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
     row: 'opacity-60',
     mapColor: '#A8A29E',
     priority: 8.5,
   },
   [STATUS.MISSING_INFO]: {
-    label: 'Missing Info',
+    label: 'Missing info',
     badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
     row: 'border-l-4 border-orange-400',
     mapColor: '#FB923C',
@@ -127,9 +127,9 @@ const STATUS_DESCRIPTIONS = {
   [STATUS.CONFIRMED]: () => 'Last Played is a date still to come — a confirmed gig. Skipped for booking outreach.',
   [STATUS.RECENTLY_PLAYED]: r => `Last played less than ${r.recentlyPlayedDays} days ago — skipped for booking outreach until then.`,
   [STATUS.FESTIVAL_INELIGIBLE]: r => `Festival booking window is not open right now — must be more than ${r.festivalFutureMonths} months out or more than ${r.festivalPastMonths} months past.`,
-  [STATUS.FILLER_OFF]: () => 'A filler venue, and its band is not booking filler venues right now (Settings ▸ Bands ▸ "Book filler venues") — kept out of every send/follow-up list until it is.',
-  [STATUS.MISSING_INFO]: () => 'Missing a field required to send (venue name, band, or email). Fix the flagged fields before it can be emailed — hidden from send/follow-up lists until then.',
-  [STATUS.DEAD]: () => 'Type is set to "dead" — no longer being booked, excluded from all outreach.',
+  [STATUS.FILLER_OFF]: () => 'Only some bands book venues of this type (Settings ▸ Venue types ▸ Booked by), and this venue’s band isn’t one of them — kept out of every send/follow-up list.',
+  [STATUS.MISSING_INFO]: () => 'Can’t be emailed yet: the venue name, band or a real email address is missing, or its band has no Dates or no mail template. Hover the red “!” to see what — hidden from send/follow-up lists until it’s fixed.',
+  [STATUS.DEAD]: () => 'Its type is never contacted (Settings ▸ Venue types) — no longer being booked, excluded from all outreach.',
 }
 
 export function describeStatus(status, rules = DEFAULT_RULES) {
@@ -164,7 +164,7 @@ export const ADVANCED_COLUMNS = [
   { key: 'Website', label: 'Website' },
   { key: 'Type', label: 'Type' },
   { key: 'Note', label: 'Note' },
-  { key: 'Status', label: 'Last Reply' },
+  { key: 'Status', label: 'Reply Status' },
   { key: 'Total emails', label: 'Total Emails', type: 'number' },
   { key: 'Recent emails', label: 'Recent Emails (since last reply)', type: 'number' },
   { key: 'Last emailed', label: 'Last Emailed', type: 'date' },
@@ -172,59 +172,120 @@ export const ADVANCED_COLUMNS = [
   { key: 'Last played', label: 'Last Played', type: 'date' },
   { key: 'Time Frame', label: 'Time Frame' },
   { key: 'Dates', label: 'Dates' },
-  { key: 'Text', label: 'Text' },
-  { key: 'frequency', label: 'Frequency' },
+  { key: 'Text', label: 'Outreach Text' },
+  { key: 'frequency', label: 'Follow-up Interval' },
 ]
+
+// One label per CSV column, used by every screen that names a field (venue
+// panel, bulk edit, merge, save, filters), so a column is called the same
+// everywhere.
+export const FIELD_LABELS = {
+  Venue: 'Venue',
+  Band: 'Band',
+  Type: 'Type',
+  City: 'City',
+  Country: 'Country',
+  Contact: 'Contact',
+  Email: 'Email',
+  Website: 'Website',
+  'Time Frame': 'Time Frame',
+  Dates: 'Dates',
+  Text: 'Outreach Text',
+  'Last emailed': 'Last Emailed',
+  'Follow Up Date': 'Follow Up',
+  frequency: 'Follow-up Interval',
+  'Last played': 'Last Played',
+  Status: 'Reply Status',
+  Note: 'Note',
+  'Total emails': 'Total Emails',
+  'Recent emails': 'Recent Emails',
+  Draft: 'Next Batch',
+  Auto: 'Auto-send',
+  filler: 'Filler',
+}
+export const fieldLabel = key => FIELD_LABELS[key] || key
 
 // The app's real CSV columns, in canonical order. Single source of truth for the
 // import wizard's mapping targets and the key set every imported row carries.
 export const APP_COLUMNS = [
-  { key: 'Venue', label: 'Venue' },
-  { key: 'Band', label: 'Band' },
-  { key: 'Type', label: 'Type' },
-  { key: 'City', label: 'City' },
-  { key: 'Country', label: 'Country' },
-  { key: 'Contact', label: 'Contact' },
-  { key: 'Email', label: 'Email' },
-  { key: 'Website', label: 'Website' },
-  { key: 'Time Frame', label: 'Time Frame' },
-  { key: 'Dates', label: 'Dates' },
-  { key: 'Text', label: 'Outreach text' },
-  { key: 'Last emailed', label: 'Last Emailed' },
-  { key: 'Follow Up Date', label: 'Follow Up Date' },
-  { key: 'frequency', label: 'Frequency' },
-  { key: 'Last played', label: 'Last Played' },
-  { key: 'Status', label: 'Reply status' },
-  { key: 'Note', label: 'Note' },
-  { key: 'Total emails', label: 'Total Emails' },
-  { key: 'Recent emails', label: 'Recent Emails' },
-  { key: 'Draft', label: 'Draft' },
-  { key: 'Auto', label: 'Auto' },
-  { key: 'filler', label: 'filler' },
-]
+  'Venue', 'Band', 'Type', 'City', 'Country', 'Contact', 'Email', 'Website', 'Time Frame', 'Dates', 'Text',
+  'Last emailed', 'Follow Up Date', 'frequency', 'Last played', 'Status', 'Note', 'Total emails', 'Recent emails',
+  'Draft', 'Auto', 'filler',
+].map(key => ({ key, label: fieldLabel(key) }))
 
 export const CRITICAL_FIELDS = ['Venue', 'Email', 'Band', 'Contact']
 
-// Fields without which an outreach email cannot be sent at all. A venue missing
-// any of these is hidden from the send/follow-up lists (classified MISSING_INFO)
-// and surfaced only via the red "!" flag and the Missing info filter.
-export const SEND_REQUIRED_FIELDS = ['Venue', 'Band', 'Email']
-
-export function isSendBlocked(row) {
-  return SEND_REQUIRED_FIELDS.some(f => !row[f]?.trim())
+// Every address in an Email cell. A cell may hold several ("a@x.de, b@x.de") —
+// and often holds none: "tbd", "n/a", "see website". Only what looks like an
+// address counts, so those read as a missing email.
+const EMAIL_RE = /[^\s<>(),;:"']+@[^\s<>(),;:"'@]+\.[a-z]{2,}/gi
+export function emailAddresses(value) {
+  return [...new Set(String(value || '').match(EMAIL_RE) || [])]
 }
 
-export function getMissingFields(row) {
-  const missing = []
-  CRITICAL_FIELDS.forEach(f => { if (!row[f]?.trim()) missing.push(f) })
-  if (!row['City']?.trim() && !row['Country']?.trim()) missing.push('Location')
+// Venues that only take enquiries through a form on their website. They are
+// not missing an email — there is none to have — but they can't be drafted.
+const ONLINE_FORM_RE = /\b(online|web|contact|kontakt)[\s-]*form|\bformul[a-z]*\b|\bform only\b|\bvia form\b|\bnur (über )?formular|https?:\/\//i
+export function isOnlineForm(row) {
+  const email = String(row?.['Email'] || '')
+  if (emailAddresses(email).length) return false
+  return ONLINE_FORM_RE.test(email) || ONLINE_FORM_RE.test(String(row?.['Contact'] || ''))
+}
+// The form's address, when the Email or Contact cell holds one.
+export function onlineFormUrl(row) {
+  for (const v of [row?.['Email'], row?.['Contact']]) {
+    const m = String(v || '').match(/https?:\/\/\S+/i)
+    if (m) return m[0].replace(/[),.;]+$/, '')
+  }
+  return ''
+}
+
+function hasEmail(row) {
+  return emailAddresses(row?.['Email']).length > 0 || isOnlineForm(row)
+}
+
+// Why an outreach email can't be sent to this venue, as field names: the red
+// "!" lists them and any of them makes the venue MISSING_INFO.
+// `ctx` (all optional, see classifyContext in classify.js):
+//   bandsWithDates      lower-cased bands with Dates set; a venue with no Dates
+//                       of its own needs its band to have some
+//   bandsWithTemplates  lower-cased bands with a mail template; null = not
+//                       known (web, or templates not loaded) → not checked
+export function sendBlockers(row, ctx = {}) {
+  const out = []
+  if (!row?.['Venue']?.trim()) out.push('Venue')
+  const band = String(row?.['Band'] || '').trim().toLowerCase()
+  if (!band) out.push('Band')
+  if (!hasEmail(row)) out.push('Email')
+  if (band && !row?.['Dates']?.trim() && ctx.bandsWithDates && !ctx.bandsWithDates.has(band)) out.push('Dates')
+  if (band && ctx.bandsWithTemplates && !ctx.bandsWithTemplates.has(band)) out.push('Template')
+  return out
+}
+
+export function isSendBlocked(row, ctx) {
+  return sendBlockers(row, ctx).length > 0
+}
+
+// What the "Incomplete details" chip and the red "!" show: everything that
+// blocks sending, plus a missing contact or location, which don't.
+export function getMissingFields(row, ctx) {
+  const missing = sendBlockers(row, ctx)
+  if (!row?.['Contact']?.trim()) missing.push('Contact')
+  if (!row?.['City']?.trim() && !row?.['Country']?.trim()) missing.push('Location')
   return missing
 }
 
-// 3 = red (venue/email), 2 = orange (band), 1 = yellow (contact/location), 0 = none
-export function getMissingSeverity(row) {
-  if (!row['Venue']?.trim() || !row['Email']?.trim()) return 3
-  if (!row['Band']?.trim()) return 2
-  if (!row['Contact']?.trim() || (!row['City']?.trim() && !row['Country']?.trim())) return 1
-  return 0
+// 3 = red (venue/email), 2 = orange (band, its Dates or template), 1 = yellow
+// (contact/location), 0 = none
+export function getMissingSeverity(row, ctx) {
+  const missing = getMissingFields(row, ctx)
+  if (missing.includes('Venue') || missing.includes('Email')) return 3
+  if (missing.some(f => f === 'Band' || f === 'Dates' || f === 'Template')) return 2
+  return missing.length ? 1 : 0
+}
+
+// The same list in words, for the red "!" and the venue panel.
+const MISSING_WORDS = { Email: 'a real email address', Dates: 'Dates (its band has none either)', Template: 'a mail template for its band' }
+export function describeMissing(missing) {
+  return missing.map(f => MISSING_WORDS[f] || f).join(', ')
 }

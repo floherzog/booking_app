@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildLogicNodes, describeWindow, describeBatchRule } from '@core/logicTree'
+import { buildLogicNodes, describeWindow, describeBatchRule, TYPE_GATES } from '@core/logicTree'
+import { setTypeRule, DEFAULT_TYPE_RULES } from '@core/venueTypes'
 import { describeStatus } from '@core/constants'
 import { STATUS } from '@core/constants'
 import { DEFAULT_RULES, mergeRules } from '@core/rules'
@@ -17,6 +18,16 @@ describe('buildLogicNodes', () => {
     expect(nodes[6].yes).toBe('FESTIVAL_INELIGIBLE')
     expect(nodes[9].yes).toBe('NEVER_CONTACTED')
     expect(nodes[10].terminal).toBe(true)
+  })
+
+  it('names the types each type gate applies to', () => {
+    const nodes = buildLogicNodes()
+    expect(nodes[0].q).toBe('Type is "dead"')
+    expect(nodes[1].types).toEqual(['filler'])
+    expect(nodes[6].types).toEqual(['festival'])
+    const typeRules = setTypeRule(DEFAULT_TYPE_RULES, 'closed', TYPE_GATES.never.add)
+    expect(buildLogicNodes(undefined, typeRules)[0].q).toBe('Type is "dead" or "closed"')
+    expect(buildLogicNodes(undefined, setTypeRule(DEFAULT_TYPE_RULES, 'dead', TYPE_GATES.never.remove))[0].q).toBe('Type is (none)')
   })
 
   it('interpolates the default rule values', () => {

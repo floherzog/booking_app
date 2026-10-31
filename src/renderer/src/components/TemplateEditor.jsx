@@ -5,6 +5,7 @@ import { PLACEHOLDERS, substituteTemplate, languageForRow, contactOptionsFor } f
 import { uploadAsset, fetchVideoThumb } from '../lib/templates'
 import { buildThumbFile } from '../lib/videoThumb'
 import { useInlinePrompt } from './InlinePrompt'
+import { genderOf, contactGenderOf, useGenders, useContactGenders } from '../lib/genders'
 
 const LANGUAGE_HINT = 'Two-letter code, e.g. de or en. It must match one of the codes in Settings → Languages.'
 
@@ -105,12 +106,17 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
   }, [previewCandidates])
 
   const previewRow = previewCandidates.find(r => String(r._idx) === previewIdx) || null
+  // The preview shows the greeting and articles a draft would get.
+  const onDevice = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
+  const genderVersion = useGenders([previewRow?.['Venue']], onDevice && language === 'de')
+  const nameVersion = useContactGenders([previewRow?.['Contact']], onDevice)
 
   // Live preview: substitute against a real venue, then render exactly the HTML
   // the email will carry.
   const preview = useMemo(() => {
     if (!editor || !previewRow) return null
-    const opts = contactOptionsFor(previewRow, settings)
+    const opts = { ...contactOptionsFor(previewRow, settings), language, contactGender: contactGenderOf(previewRow['Contact']) }
+    if (language === 'de' && onDevice) opts.gender = genderOf(previewRow['Venue'])
     const substituted = substituteTemplate({ subject, bodyJSON: editor.getJSON() }, previewRow, opts)
     // Same renderer the email uses, with one substitution: inline assets keep the
     // app's own URL instead of becoming cid: references, which a browser cannot
@@ -121,7 +127,7 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
     // editor.getJSON() is not reactive on its own — docVersion is what makes
     // this recompute as you type.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, subject, previewRow, docVersion, settings])
+  }, [editor, subject, previewRow, docVersion, settings, language, genderVersion, nameVersion])
 
   function insertIntoSubject(token) {
     const el = subjectRef.current

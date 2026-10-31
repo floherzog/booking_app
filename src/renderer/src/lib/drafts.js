@@ -1,6 +1,7 @@
 import { resolveTemplate, substituteTemplate, contactOptionsFor } from '@core/templates'
+import { emailAddresses, isOnlineForm } from '@core/constants'
 import { renderEmailHtml } from '@core/emailHtml'
-import { genderOf } from './genders'
+import { genderOf, contactGenderOf, ensureGenders, ensureContactGenders } from './genders'
 import { accountForRow } from '@core/mailAccounts'
 import { api } from '../platform'
 
@@ -17,28 +18,37 @@ export function draftedAt(settings, row) {
 
 // Everything that decides whether a draft can be created, without creating one.
 // Drives the preflight list and the disabled-with-a-reason buttons.
-// `settings` is optional and only supplies the {{contact}} options (name style
-// and the per-language fallback greeting); without it the raw Contact value is
-// used, which is what the core defaults to.
+// `settings` is optional and only supplies the {{contact}} / {{greeting}}
+// options (name style and the per-language fallback greeting); without it the
+// raw Contact value is used, which is what the core defaults to.
 export function prepareDraft(row, templates, languages, settings) {
-  const email = (row['Email'] || '').trim()
+  // Only real addresses: an Email cell may hold several, or a note around one.
+  const email = emailAddresses(row['Email']).join(', ')
   const resolved = resolveTemplate(templates, row, languages)
 
   // `resolved` carries its own `reason`, so it is spread first — otherwise it
   // would overwrite the more specific message below.
   if (!email) {
-    return { ...resolved, ok: false, reason: 'No email address for this venue.', empties: [] }
+    const reason = isOnlineForm(row)
+      ? 'This venue only takes an online form.'
+      : 'No email address for this venue.'
+    return { ...resolved, ok: false, reason, empties: [] }
   }
   if (!resolved.template) {
     return { ...resolved, ok: false, empties: [] }
   }
 
   const opts = settings ? contactOptionsFor(row, settings) : {}
+  // The greeting follows the template actually used — an English fallback
+  // template for a German venue says "Dear", not "Liebe".
+  opts.language = resolved.language
   // Only German templates have articles to decline, and only when the feature is
   // on — everywhere else {{article}} stays unresolved and is reported as empty.
   if (resolved.language === 'de' && (settings?.templates?.germanArticles ?? 'ondevice') !== 'off') {
     opts.gender = genderOf(row['Venue'])
   }
+  // "Liebe" or "Lieber" for {{greeting}}; unknown leaves the neutral form.
+  opts.contactGender = contactGenderOf(row['Contact'])
   const substituted = substituteTemplate(resolved.template, row, opts)
   const { html, cids } = renderEmailHtml(substituted.bodyJSON)
 
@@ -50,6 +60,19 @@ export function prepareDraft(row, templates, languages, settings) {
     // back to a full account (host, credentials, Drafts/Sent folders).
     draft: { to: email, subject: substituted.subject, html, cids, accountId: accountForRow(row, settings).id },
   }
+}
+
+// What a one-off draft needs from the on-device model before prepareDraft can
+// run: the venue's article and the contact's first name. Bulk runs and the
+// venue panel fetch these as they render (useGenders); a draft started from
+// the table has no such moment, so it waits for them here. Both are cached,
+// so this costs nothing the second time.
+export async function resolveForDraft(rows, settings) {
+  if ((settings?.templates?.germanArticles ?? 'ondevice') === 'off') return
+  await Promise.all([
+    ensureGenders(rows.map(r => r['Venue'])),
+    ensureContactGenders(rows.map(r => r['Contact'])),
+  ])
 }
 
 // Create the draft over IMAP. Deliberately does NOT touch 'Last emailed': a

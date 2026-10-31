@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { fillerBandSet } from '@core/bands'
-import { classifyBooking } from '@core/classify'
+import { classifyBooking, classifyContext } from '@core/classify'
+import { normalizeTypeRules, setTypeRule } from '@core/venueTypes'
 import { STATUS } from '@core/constants'
 import { DEFAULT_RULES, mergeRules } from '@core/rules'
 
@@ -9,7 +9,7 @@ const TODAY = new Date(2025, 5, 15) // 15 June 2025
 
 // A row that satisfies the send-required fields; override what each test needs.
 function row(extra = {}) {
-  return { Venue: 'Club X', Band: 'The Band', Email: 'a@b.c', ...extra }
+  return { Venue: 'Club X', Band: 'The Band', Email: 'a@b.cc', ...extra }
 }
 
 describe('classifyBooking — every status with the default rules', () => {
@@ -18,8 +18,8 @@ describe('classifyBooking — every status with the default rules', () => {
   })
 
   it('MISSING_INFO when a send-required field is blank', () => {
-    expect(classifyBooking({ Venue: 'Club X', Band: '', Email: 'a@b.c' }, TODAY)).toBe(STATUS.MISSING_INFO)
-    expect(classifyBooking({ Venue: '', Band: 'B', Email: 'a@b.c' }, TODAY)).toBe(STATUS.MISSING_INFO)
+    expect(classifyBooking({ Venue: 'Club X', Band: '', Email: 'a@b.cc' }, TODAY)).toBe(STATUS.MISSING_INFO)
+    expect(classifyBooking({ Venue: '', Band: 'B', Email: 'a@b.cc' }, TODAY)).toBe(STATUS.MISSING_INFO)
     expect(classifyBooking({ Venue: 'V', Band: 'B', Email: '' }, TODAY)).toBe(STATUS.MISSING_INFO)
   })
 
@@ -35,7 +35,7 @@ describe('classifyBooking — every status with the default rules', () => {
     // A gig on "today" itself has started — recently played, as replyHealth says.
     expect(classifyBooking(row({ 'Last played': '15.06.25' }), TODAY)).toBe(STATUS.RECENTLY_PLAYED)
     // Still out of the send lists, as before.
-    expect(classifyBooking({ Venue: 'V', Band: '', Email: 'a@b.c', 'Last played': '01.12.25' }, TODAY)).toBe(STATUS.MISSING_INFO)
+    expect(classifyBooking({ Venue: 'V', Band: '', Email: 'a@b.cc', 'Last played': '01.12.25' }, TODAY)).toBe(STATUS.MISSING_INFO)
   })
 
   it('ON_HOLD on a hold keyword, unless the hold has expired', () => {
@@ -125,7 +125,7 @@ describe('classifyBooking — behaviour flips with custom rules', () => {
 
 describe('filler venues', () => {
   const filler = (Band, extra = {}) => row({ Type: 'filler', Band, ...extra })
-  const ctx = { fillerBands: new Set(['alpha']) }
+  const ctx = { typeRules: normalizeTypeRules(undefined, ['Alpha']) }
 
   it('are out of outreach for a band that does not book fillers', () => {
     expect(classifyBooking(filler('Beta'), TODAY, undefined, ctx)).toBe(STATUS.FILLER_OFF)
@@ -147,8 +147,50 @@ describe('filler venues', () => {
   })
 })
 
-describe('fillerBandSet', () => {
-  it('collects the bands with "Book filler venues" on, lower-cased', () => {
-    expect([...fillerBandSet([{ name: 'Alpha ', bookFiller: true }, { name: 'Beta', bookFiller: false }, 'Gamma'])]).toEqual(['alpha'])
+describe('venue-type rules', () => {
+  const rules = (patches) => Object.entries(patches).reduce((acc, [t, p]) => setTypeRule(acc, t, p), normalizeTypeRules(undefined))
+
+  it('any type can be never contacted, or follow the festival window', () => {
+    const ctx = { typeRules: rules({ closed: { behaves: 'never' }, openair: { behaves: 'festival' } }) }
+    expect(classifyBooking(row({ Type: 'Closed' }), TODAY, undefined, ctx)).toBe(STATUS.DEAD)
+    expect(classifyBooking(row({ Type: 'openair', 'Time Frame': 'August' }), TODAY, undefined, ctx)).toBe(STATUS.FESTIVAL_INELIGIBLE)
+  })
+
+  it('a type with the defaults moved away behaves ordinarily', () => {
+    const ctx = { typeRules: rules({ dead: { behaves: 'normal' } }) }
+    expect(classifyBooking(row({ Type: 'dead' }), TODAY, undefined, ctx)).toBe(STATUS.NEVER_CONTACTED)
+  })
+
+  it('restricts a type to some bands', () => {
+    const ctx = { typeRules: rules({ jazzclub: { bands: ['Trio'] } }) }
+    expect(classifyBooking(row({ Type: 'jazzclub', Band: 'Trio' }), TODAY, undefined, ctx)).toBe(STATUS.NEVER_CONTACTED)
+    expect(classifyBooking(row({ Type: 'jazzclub', Band: 'Big Band' }), TODAY, undefined, ctx)).toBe(STATUS.FILLER_OFF)
+  })
+
+  it('a type interval stands in for the default, the venue’s own Frequency still wins', () => {
+    const ctx = { typeRules: rules({ main: { frequencyDays: 90 } }) }
+    const r = row({ Type: 'main', 'Last emailed': '01.04.25' }) // 75 days ago
+    expect(classifyBooking(r, TODAY)).toBe(STATUS.SEND)
+    expect(classifyBooking(r, TODAY, undefined, ctx)).toBe(STATUS.RECENT_CONTACT)
+    expect(classifyBooking({ ...r, frequency: '1 month' }, TODAY, undefined, ctx)).toBe(STATUS.SEND)
+  })
+})
+
+describe('missing info', () => {
+  it('needs a real email address, but an online form is not missing one', () => {
+    expect(classifyBooking(row({ Email: 'tbd' }), TODAY)).toBe(STATUS.MISSING_INFO)
+    expect(classifyBooking(row({ Email: 'info@club.de, booking@club.de' }), TODAY)).toBe(STATUS.NEVER_CONTACTED)
+    expect(classifyBooking(row({ Email: 'online form only' }), TODAY)).toBe(STATUS.NEVER_CONTACTED)
+  })
+
+  it('needs Dates — the venue’s own or its band’s — and a template for the band', () => {
+    const settings = { bands: [{ name: 'The Band', tourDates: 'May 2026' }, { name: 'Other' }] }
+    const ctx = classifyContext(settings, [{ band: 'The Band', language: 'en' }])
+    expect(classifyBooking(row(), TODAY, undefined, ctx)).toBe(STATUS.NEVER_CONTACTED)
+    expect(classifyBooking(row({ Band: 'Other' }), TODAY, undefined, ctx)).toBe(STATUS.MISSING_INFO)
+    // Dates of its own are enough, but Other still has no template.
+    expect(classifyBooking(row({ Band: 'Other', Dates: 'June' }), TODAY, undefined, ctx)).toBe(STATUS.MISSING_INFO)
+    // Without templates (web) only the Dates count.
+    expect(classifyBooking(row({ Band: 'Other', Dates: 'June' }), TODAY, undefined, classifyContext(settings))).toBe(STATUS.NEVER_CONTACTED)
   })
 })

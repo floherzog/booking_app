@@ -1,4 +1,4 @@
-import { ACTION_STATUSES, STATUS_META, getMissingFields } from './constants.js'
+import { ACTION_STATUSES, STATUS_META, getMissingFields, isOnlineForm } from './constants.js'
 import { replyHealth } from './replyStatus.js'
 
 // What the filter bar, the chips and the Filter / Chips panel together decide:
@@ -7,7 +7,7 @@ import { replyHealth } from './replyStatus.js'
 
 export const EMPTY_FILTERS = {
   band: '', country: '', type: '', status: '',
-  actionOnly: false, nextBatch: false, missingInfo: false, duplicate: false, autoSend: false,
+  actionOnly: false, nextBatch: false, missingInfo: false, onlineForm: false, duplicate: false, autoSend: false,
   search: '', advanced: [], sort: null,
 }
 
@@ -16,6 +16,7 @@ export const SHORTCUTS = [
   { key: 'actionOnly', label: 'Action needed' },
   { key: 'nextBatch', label: 'Next batch' },
   { key: 'missingInfo', label: 'Incomplete details' },
+  { key: 'onlineForm', label: 'Online form' },
   { key: 'duplicate', label: 'Duplicates' },
   { key: 'autoSend', label: 'Auto-send' },
 ]
@@ -33,12 +34,15 @@ export function selectStatus(filters, status) {
 }
 
 // ctx.isDuplicate(row): whether the row's venue is in a duplicate pair.
+// ctx.classify: the classify context, so "Incomplete details" also counts a
+// band without Dates or a template (see sendBlockers in constants.js).
 export function matchesFilters(r, filters, ctx = {}) {
   const f = { ...EMPTY_FILTERS, ...filters }
   const q = (f.search || '').toLowerCase().trim()
   if (f.nextBatch && !(r._nextBatch || r['Draft'] === 'TRUE')) return false
   if (f.autoSend && r['Auto'] !== 'TRUE') return false
-  if (f.missingInfo && getMissingFields(r).length === 0) return false
+  if (f.missingInfo && getMissingFields(r, ctx.classify).length === 0) return false
+  if (f.onlineForm && !isOnlineForm(r)) return false
   if (f.duplicate && !ctx.isDuplicate?.(r)) return false
   if (f.actionOnly && !ACTION_STATUSES.has(r._status)) return false
   if (f.status && r._status !== f.status) return false

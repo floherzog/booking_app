@@ -6,7 +6,7 @@ import { applyGermanArticles, hasArticlePlaceholder } from './germanArticles.js'
 
 // The fields a template may interpolate, written as {{name}} in the subject and
 // in the body's text. Lowercase on purpose — they read as prose, not columns.
-export const PLACEHOLDERS = ['venue', 'contact', 'city', 'country', 'dates', 'text', 'band', 'article']
+export const PLACEHOLDERS = ['greeting', 'venue', 'contact', 'city', 'country', 'dates', 'text', 'band', 'article']
 
 const PLACEHOLDER_FIELDS = {
   venue: 'Venue',
@@ -20,11 +20,14 @@ const PLACEHOLDER_FIELDS = {
 
 const PLACEHOLDER_RE = /\{\{\s*([a-z]+)\s*\}\}/gi
 
-// How {{contact}} is rendered. `contactStyle` picks how much of a known name to
-// use; `contactFallbacks` supplies a per-language stand-in when the venue has no
-// contact at all, so a greeting never comes out as "Hallo ,".
+// How {{contact}} and {{greeting}} are rendered. `contactStyle` picks how a
+// known contact is addressed — first name, full name, or formally ("Sehr
+// geehrte Frau Müller"); `contactFallbacks` supplies a per-language stand-in
+// when the venue has no contact at all, so a greeting never comes out as
+// "Hallo ,".
+export const CONTACT_STYLES = ['first', 'full', 'formal']
 export const DEFAULT_TEMPLATE_OPTIONS = {
-  contactStyle: 'full',            // 'full' | 'first'
+  contactStyle: 'full',            // 'first' | 'full' | 'formal'
   contactFallbacks: {
     en: '{{venue}} team',
     de: '{{venue}} Team',
@@ -53,7 +56,8 @@ export function contactOptionsFor(row, settings) {
   const fallbacks = { ...DEFAULT_TEMPLATE_OPTIONS.contactFallbacks, ...(opts.contactFallbacks || {}) }
   const language = languageForRow(row, settings?.languages)
   return {
-    contactStyle: opts.contactStyle === 'first' ? 'first' : 'full',
+    contactStyle: CONTACT_STYLES.includes(opts.contactStyle) ? opts.contactStyle : 'full',
+    language,
     contactFallback: fallbacks[language] ?? fallbacks[norm(settings?.languages?.default) || 'en'] ?? '',
   }
 }
@@ -68,6 +72,44 @@ export function firstNameOf(full) {
     if (after) return after.split(/\s+/)[0]
   }
   return value.split(/\s+/)[0]
+}
+
+// "Anna Müller" → "Müller", "Müller, Anna" → "Müller", "Jan van der Berg" →
+// "van der Berg". A single name is returned as it is.
+const SURNAME_PARTICLES = new Set(['von', 'van', 'de', 'der', 'den', 'zu', 'zum', 'di', 'da', 'del', 'du', 'le', 'la', 'ten', 'ter'])
+export function lastNameOf(full) {
+  const value = String(full || '').trim()
+  if (!value) return ''
+  if (value.includes(',')) return value.split(',')[0].trim()
+  const words = value.split(/\s+/)
+  if (words.length === 1) return value
+  let i = words.length - 1
+  while (i > 1 && SURNAME_PARTICLES.has(words[i - 1].toLowerCase())) i -= 1
+  return words.slice(i).join(' ')
+}
+
+// The whole salutation for {{greeting}}, name included. `gender` is the
+// contact's first name read by the on-device model: 'f' | 'm', anything else
+// (unknown, or the web build) gets the neutral form. `fallback` is the already
+// resolved stand-in for a venue without a contact ("Club X Team").
+const GREETINGS = {
+  de: {
+    informal: { f: n => `Liebe ${n}`, m: n => `Lieber ${n}`, x: n => `Hallo ${n}`, team: t => `Liebes ${t}`, none: () => 'Hallo zusammen' },
+    formal: { f: n => `Sehr geehrte Frau ${n}`, m: n => `Sehr geehrter Herr ${n}`, x: n => `Guten Tag ${n}`, team: () => 'Sehr geehrte Damen und Herren', none: () => 'Sehr geehrte Damen und Herren' },
+  },
+  en: {
+    informal: { f: n => `Dear ${n}`, m: n => `Dear ${n}`, x: n => `Dear ${n}`, team: t => `Dear ${t}`, none: () => 'Hello' },
+    formal: { f: n => `Dear Ms ${n}`, m: n => `Dear Mr ${n}`, x: n => `Dear ${n}`, team: t => `Dear ${t}`, none: () => 'Dear Sir or Madam' },
+  },
+}
+export function greetingFor({ contact, style = 'full', language = 'en', gender, fallback = '' }) {
+  const g = GREETINGS[language] || GREETINGS.en
+  const name = String(contact || '').trim()
+  const forms = g[style === 'formal' ? 'formal' : 'informal']
+  if (!name) return fallback ? forms.team(fallback) : forms.none()
+  const sex = gender === 'f' || gender === 'm' ? gender : 'x'
+  if (style === 'formal') return forms[sex](sex === 'x' ? name : lastNameOf(name))
+  return forms[sex](style === 'first' ? firstNameOf(name) : name)
 }
 
 // The venue's template language: a case-insensitive match of its Country against
@@ -128,8 +170,9 @@ export function resolveTemplate(templates, row, languages) {
 // becomes '' rather than leaving the raw token in the email, and is reported so
 // the UI can flag it before a draft is created.
 //
-// `opts` ({ contactStyle, contactFallback }) only affects {{contact}}. Omitting it
-// keeps the plain behaviour: whatever is in the Contact column, or ''.
+// `opts` ({ contactStyle, contactFallback, language, contactGender }) only
+// affects {{contact}} and {{greeting}}. Omitting it keeps the plain behaviour:
+// whatever is in the Contact column, or ''.
 export function substitutePlaceholders(str, row, opts = {}) {
   const empties = new Set()
 
@@ -150,6 +193,13 @@ export function substitutePlaceholders(str, row, opts = {}) {
 
   const text = source.replace(PLACEHOLDER_RE, (match, rawName) => {
     const name = rawName.toLowerCase()
+    if (name === 'greeting') {
+      const fallback = opts.contactFallback ? substitutePlaceholders(opts.contactFallback, row).text : ''
+      return greetingFor({
+        contact: row?.['Contact'], style: opts.contactStyle, language: opts.language,
+        gender: opts.contactGender, fallback,
+      })
+    }
     const field = PLACEHOLDER_FIELDS[name]
     if (!field) return match // not one of ours — leave it alone
     const value = (row?.[field] ?? '').trim()

@@ -3,7 +3,9 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, unlinkS
 import { join, dirname } from 'node:path'
 import { ipcMain, app } from 'electron'
 
-// German noun gender for venue names, from Apple's on-device model.
+// German noun gender for venue names, from Apple's on-device model — and, for
+// the "Liebe / Lieber" greeting, whether a contact's first name is a woman's or
+// a man's (kind 'firstname': 'f' | 'm' | 'x').
 //
 // The model is reached through a small Swift executable (FoundationModels has no
 // JS binding). Gender is context-free and never changes, so every answer is
@@ -55,12 +57,22 @@ function remember(entries) {
   try { atomicWriteJson(cachePath(), c) } catch { /* in-memory is still useful */ }
 }
 
+// Both kinds share one cache file; first names are kept under a prefix, so a
+// venue called "Maria" and a contact called Maria never collide.
+const KINDS = {
+  venue: { prefix: '', values: ['m', 'f', 'n', 'pl'] },
+  firstname: { prefix: 'name:', values: ['f', 'm', 'x'] },
+}
+const kindOf = kind => KINDS[kind] || KINDS.venue
+
 // Manual corrections win over the model and are stored the same way, so a wrong
 // answer is fixed once and stays fixed.
-export function setOverride(name, gender) {
-  const key = String(name || '').trim()
-  if (!key) return { ok: false, error: 'No venue name.' }
-  if (!['m', 'f', 'n', 'pl'].includes(gender)) {
+export function setOverride(name, gender, kind = 'venue') {
+  const { prefix, values } = kindOf(kind)
+  const bare = String(name || '').trim()
+  if (!bare) return { ok: false, error: 'No name.' }
+  const key = prefix + bare
+  if (!values.includes(gender)) {
     // An empty gender clears the override and lets the model answer again.
     const c = loadCache()
     delete c[key]
@@ -99,15 +111,17 @@ export function checkAvailability() {
   return runHelper(['--availability'])
 }
 
-// names → { genders: { name: 'm'|'f'|'n'|'pl' }, status }
-// Cached names never reach the helper, and an empty remainder never spawns it.
-export async function resolveGenders(names = []) {
+// names → { genders: { name: 'm'|'f'|'n'|'pl' }, status }, or for kind
+// 'firstname' { name: 'f'|'m'|'x' }. Cached names never reach the helper, and
+// an empty remainder never spawns it.
+export async function resolveGenders(names = [], kind = 'venue') {
+  const { prefix } = kindOf(kind)
   const c = loadCache()
   const wanted = [...new Set(names.map(n => String(n || '').trim()).filter(Boolean))]
   const known = {}
   const missing = []
   for (const name of wanted) {
-    if (name in c) known[name] = c[name]
+    if (prefix + name in c) known[name] = c[prefix + name]
     else missing.push(name)
   }
   if (missing.length === 0) return { ok: true, status: 'available', genders: known, fromCache: wanted.length }
@@ -116,7 +130,7 @@ export async function resolveGenders(names = []) {
   let error = null
   for (let i = 0; i < missing.length; i += BATCH_SIZE) {
     const batch = missing.slice(i, i + BATCH_SIZE)
-    const result = await runHelper([], JSON.stringify({ names: batch }))
+    const result = await runHelper([], JSON.stringify(kind === 'firstname' ? { kind, names: batch } : { names: batch }))
     if (!result?.ok) {
       status = result?.status || 'failed'
       error = result?.error || 'The on-device model is unavailable.'
@@ -124,7 +138,7 @@ export async function resolveGenders(names = []) {
     }
     const found = result.genders || {}
     if (Object.keys(found).length) {
-      remember(found)
+      remember(Object.fromEntries(Object.entries(found).map(([k, v]) => [prefix + k, v])))
       Object.assign(known, found)
     }
   }
@@ -134,6 +148,6 @@ export async function resolveGenders(names = []) {
 
 export function registerArticlesIpc() {
   ipcMain.handle('articles:availability', () => checkAvailability())
-  ipcMain.handle('articles:resolve', (_e, names) => resolveGenders(names))
-  ipcMain.handle('articles:override', (_e, name, gender) => setOverride(name, gender))
+  ipcMain.handle('articles:resolve', (_e, names, kind) => resolveGenders(names, kind))
+  ipcMain.handle('articles:override', (_e, name, gender, kind) => setOverride(name, gender, kind))
 }

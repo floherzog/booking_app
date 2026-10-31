@@ -21,6 +21,7 @@ const api = {
   pickCsvOpen: () => ipcRenderer.invoke('dialog:pickCsvOpen'),
   pickCsvSave: (defaultName, title) => ipcRenderer.invoke('dialog:pickCsvSave', defaultName, title),
   pickCsvOpenMany: title => ipcRenderer.invoke('dialog:pickCsvOpenMany', title),
+  pickFolder: (title, defaultPath) => ipcRenderer.invoke('dialog:pickFolder', title, defaultPath),
 
   // The real path behind a <input type="file"> File. The renderer cannot get
   // this itself any more (File.path was removed), and the import wizard needs it
@@ -58,8 +59,8 @@ const api = {
   verifySmtp: accountId => ipcRenderer.invoke('mail:verifySmtp', accountId),
   appendDraft: args => ipcRenderer.invoke('mail:appendDraft', args),
   articleAvailability: () => ipcRenderer.invoke('articles:availability'),
-  resolveGenders: names => ipcRenderer.invoke('articles:resolve', names),
-  setGenderOverride: (name, gender) => ipcRenderer.invoke('articles:override', name, gender),
+  resolveGenders: (names, kind) => ipcRenderer.invoke('articles:resolve', names, kind),
+  setGenderOverride: (name, gender, kind) => ipcRenderer.invoke('articles:override', name, gender, kind),
   syncMail: rows => ipcRenderer.invoke('mail:sync', rows),
   sendMail: args => ipcRenderer.invoke('mail:send', args),
   appleScriptDraft: args => ipcRenderer.invoke('mail:appleScriptDraft', args),

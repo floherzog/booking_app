@@ -4,9 +4,10 @@ import {
   deliveryForRow, summarizeDelivery, defaultScheduleValue, parseLocalDateTime, pendingJobs,
 } from '@core/delivery'
 import { prepareDraft, deliverPrepared, draftKey } from '../lib/drafts'
-import { useGenders } from '../lib/genders'
+import { useGenders, useContactGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import { useEscape } from '../lib/useEscape'
 import { api } from '../platform'
 
 function whenLabel(iso) {
@@ -14,9 +15,10 @@ function whenLabel(iso) {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export default function BulkDraftModal({ rows, filteredRows, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
+export default function BulkDraftModal({ rows, filteredRows, selected = null, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
   const backdrop = useBackdropClose(onClose)
-  const [source, setSource] = useState('nextBatch')
+  // Opened from Select mode with venues picked: those are what it drafts.
+  const [source, setSource] = useState(selected?.size ? 'selected' : 'nextBatch')
   const [mode, setMode] = useState('draft')          // 'draft' | 'auto' | 'send'
   const [timing, setTiming] = useState('now')        // 'now' | 'later'
   const [runAt, setRunAt] = useState(() => defaultScheduleValue())
@@ -24,6 +26,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
   const [confirmSend, setConfirmSend] = useState(false)
   const [skipped, setSkipped] = useState(() => new Set()) // _idx the user unticked
   const [phase, setPhase] = useState('preflight') // preflight | running | done | scheduled
+  useEscape(onClose, phase !== 'running')
   const [results, setResults] = useState({}) // _idx → { ok, error }
   const [current, setCurrent] = useState(null)
   const [error, setError] = useState('')
@@ -45,7 +48,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
 
   // The venues this run would touch — worked out before the preflight so their
   // German genders can be fetched for just these, not for the whole table.
-  const picked = useMemo(() => selectRows(source, { rows, filteredRows }), [source, rows, filteredRows])
+  const picked = useMemo(() => selectRows(source, { rows, filteredRows, selected }), [source, rows, filteredRows, selected])
 
   const articlesOn = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
   const germanVenues = useMemo(
@@ -53,6 +56,9 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
     [picked, languages, articlesOn],
   )
   const genderVersion = useGenders(germanVenues, articlesOn)
+  // First names for {{greeting}} (Liebe / Lieber, Ms / Mr), in any language.
+  const contacts = useMemo(() => picked.map(r => r['Contact']), [picked])
+  const nameVersion = useContactGenders(contacts, articlesOn)
 
   // Preflight: everything that could go wrong, worked out before anything runs.
   const candidates = useMemo(() => {
@@ -62,7 +68,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
       delivery: deliveryForRow(row, mode),
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picked, mode, templates, languages, settings, genderVersion])
+  }, [picked, mode, templates, languages, settings, genderVersion, nameVersion])
 
   const eligible = candidates.filter(c => c.prepared.ok && !skipped.has(c.row._idx))
   const blocked = candidates.filter(c => !c.prepared.ok)
@@ -192,7 +198,7 @@ export default function BulkDraftModal({ rows, filteredRows, templates, language
           <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 space-y-2.5">
             <div>
               <div className="flex flex-wrap gap-1.5">
-                {SOURCES.map(s => {
+                {SOURCES.filter(s => s.id !== 'selected' || selected?.size).map(s => {
                   const unusable = repeat !== 'once' && !sourceRepeats(s.id)
                   return (
                     <button

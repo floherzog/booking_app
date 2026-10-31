@@ -70,9 +70,15 @@ inside the app bundle, so nothing is lost:
 
 ## What it does
 
-- **Classifies every venue** — Send, Follow-up due, Waiting, Recently played,
-  On hold, Festival (not now), Missing info, Dead — from the dates and notes in
-  your CSV, and picks the next batch to contact.
+- **Classifies every venue** — Send, Follow up, Never contacted, Waiting,
+  Recent, On hold, Confirmed, Recently played, Festival (not now), Not for this
+  band, Missing info, Dead — from the dates and notes in your CSV, and picks the
+  next batch to contact. A venue that can't actually be emailed (no real
+  address, or its band has no Dates or no template) is *Missing info*, never
+  offered for sending.
+- **Venue types with rules of their own.** Any type can be never contacted,
+  follow the festival window, be booked by only some bands, or have its own
+  follow-up interval (Settings ▸ Venue types, and the dropdowns in Rules ▸ Flow).
 - **Every rule is editable.** The thresholds that decide all of the above are
   yours to change, and the app re-classifies as you change them — the **Logic**
   button both draws the decision tree and lets you edit the numbers behind it.
@@ -80,9 +86,12 @@ inside the app bundle, so nothing is lost:
   images, and `{{placeholders}}` filled in per venue.
 - **German articles worked out for you.** Write `in {{article}} {{venue}}` and it
   becomes “in der Kulturfabrik” but “im Kulturzentrum”. See below.
+- **Greetings that fit the person.** `{{greeting}}` becomes “Liebe Anna”,
+  “Lieber Thomas”, or formally “Sehr geehrte Frau Müller”.
 - **Drafts straight into Apple Mail**, one venue at a time or in bulk — or send
   for real over SMTP, now or at a scheduled time, with the `Auto` column
-  deciding per venue.
+  deciding per venue. **Select | ✉ Email** in the bottom right corner picks
+  venues (click, shift-click or drag across rows) and writes to them.
 - **Keeps `Last emailed` and the reply status honest** by reading the mail
   account itself, and always as edits you approve.
 - **Map view** of your venues, with offline-seeded coordinates.
@@ -226,13 +235,13 @@ runs in the main process.
 
 ## Rules
 
-**Settings → Rules.** The defaults reproduce the original web app exactly, so a
+**Settings ▸ Rules.** The defaults reproduce the original web app exactly, so a
 fresh install classifies identically.
 
 | Rule | Default | Effect |
 | --- | --- | --- |
-| Default re-contact window | 30 days | Used when a venue has no Frequency of its own |
-| Recently played | 365 days | A gig this recent (or upcoming) removes a venue from outreach |
+| Default re-contact window | 30 days | Used when neither the venue (Follow-up Interval) nor its type has one |
+| Recently played | 365 days | A gig this recent removes a venue from outreach (one still to come makes it *Confirmed*) |
 | Hold expires after | 365 days | A hold keyword stops blocking once you last emailed this long ago |
 | Festival: too soon if within | 3 months | A festival is bookable only further out than this… |
 | Festival: still fresh for | 2 months | …or already further past than this |
@@ -243,8 +252,38 @@ fresh install classifies identically.
 "Advanced: date colours" holds the ten thresholds behind the coloured relative
 dates in the table. They change how dates are *tinted*, never who gets picked.
 
-The ⓘ **Logic** modal draws the actual decision tree with your current numbers
-in it, so it can never fall out of step with the code.
+The ⓘ **Logic** modal, and **Flow** in Settings ▸ Rules, draw the actual
+decision tree with your current numbers in it, so it can never fall out of step
+with the code.
+
+### Venue types
+
+**Settings ▸ Venue types.** Each type can:
+
+- **behave like** *Normal*, *Festival window* (contacted only while the booking
+  window is open) or *Never contact* (status *Dead*);
+- be **booked by** all bands, or only some — for every other band its venues
+  show as *Not for this band* and stay out of the lists;
+- have its own **follow-up interval**, which a venue's own Follow-up Interval
+  still overrides.
+
+The defaults are what the app always did: `dead` is never contacted, `festival`
+follows the window, `filler` is booked by no band until you tick it (on the type,
+or on the band in Settings ▸ Bands). In **Rules ▸ Flow** the three type gates are
+dropdowns of all your types, editing the same rules. Deleting a type that a rule
+or venues use asks first.
+
+### Missing info
+
+A venue is *Missing info* — and out of every send list — when it has no venue
+name, no band, or no real email address (“tbd” or “n/a” doesn't count), or when
+its band has no template, or it has no Dates and its band has none either. Hover
+the red “!” to see which. The template check only applies once the app has
+templates of its own, so a list drafted elsewhere (OpenClaw) is not affected.
+
+Venues that only take an **online form** (“online form”, “Kontaktformular”, a link
+in the Email column) keep their normal status but are never drafted; the square
+**Online form** chip lists them, and the venue panel links to the form.
 
 ## What the row colours mean
 
@@ -277,16 +316,17 @@ press Save.
 
 ## Email templates
 
-**Settings → Templates.** One template per **band × language**.
+**Settings ▸ Mail templates.** One template per **band × language**.
 
-A venue's **Country** picks the language through the map in *Settings →
+A venue's **Country** picks the language through the map in *Settings ▸
 Languages* (seeded with the German-speaking countries under both their English
 and German names). Anything unlisted falls back to the default language. If a
 band has no template in the resolved language, the app falls back to the default
 language and tells you it did.
 
-Placeholders — `{{venue}}`, `{{contact}}`, `{{city}}`, `{{country}}`,
-`{{dates}}`, `{{text}}`, `{{band}}` — work in the subject and the body. A field
+Placeholders — `{{greeting}}`, `{{venue}}`, `{{contact}}`, `{{city}}`,
+`{{country}}`, `{{dates}}`, `{{text}}`, `{{band}}` — work in the subject and the
+body. A field
 that is empty for a venue becomes nothing at all, and the app warns you before
 you create the draft. Substitution runs on the document structure, not the
 rendered text, so a placeholder still works when part of it is bold.
@@ -294,6 +334,23 @@ rendered text, so a placeholder still works when part of it is bold.
 Bodies support bold, italic, underline, lists, links, inline images, and a
 "video link" block — a thumbnail wrapped in a link, because no mail client will
 play an embedded video.
+
+### Greetings
+
+`{{greeting}},` writes the whole salutation, name included. *Settings ▸ Mail
+templates ▸ Addressing the contact* picks the style:
+
+| Contact | First name | Full name | Formal |
+| --- | --- | --- | --- |
+| Anna Müller | Liebe Anna | Liebe Anna Müller | Sehr geehrte Frau Müller |
+| Thomas Schmidt | Lieber Thomas | Lieber Thomas Schmidt | Sehr geehrter Herr Schmidt |
+| Kim Weber | Hallo Kim | Hallo Kim Weber | Guten Tag Kim Weber |
+| *(none)* | Liebes Jazzfabrik Team | Liebes Jazzfabrik Team | Sehr geehrte Damen und Herren |
+
+English templates get “Dear Anna”, “Dear Ms Müller”. Whether a first name is a
+woman's or a man's comes from Apple's on-device model, like the articles below,
+and is cached; a name it can't place (Kim, Alex) gets the neutral form. The web
+app always uses the neutral form.
 
 ## German articles
 
@@ -409,7 +466,7 @@ Exact formatting, no permission prompts, and it works in bulk.
 1. **Create an app-specific password.** iCloud rejects your normal Apple ID
    password for IMAP. Go to <https://appleid.apple.com> → *Sign-In and Security*
    → *App-Specific Passwords* → generate one.
-2. **Settings → Mail**:
+2. **Settings ▸ Mail settings**:
    - Server `imap.mail.me.com`, port `993` (prefilled).
    - Username: your **full** iCloud address, e.g. `you@icloud.com`.
    - Paste the app-specific password (it goes to the keychain).
@@ -419,10 +476,10 @@ Exact formatting, no permission prompts, and it works in bulk.
    without guessing at names.
 4. Save.
 
-Then use **Draft in Mail** on any venue, or **✉ Drafts** in the toolbar for a
-bulk run: pick a source (next batch, follow-ups due, Draft-flagged, or exactly
-what your filters are showing), review the preflight list, and let it work
-through them one at a time.
+Then use **Draft in Mail** on any venue, or **✉ Email** in the bottom right corner
+for a bulk run: pick a source (next batch, follow-ups due, flagged Next Batch,
+exactly what your filters are showing, or the venues you picked with **Select**),
+review the preflight list, and let it work through them one at a time.
 
 Drafts can take a few seconds to sync into Mail.app.
 
@@ -436,7 +493,7 @@ The bulk window can also send. Three modes:
 | **Auto column decides** | Venues with `Auto` = TRUE are sent, every other venue is drafted. |
 | **Send now** | Every selected venue is emailed. |
 
-Sending goes out over SMTP (**Settings → Mail** → SMTP server, prefilled
+Sending goes out over SMTP (**Settings ▸ Mail settings** → SMTP server, prefilled
 `smtp.mail.me.com:587`) using the same account and app-specific password as IMAP,
 and files a copy in your Sent mailbox. The message is byte-for-byte the one the
 draft would have been — the same MIME is built once and either APPENDed or sent.

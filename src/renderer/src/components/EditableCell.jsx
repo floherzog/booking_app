@@ -30,7 +30,7 @@ export default function EditableCell({ value, rowIndex, field, edits, onEdit, cl
   }
 
   function handleKey(e) {
-    if (e.key === 'Escape') setEditing(false)
+    if (e.key === 'Escape') { e.preventDefault(); setEditing(false) }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(e.target.value) }
   }
 

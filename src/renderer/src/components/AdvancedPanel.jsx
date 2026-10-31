@@ -178,7 +178,7 @@ function ChipSettings({ chips, filters, onChipsChange }) {
           <div className="space-y-1.5">
             <p className={head}>Square — shortcuts</p>
             <p className={blurb}>
-              Lists that cut across the statuses: a venue can be in several. Incomplete details, Duplicates and
+              Lists that cut across the statuses: a venue can be in several. Incomplete details, Online form, Duplicates and
               Auto-send appear only while they have venues.
             </p>
             <div className="flex flex-wrap gap-2">

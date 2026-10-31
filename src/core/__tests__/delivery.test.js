@@ -106,12 +106,16 @@ describe('selectRows', () => {
 
   it('hands back the current view untouched, and nothing for an unknown source', () => {
     expect(selectRows('filtered', { rows, filteredRows: [rows[3]] })).toEqual([rows[3]])
+    const indexed = rows.map((r, i) => ({ ...r, _idx: i }))
+    expect(selectRows('selected', { rows: indexed, selected: new Set([1]) })).toEqual([indexed[1]])
+    expect(selectRows('selected', { rows })).toEqual([])
     expect(selectRows('nonsense', { rows })).toEqual([])
   })
 
   it('knows which sources a repeating run can reproduce', () => {
     expect(sourceRepeats('nextBatch')).toBe(true)
     expect(sourceRepeats('filtered')).toBe(false)
+    expect(sourceRepeats('selected')).toBe(false)
   })
 })
 

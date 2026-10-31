@@ -25,18 +25,21 @@ export const DELIVERY_MODES = [
 // Where a bulk run gets its venues from. Each is a filter over the rows already
 // on screen, so what you see is what you draft.
 export const SOURCES = [
-  { id: 'nextBatch', label: 'Next batch', hint: 'The venues the batch rule picked, plus anything flagged Draft.' },
+  { id: 'nextBatch', label: 'Next batch', hint: 'The venues the batch rule picked, plus anything flagged Next Batch.' },
   { id: 'followUp', label: 'Follow-ups due', hint: 'Every venue whose follow-up date has passed.' },
-  { id: 'draftFlag', label: 'Flagged “Draft”', hint: 'Rows with TRUE in the Draft column.' },
+  { id: 'draftFlag', label: 'Flagged Next Batch', hint: 'Only the venues you flagged Next Batch yourself.' },
   { id: 'filtered', label: 'Current view', hint: 'Exactly the rows your filters are showing right now.' },
+  { id: 'selected', label: 'Selected venues', hint: 'The venues you picked in Select mode.' },
 ]
 
-export function selectRows(source, { rows = [], filteredRows = [] }) {
+// `selected`: the _idx values picked in Select mode.
+export function selectRows(source, { rows = [], filteredRows = [], selected = null }) {
   switch (source) {
     case 'nextBatch': return rows.filter(r => r._nextBatch || r['Draft'] === 'TRUE')
     case 'followUp': return rows.filter(r => r._status === STATUS.FOLLOW_UP_DUE)
     case 'draftFlag': return rows.filter(r => r['Draft'] === 'TRUE')
     case 'filtered': return filteredRows
+    case 'selected': return selected ? rows.filter(r => selected.has(r._idx)) : []
     default: return []
   }
 }
@@ -45,7 +48,7 @@ export function selectRows(source, { rows = [], filteredRows = [] }) {
 // be something that can be worked out again — "whatever the filters showed when
 // you set it up" cannot.
 export function sourceRepeats(source) {
-  return source !== 'filtered'
+  return source !== 'filtered' && source !== 'selected'
 }
 
 export function isAutoSend(row) {

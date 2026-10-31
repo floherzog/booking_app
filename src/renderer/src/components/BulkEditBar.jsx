@@ -1,27 +1,27 @@
 import { useState } from 'react'
 import { normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
+import { fieldLabel } from '@core/constants'
 
 // Fields safe to set across many venues at once. Venue/Email and the read-only
 // email counts are intentionally excluded (they're per-venue unique / derived).
 const BULK_FIELDS = [
-  { key: 'Band', label: 'Band', type: 'band' },
-  { key: 'Type', label: 'Type', type: 'venueType' },
-  { key: 'City', label: 'City', type: 'text' },
-  { key: 'Country', label: 'Country', type: 'text' },
-  { key: 'Follow Up Date', label: 'Follow Up Date', type: 'date' },
-  { key: 'Last emailed', label: 'Last Emailed', type: 'date' },
-  { key: 'frequency', label: 'Frequency', type: 'frequency' },
-  { key: 'Time Frame', label: 'Time Frame', type: 'text' },
-  { key: 'Dates', label: 'Dates', type: 'text' },
-  { key: 'Note', label: 'Note', type: 'text' },
-  { key: 'Draft', label: 'Next batch flag', type: 'bool' },
-  { key: 'Auto', label: 'Auto-send flag', type: 'bool' },
-  { key: 'filler', label: 'filler flag', type: 'bool' },
-]
+  { key: 'Band', type: 'band' },
+  { key: 'Type', type: 'venueType' },
+  { key: 'City', type: 'text' },
+  { key: 'Country', type: 'text' },
+  { key: 'Follow Up Date', type: 'date' },
+  { key: 'Last emailed', type: 'date' },
+  { key: 'frequency', type: 'frequency' },
+  { key: 'Time Frame', type: 'text' },
+  { key: 'Dates', type: 'text' },
+  { key: 'Note', type: 'text' },
+  { key: 'Draft', type: 'bool' },
+  { key: 'Auto', type: 'bool' },
+].map(f => ({ ...f, label: fieldLabel(f.key) }))
 
 const FREQ_OPTIONS = [
-  { v: '', l: 'Default (1 month)' },
+  { v: '', l: 'Default (the type’s, else the Rules’)' },
   { v: '2 months', l: '2 months' },
   { v: '3 months', l: '3 months' },
   { v: '6 months', l: '6 months' },
@@ -34,7 +34,7 @@ function defaultValue(type) {
 
 export default function BulkEditBar({
   selectedCount, filteredCount, bandOptions = [], typeOptions = [],
-  onSelectAllFiltered, onClear, onBulkEdit, onBulkDelete, onExit,
+  onSelectAllFiltered, onClear, onBulkEdit, onBulkDelete,
 }) {
   const [fieldKey, setFieldKey] = useState(BULK_FIELDS[0].key)
   const [value, setValue] = useState('')
@@ -61,7 +61,8 @@ export default function BulkEditBar({
   const ctrl = 'rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500'
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-[1000] flex justify-center px-4 pointer-events-none">
+    // Clear of the Select | Email dock in the bottom right corner.
+    <div className="fixed inset-x-0 bottom-4 z-[1000] flex justify-center px-4 sm:pr-60 pointer-events-none">
       <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl px-4 py-3 max-w-4xl">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold text-gray-800 dark:text-gray-100">{selectedCount}</span>
@@ -148,10 +149,6 @@ export default function BulkEditBar({
             Delete{selectedCount ? ` ${selectedCount}` : ''}
           </button>
         )}
-
-        <button onClick={onExit} className="ml-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium px-2 py-1.5">
-          Done
-        </button>
       </div>
     </div>
   )

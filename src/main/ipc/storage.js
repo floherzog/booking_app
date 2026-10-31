@@ -18,10 +18,13 @@ async function mtimeOf(path) {
 }
 
 // Same-directory temp + rename. Writing straight to an iCloud Drive file risks a
-// partially-written CSV if the app dies mid-write; a rename is atomic.
-async function atomicWrite(path, text) {
+// partially-written CSV if the app dies mid-write; a rename is atomic. The
+// folder is created first: a stored path whose folder was moved or deleted
+// would otherwise fail on the temp file with a baffling ENOENT.
+export async function atomicWrite(path, text) {
   const tmp = join(dirname(path), `.${basename(path)}.${process.pid}.tmp`)
   try {
+    await mkdir(dirname(path), { recursive: true })
     await writeFile(tmp, text, 'utf8')
     await rename(tmp, path)
   } catch (e) {
@@ -64,6 +67,7 @@ export async function writeCsvFiles({ files = [], force = false } = {}) {
   try {
     for (const { path, text } of files) {
       const tmp = join(dirname(path), `.${basename(path)}.${process.pid}.tmp`)
+      await mkdir(dirname(path), { recursive: true })
       await writeFile(tmp, text, 'utf8')
       staged.push({ tmp, path })
     }
@@ -114,6 +118,16 @@ export function registerStorageIpc() {
       filters: CSV_FILTERS,
     })
     return r.canceled ? [] : r.filePaths
+  })
+
+  // A folder (multi-band mode: where the band files are now).
+  ipcMain.handle('dialog:pickFolder', async (event, title, defaultPath) => {
+    const r = await dialog.showOpenDialog(parentWindow(event), {
+      title: title || 'Choose a folder',
+      defaultPath: defaultPath || undefined,
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    return r.canceled ? null : r.filePaths[0]
   })
 
   ipcMain.handle('dialog:pickCsvSave', async (event, defaultName, title) => {

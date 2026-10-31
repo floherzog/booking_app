@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   PLACEHOLDERS, languageForRow, resolveTemplate, substitutePlaceholders,
-  substituteDoc, substituteTemplate, contactOptionsFor, firstNameOf,
+  substituteDoc, substituteTemplate, contactOptionsFor, firstNameOf, lastNameOf, greetingFor,
   DEFAULT_TEMPLATE_OPTIONS,
 } from '@core/templates'
 
@@ -92,7 +92,7 @@ describe('substitutePlaceholders', () => {
   })
 
   it('covers exactly the documented placeholder list', () => {
-    expect(PLACEHOLDERS).toEqual(['venue', 'contact', 'city', 'country', 'dates', 'text', 'band', 'article'])
+    expect(PLACEHOLDERS).toEqual(['greeting', 'venue', 'contact', 'city', 'country', 'dates', 'text', 'band', 'article'])
     for (const p of PLACEHOLDERS) {
       expect(substitutePlaceholders(`{{${p}}}`, row).text).not.toContain('{{')
     }
@@ -290,5 +290,45 @@ describe('substitutePlaceholders — {{article}}', () => {
   it('does not report it when the template never used it', () => {
     const { empties } = substitutePlaceholders('Hallo {{contact}}', row)
     expect(empties).not.toContain('article')
+  })
+})
+
+describe('lastNameOf', () => {
+  it('reads surnames, particles included', () => {
+    expect(lastNameOf('Anna Müller')).toBe('Müller')
+    expect(lastNameOf('Müller, Anna')).toBe('Müller')
+    expect(lastNameOf('Jan van der Berg')).toBe('van der Berg')
+    expect(lastNameOf('Anna Maria Müller')).toBe('Müller')
+    expect(lastNameOf('Anna')).toBe('Anna')
+  })
+})
+
+describe('{{greeting}}', () => {
+  const g = (contact, style, gender, language = 'de') => greetingFor({ contact, style, gender, language, fallback: 'Jazzfabrik Team' })
+
+  it('German: Liebe / Lieber / Hallo, or formally', () => {
+    expect([g('Anna Müller', 'first', 'f'), g('Anna Müller', 'full', 'f'), g('Anna Müller', 'formal', 'f')])
+      .toEqual(['Liebe Anna', 'Liebe Anna Müller', 'Sehr geehrte Frau Müller'])
+    expect([g('Thomas Schmidt', 'first', 'm'), g('Thomas Schmidt', 'formal', 'm')]).toEqual(['Lieber Thomas', 'Sehr geehrter Herr Schmidt'])
+    expect([g('Kim Weber', 'first', 'x'), g('Kim Weber', 'formal'), g('Kim Weber', 'full')]).toEqual(['Hallo Kim', 'Guten Tag Kim Weber', 'Hallo Kim Weber'])
+    expect([g('', 'first'), g('', 'formal')]).toEqual(['Liebes Jazzfabrik Team', 'Sehr geehrte Damen und Herren'])
+  })
+
+  it('English', () => {
+    expect([g('Anna Müller', 'first', 'f', 'en'), g('Anna Müller', 'formal', 'f', 'en'), g('Tom Smith', 'formal', 'm', 'en'), g('Kim Weber', 'formal', 'x', 'en')])
+      .toEqual(['Dear Anna', 'Dear Ms Müller', 'Dear Mr Smith', 'Dear Kim Weber'])
+  })
+
+  it('is filled in from the row and the options', () => {
+    const opts = { contactStyle: 'first', language: 'de', contactGender: 'f', contactFallback: '{{venue}} Team' }
+    expect(substitutePlaceholders('{{greeting}},', { Contact: 'Anna Müller' }, opts).text).toBe('Liebe Anna,')
+    expect(substitutePlaceholders('{{greeting}},', { Venue: 'Club X' }, { ...opts, contactGender: undefined }).text).toBe('Liebes Club X Team,')
+    expect(substitutePlaceholders('{{ greeting }},', { Contact: 'Kim' }, {}).text).toBe('Dear Kim,')
+  })
+
+  it('formal also turns {{contact}} into the full name', () => {
+    const settings = { templates: { contactStyle: 'formal' } }
+    expect(contactOptionsFor({}, settings).contactStyle).toBe('formal')
+    expect(substitutePlaceholders('{{contact}}', { Contact: 'Anna Müller' }, { contactStyle: 'formal' }).text).toBe('Anna Müller')
   })
 })

@@ -1,27 +1,16 @@
 import { useState } from 'react'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import { useEscape } from '../lib/useEscape'
+import { fieldLabel } from '@core/constants'
 
 const FIELDS = [
-  { key: 'Venue', label: 'Venue' },
-  { key: 'Band', label: 'Band' },
-  { key: 'Type', label: 'Type' },
-  { key: 'City', label: 'City' },
-  { key: 'Country', label: 'Country' },
-  { key: 'Contact', label: 'Contact' },
-  { key: 'Email', label: 'Email' },
-  { key: 'Website', label: 'Website' },
-  { key: 'Time Frame', label: 'Time Frame' },
-  { key: 'Dates', label: 'Dates' },
-  { key: 'Text', label: 'Outreach text' },
-  { key: 'Last emailed', label: 'Last Emailed' },
-  { key: 'Follow Up Date', label: 'Follow Up Date' },
-  { key: 'Last played', label: 'Last Played' },
-  { key: 'Status', label: 'Status' },
-  { key: 'Note', label: 'Note' },
-]
+  'Venue', 'Band', 'Type', 'City', 'Country', 'Contact', 'Email', 'Website', 'Time Frame', 'Dates', 'Text',
+  'Last emailed', 'Follow Up Date', 'Last played', 'Status', 'Note',
+].map(key => ({ key, label: fieldLabel(key) }))
 
 export default function MergeModal({ rowA, rowB, editsA, editsB, onMerge, onClose }) {
   const backdrop = useBackdropClose(onClose)
+  useEscape(onClose)
   const effA = { ...rowA, ...(editsA[rowA._idx] || {}) }
   const effB = { ...rowB, ...(editsB[rowB._idx] || {}) }
 

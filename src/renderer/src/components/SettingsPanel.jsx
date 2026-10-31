@@ -5,13 +5,16 @@ import { validateRules, mergeRules } from '@core/rules'
 import RulesEditor from './RulesEditor'
 import { LogicFlow } from './LogicModal'
 import { normalizeBands } from '@core/bands'
+import { datesSuggestions } from '@core/bandDates'
+import { typesWith, setTypeRule, typeRuleFor, bandBooksType, typeUsage, TYPE_BEHAVIOURS, DEFAULT_TYPE_RULES } from '@core/venueTypes'
 import {
   normalizeAccounts, accountLabel, nextAccountId, secretKeyFor,
   defaultSmtpHost, ACCOUNT_DEFAULTS,
 } from '@core/mailAccounts'
 import LanguagesEditor from './LanguagesEditor'
 import { mergeRows } from '@core/multiBand'
-import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBandFiles } from '../lib/multiBandSwitch'
+import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBandFiles, planRelocate } from '../lib/multiBandSwitch'
+import { useEscape } from '../lib/useEscape'
 import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
 
@@ -33,7 +36,7 @@ const SECTIONS = [
   { id: 'mail', label: 'Mail settings', needs: 'mail' },
 ].filter(s => !s.needs || caps[s.needs])
 
-export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose }) {
+export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose }) {
   const [form, setForm] = useState(config)
   const [section, setSection] = useState('general')
   const [rulesView, setRulesView] = useState('numbers')
@@ -72,6 +75,19 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const [bfBusy, setBfBusy] = useState(false)
   const [bfError, setBfError] = useState('')
   const [bfDone, setBfDone] = useState('')
+  // The band files' folder: whether it still exists, and a move being confirmed.
+  const [bandDirGone, setBandDirGone] = useState(false)
+  const [relocPlan, setRelocPlan] = useState(null)
+  // Settings ▸ Mail settings: the account whose removal is being confirmed.
+  const [confirmRemove, setConfirmRemove] = useState(null)
+  // Settings ▸ Venue types: a delete being confirmed ({ index, rule, venues }).
+  const [typeDelete, setTypeDelete] = useState(null)
+  // Escape closes the panel, like ×; an open confirmation is cancelled first.
+  useEscape(() => {
+    if (typeDelete) setTypeDelete(null)
+    else if (confirmRemove) setConfirmRemove(null)
+    else onClose()
+  })
 
   // The "Saved" confirmation is the only feedback now that Save no longer
   // closes the panel, so it has to fade on its own.
@@ -348,6 +364,53 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     : unsavedEdits > 0 ? `Save or discard your ${unsavedEdits} unsaved venue edit${unsavedEdits !== 1 ? 's' : ''} first.`
       : ''
 
+  const bandDir = config.storage?.multiBand?.enabled ? config.storage.multiBand.dir : ''
+  useEffect(() => {
+    if (!bandDir) return
+    api.fileExists(bandDir).then(ok => setBandDirGone(!ok)).catch(() => {})
+  }, [bandDir])
+
+  async function prepareRelocate() {
+    setBfError('')
+    setBfDone('')
+    setRelocPlan(null)
+    try {
+      const picked = await api.pickFolder('Where are the band files now?', bandDirGone ? undefined : bandDir)
+      if (picked) setRelocPlan(await planRelocate(config, picked))
+    } catch (e) {
+      setBfError(e.message)
+    }
+  }
+
+  async function confirmRelocate() {
+    setBfError('')
+    setBfBusy(true)
+    try {
+      const saved = await onRelocateBandFiles(relocPlan)
+      setForm(f => ({ ...f, storage: saved.storage }))
+      setRelocPlan(null)
+      setBandDirGone(false)
+      setBfDone('Done — the app now uses the band files in that folder.')
+    } catch (e) {
+      setBfError(e.message)
+    } finally {
+      setBfBusy(false)
+    }
+  }
+
+  async function forgetBandFiles() {
+    setBfError('')
+    setBfBusy(true)
+    try {
+      const saved = await onForgetBandFiles()
+      setForm(f => ({ ...f, storage: saved.storage }))
+    } catch (e) {
+      setBfError(e.message)
+    } finally {
+      setBfBusy(false)
+    }
+  }
+
   async function confirmMultiBand() {
     setMbError('')
     setMbBusy(true)
@@ -378,8 +441,20 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     }
   }
 
+  // --- Venue-type rules --------------------------------------------------------
+  const typeRules = form.venueTypeRules || DEFAULT_TYPE_RULES
+  const restrictedTypes = typesWith(typeRules, r => r.bands !== null)
+  function setTypeRules(next) {
+    setForm(f => ({ ...f, venueTypeRules: next }))
+  }
+  function setBandBooksType(type, band, on) {
+    const current = typeRuleFor(typeRules, type).bands || []
+    const bandsNext = on ? [...current, band] : current.filter(x => x.toLowerCase() !== band.toLowerCase())
+    setTypeRules(setTypeRule(typeRules, type, { bands: bandsNext }))
+  }
+
   // --- Band list -------------------------------------------------------------
-  // Bands are objects: { name, tourDates, bookFiller }.
+  // Bands are objects: { name, tourDates, mailAccountId }.
   function setBands(next) {
     setForm(f => ({ ...f, bands: next }))
   }
@@ -387,7 +462,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   function addBand() {
     const name = newBand.trim()
     if (!name || bands.some(b => b.name === name)) { setNewBand(''); return }
-    setBands([...bands, { name, tourDates: '', bookFiller: false }]
+    setBands([...bands, { name, tourDates: '' }]
       .sort((a, c) => a.name.localeCompare(c.name)))
     setNewBand('')
   }
@@ -406,6 +481,29 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // effectiveTypeOptions).
   function setVenueTypes(next) {
     setForm(f => ({ ...f, venueTypes: next }))
+  }
+
+  // A rule follows its type when the type is renamed.
+  function renameType(i, value) {
+    const from = venueTypes[i]
+    setVenueTypes(venueTypes.map((x, idx) => (idx === i ? value : x)))
+    if (value.trim() && from.trim() && from.trim().toLowerCase() !== value.trim().toLowerCase()) {
+      const rule = typeRuleFor(typeRules, from)
+      setTypeRules(setTypeRule(setTypeRule(typeRules, from, { behaves: 'normal', bands: null, frequencyDays: null }), value, rule))
+    }
+  }
+
+  // Deleting a type that does something, or that venues use, asks first.
+  function requestRemoveType(i) {
+    const usage = typeUsage(typeRules, venueTypes[i], rows)
+    if (usage.rule.length || usage.venues) setTypeDelete({ index: i, ...usage })
+    else removeType(i)
+  }
+  function removeType(i) {
+    const t = venueTypes[i]
+    setVenueTypes(venueTypes.filter((_, idx) => idx !== i))
+    setTypeRules(setTypeRule(typeRules, t, { behaves: 'normal', bands: null, frequencyDays: null }))
+    setTypeDelete(null)
   }
 
   function addVenueType() {
@@ -667,7 +765,15 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
                   </div>
                   {rulesView === 'flow'
-                    ? <LogicFlow rules={mergeRules(form.rules)} />
+                    ? (
+                      <LogicFlow
+                        rules={mergeRules(form.rules)}
+                        typeRules={typeRules}
+                        venueTypes={venueTypes}
+                        bandNames={bands.map(b => b.name).filter(Boolean)}
+                        onTypeRulesChange={setTypeRules}
+                      />
+                    )
                     : <RulesEditor rules={form.rules} onChange={next => setForm(f => ({ ...f, rules: next }))} />}
                 </div>
               )}
@@ -675,11 +781,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               {section === 'venueTypes' && (
                 <div className="space-y-4">
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    The values offered in a venue’s Type dropdown. Only{' '}
-                    <span className="font-mono">festival</span>, <span className="font-mono">filler</span> and{' '}
-                    <span className="font-mono">dead</span> change anything — a festival is only shown when its
-                    booking window is open, a filler venue only for bands that book filler venues (Bands section),
-                    and a dead venue is excluded from all outreach. Everything else is just a label.
+                    The values offered in a venue’s Type dropdown, and what each one does. A type can be
+                    <span className="font-medium"> never contacted</span> (like “dead”), contacted only while its
+                    <span className="font-medium"> festival window</span> is open, booked by <span className="font-medium">only some
+                    bands</span> (like “filler”), and have its own follow-up interval. A type with none of these is just a label.
+                    The same choices appear as dropdowns in Rules ▸ Flow.
                   </p>
 
                   {venueTypes.length === 0 && (
@@ -688,21 +794,19 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                   <div className="space-y-2">
                     {venueTypes.map((t, i) => (
-                      <div key={`${t}-${i}`} className="flex items-center gap-2">
-                        <input
-                          className={input}
-                          value={t}
-                          onChange={e => setVenueTypes(venueTypes.map((x, idx) => (idx === i ? e.target.value : x)))}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setVenueTypes(venueTypes.filter((_, idx) => idx !== i))}
-                          title="Remove from the dropdown (venues keep their value)"
-                          className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 px-2 text-lg leading-none"
-                        >
-                          &times;
-                        </button>
-                      </div>
+                      <TypeRuleRow
+                        key={i}
+                        type={t}
+                        rule={typeRuleFor(typeRules, t)}
+                        bandNames={bands.map(b => b.name).filter(Boolean)}
+                        input={input}
+                        onRename={value => renameType(i, value)}
+                        onRule={patch => setTypeRules(setTypeRule(typeRules, t, patch))}
+                        onRemove={() => requestRemoveType(i)}
+                        confirming={typeDelete?.index === i ? typeDelete : null}
+                        onConfirmRemove={() => removeType(i)}
+                        onCancelRemove={() => setTypeDelete(null)}
+                      />
                     ))}
                   </div>
 
@@ -719,7 +823,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                   <p className="text-xs text-gray-400 dark:text-gray-500">
                     Removing a type here never changes a venue — rows keep what they say, and their value stays
-                    selectable in the dropdown.
+                    selectable in the dropdown. They just stop being treated specially.
                   </p>
                 </div>
               )}
@@ -789,12 +893,58 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   ) : (
                     multiBandOn ? (
                     <div>
-                      <label className={lbl}>Band files</label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Multi-band mode is on: one CSV per band in{' '}
-                        <span className="font-mono break-all">{config.storage.multiBand.dir}</span>. Switch it off in
-                        General to go back to a single file.
-                      </p>
+                      <label className={lbl}>Band files folder</label>
+                      <div className="flex gap-2 items-center">
+                        <input className={`${monoInput} flex-1`} value={bandDir} readOnly />
+                        <button type="button" onClick={prepareRelocate} disabled={!!bfBlocked || bfBusy} className={`${outlineBtn} shrink-0`}
+                          title="Point the app at the folder the band files are in now, or move them to another folder">
+                          Choose folder…
+                        </button>
+                      </div>
+                      {bandDirGone ? (
+                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                          This folder no longer exists — it was moved, renamed or deleted. Choose where the band files are
+                          now, or let go of them and go back to a single CSV.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                          Multi-band mode is on: one CSV per band in this folder. Choose another folder to move them there.
+                        </p>
+                      )}
+                      {relocPlan && (
+                        <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2 text-xs text-amber-800 dark:text-amber-300">
+                          <p className="font-semibold">Use this folder for the band files?</p>
+                          <p className="font-mono break-all text-amber-700 dark:text-amber-400">{relocPlan.dir}</p>
+                          {relocPlan.found.length > 0 && <p>Already there: {relocPlan.found.join(', ')}.</p>}
+                          {relocPlan.toMove.length > 0 && <p>Moved there from the old folder: {relocPlan.toMove.join(', ')}.</p>}
+                          {relocPlan.missing.length > 0 && <p>Not found anywhere, so they start empty: {relocPlan.missing.join(', ')}.</p>}
+                          {relocPlan.clashes.length > 0 && (
+                            <p className="text-red-700 dark:text-red-400 font-medium">In both folders: {relocPlan.clashes.join(', ')}. Move one copy away first.</p>
+                          )}
+                          <div className="flex gap-2 pt-1">
+                            <button type="button" onClick={confirmRelocate} disabled={bfBusy || relocPlan.clashes.length > 0}
+                              className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50">
+                              {bfBusy ? 'Working…' : relocPlan.toMove.length ? 'Move and use' : 'Use this folder'}
+                            </button>
+                            <button type="button" onClick={() => setRelocPlan(null)} disabled={bfBusy} className={outlineBtn}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {bandDirGone ? (
+                          <button type="button" onClick={forgetBandFiles} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
+                            title="Multi-band mode off, without merging — there is nothing left to merge">
+                            Let go of the band files
+                          </button>
+                        ) : (
+                          <button type="button" disabled={!!mbBlocked || mbBusy}
+                            onClick={() => { setSection('general'); prepareMultiBand() }} className={outlineBtn}
+                            title="Merge the band files back into one CSV (General ▸ Multi-band mode)">
+                            Switch back to a single CSV…
+                          </button>
+                        )}
+                      </div>
+                      {bfDone && !bfPlan && <p className="mt-2 text-xs text-green-700 dark:text-green-400">{bfDone}</p>}
                     </div>
                     ) : (
                     <div>
@@ -974,7 +1124,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           </button>
                         </div>
                         <div className="flex gap-2 items-center">
-                          <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">Touring</label>
+                          <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">Dates</label>
                           <input
                             type="text"
                             className="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
@@ -983,6 +1133,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             onChange={e => updateBand(i, { tourDates: e.target.value })}
                           />
                         </div>
+                        <DatesSuggestions rows={rows} band={b.name} current={b.tourDates} onUse={text => updateBand(i, { tourDates: text })} />
                         {/* Only worth asking once there is a choice to make. */}
                         {accounts.length > 1 && (
                           <div className="flex gap-2 items-center">
@@ -999,16 +1150,20 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             </select>
                           </div>
                         )}
-                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <input
-                            type="checkbox"
-                            checked={b.bookFiller}
-                            onChange={e => updateBand(i, { bookFiller: e.target.checked })}
-                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
-                          />
-                          Book filler venues
-                          <span className="text-xs text-gray-400 dark:text-gray-500">— venues of Type “filler” show up in Send and the other lists</span>
-                        </label>
+                        {/* Types only some bands book (Venue types ▸ Booked by), from the band's side. */}
+                        {restrictedTypes.map(t => (
+                          <label key={t} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                            <input
+                              type="checkbox"
+                              checked={!!b.name && bandBooksType(typeRules, t, b.name)}
+                              disabled={!b.name}
+                              onChange={e => setBandBooksType(t, b.name, e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                            />
+                            Books “{t}” venues
+                            <span className="text-xs text-gray-400 dark:text-gray-500">— they show up in Send and the other lists for this band</span>
+                          </label>
+                        ))}
                       </div>
                     ))}
                     <div className="flex gap-2 items-center pt-1">
@@ -1029,10 +1184,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                    On Save, if you changed a band's touring dates or filler flag, you'll be asked whether to
-                    also write them onto that band's venue rows (the <span className="font-mono">Dates</span> /
-                    <span className="font-mono"> filler</span> columns). Renaming only changes this list — it
-                    doesn't rewrite existing venues.
+                    A band's Dates fill in the <span className="font-mono">Dates</span> of its venues that have none —
+                    on Save you're asked whether to write a change onto them. A venue with no Dates whose band has none
+                    either can't be emailed, and shows as Missing info. Renaming only changes this list — it doesn't
+                    rewrite existing venues.
                   </p>
                 </div>
               )}
@@ -1060,7 +1215,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                       />
                       <span className="text-xs text-gray-600 dark:text-gray-300">
-                        Work out der/die/das for each venue
+                        Work out der/die/das for each venue — and Liebe / Lieber for each contact
                         <span className="block text-gray-400 dark:text-gray-500">
                           Put <span className="font-mono">{'{{article}}'}</span> where the article belongs —
                           <span className="font-mono"> in {'{{article}}'} {'{{venue}}'}</span> becomes
@@ -1097,11 +1252,17 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>What <span className="font-mono">{'{{contact}}'}</span> inserts</p>
+                    <p className={lbl}>Addressing the contact — <span className="font-mono">{'{{greeting}}'}</span> and <span className="font-mono">{'{{contact}}'}</span></p>
+                    <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                      Write <span className="font-mono">{'{{greeting}},'}</span> and it becomes the whole salutation.
+                      In German, Apple’s on-device model reads the first name for Liebe / Lieber
+                      (and Frau / Herr); a name it can’t place gets the neutral form.
+                    </p>
                     <div className="space-y-1.5">
                       {[
-                        { value: 'full', label: 'Full name', hint: '“Anna Müller” → Anna Müller' },
-                        { value: 'first', label: 'First name only', hint: '“Anna Müller” → Anna' },
+                        { value: 'first', label: 'First name', hint: 'Liebe Anna · Lieber Thomas · Hallo Kim · Dear Anna' },
+                        { value: 'full', label: 'Full name', hint: 'Liebe Anna Müller · Lieber Thomas Schmidt · Dear Anna Müller' },
+                        { value: 'formal', label: 'Formal', hint: 'Sehr geehrte Frau Müller · Sehr geehrter Herr Schmidt · Guten Tag Kim Weber · Dear Ms Müller' },
                       ].map(o => (
                         <label key={o.value} className="flex items-start gap-2.5 cursor-pointer">
                           <input
@@ -1321,10 +1482,18 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                               <button type="button" onClick={() => testAccount(acct.id, 'smtp')} disabled={!!test.busy} className={outlineBtn}>
                                 {test.busy === 'smtp' ? 'Checking…' : 'Test sending (SMTP)'}
                               </button>
-                              {accounts.length > 1 && (
+                              {confirmRemove === acct.id ? (
+                                <span className="ml-auto flex items-center gap-2 text-xs text-red-700 dark:text-red-400">
+                                  Remove it, and its password from the keychain?
+                                  <button type="button" onClick={() => { setConfirmRemove(null); removeAccount(acct.id) }}
+                                    className="font-semibold underline hover:no-underline">Remove</button>
+                                  <button type="button" onClick={() => setConfirmRemove(null)}
+                                    className="text-gray-500 dark:text-gray-400 underline hover:no-underline">Cancel</button>
+                                </span>
+                              ) : (
                                 <button
                                   type="button"
-                                  onClick={() => removeAccount(acct.id)}
+                                  onClick={() => setConfirmRemove(acct.id)}
                                   className="ml-auto text-xs text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                 >
                                   Remove account
@@ -1458,6 +1627,114 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// Under an empty band Dates field: what the band's venues already carry, to
+// pick from.
+function DatesSuggestions({ rows, band, current, onUse }) {
+  const shown = band && !current.trim() ? datesSuggestions(rows, band) : []
+  if (!shown.length) return null
+  return (
+    <div className="pl-16 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+      <p>{shown.length === 1 ? 'Its venues say:' : 'Its venues don’t agree — pick one, or type your own:'}</p>
+      <ul className="space-y-0.5">
+        {shown.slice(0, 6).map(x => (
+          <li key={x.text} className="flex items-center gap-2">
+            <button type="button" onClick={() => onUse(x.text)}
+              className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">Use</button>
+            <span className={x.past ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'}>{x.text}</span>
+            <span className="text-gray-400 dark:text-gray-500">· {x.count} venue{x.count !== 1 ? 's' : ''}{x.past ? ' · past' : ''}</span>
+          </li>
+        ))}
+      </ul>
+      {shown.length > 1 && (
+        <p className="text-gray-400 dark:text-gray-500">Venues with other dates are listed in the banner above the list afterwards — overwrite them there, or keep each one’s own.</p>
+      )}
+    </div>
+  )
+}
+
+// One venue type and its rule (Settings ▸ Venue types).
+function TypeRuleRow({ type, rule, bandNames, input, onRename, onRule, onRemove, confirming, onConfirmRemove, onCancelRemove }) {
+  const restricted = rule.bands !== null
+  const small = 'rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-xs py-1 focus:border-indigo-500 focus:ring-indigo-500'
+  const toggleBand = name => {
+    const has = rule.bands.some(b => b.toLowerCase() === name.toLowerCase())
+    onRule({ bands: has ? rule.bands.filter(b => b.toLowerCase() !== name.toLowerCase()) : [...rule.bands, name] })
+  }
+  return (
+    <div className="rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <input className={input} value={type} onChange={e => onRename(e.target.value)} aria-label="Type name" />
+        <select className={`${small} shrink-0`} value={rule.behaves} onChange={e => onRule({ behaves: e.target.value })} title="What venues of this type do">
+          {TYPE_BEHAVIOURS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove from the dropdown (venues keep their value)"
+          className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 px-2 text-lg leading-none"
+        >
+          &times;
+        </button>
+      </div>
+      {rule.behaves !== 'never' && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <span className="w-16 shrink-0">Booked by</span>
+          <label className="inline-flex items-center gap-1">
+            <input type="radio" checked={!restricted} onChange={() => onRule({ bands: null })} className="text-indigo-600 focus:ring-indigo-500" />
+            all bands
+          </label>
+          <label className="inline-flex items-center gap-1">
+            <input type="radio" checked={restricted} onChange={() => onRule({ bands: [] })} className="text-indigo-600 focus:ring-indigo-500" />
+            only
+          </label>
+          {restricted && (bandNames.length ? bandNames.map(name => {
+            const on = rule.bands.some(b => b.toLowerCase() === name.toLowerCase())
+            return (
+              <button key={name} type="button" onClick={() => toggleBand(name)} aria-pressed={on}
+                className={`px-2 py-0.5 rounded-full border transition-colors ${on
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'}`}>
+                {name}
+              </button>
+            )
+          }) : <span className="text-gray-400">no bands yet (Bands section)</span>)}
+          {restricted && !rule.bands.length && bandNames.length > 0 && (
+            <span className="text-amber-600 dark:text-amber-400">no band books these right now</span>
+          )}
+        </div>
+      )}
+      {rule.behaves !== 'never' && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span className="w-16 shrink-0">Follow up</span>
+          every
+          <input
+            type="number" min="1" className={`${small} w-20`}
+            value={rule.frequencyDays ?? ''}
+            placeholder="default"
+            onChange={e => onRule({ frequencyDays: e.target.value ? Number(e.target.value) : null })}
+          />
+          days <span className="text-gray-400 dark:text-gray-500">— empty: the Rules default. A venue’s own Follow-up Interval still wins.</span>
+        </div>
+      )}
+      {confirming && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-2.5 space-y-2 text-xs text-amber-800 dark:text-amber-300">
+          <p>
+            <span className="font-semibold">“{type}”</span> is{' '}
+            {confirming.rule.length > 0 && <>used in the Rules flow ({confirming.rule.join('; ')})</>}
+            {confirming.rule.length > 0 && confirming.venues > 0 && ' and '}
+            {confirming.venues > 0 && <>set on {confirming.venues} venue{confirming.venues !== 1 ? 's' : ''}</>}.
+            {' '}Deleting it {confirming.rule.length > 0 ? 'turns those venues into ordinary ones' : 'only removes it from the dropdown'} — the venues keep the word.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={onConfirmRemove} className="bg-amber-600 text-white font-medium px-2.5 py-1 rounded-md hover:bg-amber-700">Delete</button>
+            <button type="button" onClick={onCancelRemove} className="px-2.5 py-1 rounded-md border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40">Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

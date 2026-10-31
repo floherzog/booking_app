@@ -53,16 +53,18 @@ describe('web settings', () => {
     expect(s.storage).toMatchObject({ adapter: 'github', github: { repo: 'me/list', path: 'data/list.csv' } })
     expect(s.storage.multiBand.enabled).toBe(false)
     expect(s.openclaw).toEqual({ repo: 'me/claw', path: 'scripts/batch.py' })
-    expect(s.bands.map(b => [b.name, b.tourDates, b.bookFiller])).toEqual([
-      ['Band A', 'May 2027', true],
-      ['Band B', '', false],
+    expect(s.bands.map(b => [b.name, b.tourDates])).toEqual([
+      ['Band A', 'May 2027'],
+      ['Band B', ''],
     ])
+    // "Book filler venues" became the filler type's rule.
+    expect(s.venueTypeRules.filler.bands).toEqual(['Band A'])
     expect(new Set(s.dismissedDupes)).toEqual(new Set(['a:::x|||a:::y', 'b:::x|||b:::y']))
     expect(server.settings.storage.github.repo).toBe('me/list')
   })
 
   it('prefers the server copy, and saves back to it', async () => {
-    const server = { settings: { storage: { github: { repo: 'srv/list', path: 'l.csv' } }, venueTypes: ['main', 'club'] } }
+    const server = { settings: { storage: { github: { repo: 'srv/list', path: 'l.csv' } }, venueTypes: ['main', 'club'], venueTypesVersion: 2 } }
     vi.stubGlobal('fetch', fakeServer(server))
     vi.stubGlobal('localStorage', memoryStorage({ booking_app_config: JSON.stringify({ csvRepo: 'old/list' }) }))
     const { api } = await freshWeb()
@@ -81,7 +83,7 @@ describe('web settings', () => {
     const server = {}
     vi.stubGlobal('fetch', fakeServer(server))
     vi.stubGlobal('localStorage', memoryStorage({
-      booking_settings: JSON.stringify({ storage: { github: { repo: 'me/list', path: 'l.csv' } }, venueTypes: ['main', 'bar'] }),
+      booking_settings: JSON.stringify({ storage: { github: { repo: 'me/list', path: 'l.csv' } }, venueTypes: ['main', 'bar'], venueTypesVersion: 2 }),
       booking_app_config: JSON.stringify({ csvRepo: 'old/list' }),
     }))
     const { api } = await freshWeb()

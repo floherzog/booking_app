@@ -13,7 +13,7 @@ Nothing in this feature ever sends mail, and nothing writes to the venue's
 1. Create an app-specific password at <https://appleid.apple.com> → *Sign-In and
    Security* → *App-Specific Passwords*. Your normal Apple ID password will not
    work; iCloud rejects it outright.
-2. **Settings → Mail**:
+2. **Settings ▸ Mail settings**:
    - IMAP server `imap.mail.me.com`, port `993` (prefilled).
    - Username: your **full** iCloud address, e.g. `you@icloud.com`.
    - App-specific password: paste it. It goes to the macOS keychain, never into

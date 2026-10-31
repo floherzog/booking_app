@@ -62,10 +62,11 @@ A deploy unpacks over the folder and never deletes these.
 
 The first time the new build opens in a browser that used the old one, it
 builds its settings from what the old one left behind: the CSV and OpenClaw
-locations and the bands (with their touring text and filler flag) from
+locations and the bands (with their Dates and filler flag) from
 localStorage, and the dismissed duplicate pairs from the server and
 localStorage. From then on the settings live on the server.
 
 One behaviour is new: a venue of Type `filler` counts as an outreach target only
-for bands with **Book filler venues** ticked (Settings ▸ Bands). Without it the
-venue shows as *Filler (not booking)*.
+for the bands that book filler venues (Settings ▸ Venue types ▸ filler ▸ Booked
+by, or the checkbox on each band in Settings ▸ Bands). For any other band the
+venue shows as *Not for this band*.

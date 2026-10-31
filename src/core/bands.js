@@ -1,6 +1,8 @@
-// A managed band is `{ name, tourDates, bookFiller, mailAccountId }`. `tourDates`
-// is free text (a date range or anything else). Older configs stored bands as
-// bare strings, or as `{ tourStart, tourEnd }` — helpers tolerate all shapes.
+// A managed band is `{ name, tourDates, mailAccountId }`. `tourDates` is free
+// text (a date range or anything else) — the band's Dates. Older configs stored
+// bands as bare strings, or as `{ tourStart, tourEnd }` — helpers tolerate all
+// shapes. The old `bookFiller` flag now lives in the filler type's rule
+// (settings.venueTypeRules), which normalizeSettings migrates it into.
 // `mailAccountId` is empty for a band that sends from the default account, which
 // is every band until a second mail account exists.
 export function bandName(b) {
@@ -10,7 +12,7 @@ export function bandName(b) {
 // Migrate/normalize a stored band list (strings and/or objects) to full objects.
 export function normalizeBands(bands) {
   return (bands || []).map(b => {
-    if (typeof b === 'string') return { name: b, tourDates: '', bookFiller: false, mailAccountId: '' }
+    if (typeof b === 'string') return { name: b, tourDates: '', mailAccountId: '' }
     // Migrate the earlier { tourStart, tourEnd } shape into free-text tourDates.
     let tourDates = b?.tourDates || ''
     if (!tourDates && (b?.tourStart || b?.tourEnd)) {
@@ -19,7 +21,6 @@ export function normalizeBands(bands) {
     return {
       name: b?.name || '',
       tourDates,
-      bookFiller: !!b?.bookFiller,
       mailAccountId: String(b?.mailAccountId || ''),
     }
   })
@@ -38,10 +39,10 @@ export function effectiveBandOptions(rows, managed = []) {
   return [...set].sort((a, b) => a.localeCompare(b))
 }
 
-// Lower-cased names of the bands that book filler venues — what classifyBooking
-// checks a venue of Type "filler" against.
-export function fillerBandSet(bands) {
-  return new Set(normalizeBands(bands).filter(b => b.bookFiller && b.name).map(b => b.name.trim().toLowerCase()))
+// Lower-cased names of the bands that have Dates set — what classifyBooking
+// checks a venue without Dates of its own against.
+export function bandsWithDatesSet(bands) {
+  return new Set(normalizeBands(bands).filter(b => b.name && b.tourDates.trim()).map(b => b.name.trim().toLowerCase()))
 }
 
 // Distinct band values present in the rows (used to seed the managed list on

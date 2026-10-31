@@ -7,8 +7,14 @@
 //   echo '{"names":["Kulturfabrik","Berghain"]}' | article-helper
 //   → {"ok":true,"genders":{"Kulturfabrik":"f","Berghain":"n"}}
 //
+//   echo '{"kind":"firstname","names":["Anna","Thomas","Kim"]}' | article-helper
+//   → {"ok":true,"genders":{"Anna":"f","Thomas":"m","Kim":"x"}}
+//
 //   article-helper --availability
 //   → {"ok":true,"status":"available"}
+//
+// The first-name kind feeds the "Liebe / Lieber" greeting: f, m, or x when the
+// name is used for both or is not a first name at all.
 //
 // Gender is a context-free property of the name, which is why only this part is
 // asked of the model: the result caches permanently, and everything that depends
@@ -21,7 +27,7 @@ import Foundation
 import FoundationModels
 #endif
 
-struct Input: Decodable { var names: [String] }
+struct Input: Decodable { var names: [String]; var kind: String? }
 
 func emit(_ object: [String: Any]) {
     let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
@@ -46,6 +52,23 @@ For a compound noun the gender is that of its final element.
 For an invented or foreign name with no obvious German head noun, answer n.
 Never explain. Never use a capital letter. Never answer with anything else.
 """
+
+let firstNameInstructions = """
+You tell whether a first name is usually given to women or to men, as used in German-speaking countries.
+Reply with exactly one lowercase token and nothing else:
+  f — usually a woman's name (Anna, Julia, Maria)
+  m — usually a man's name (Thomas, Jan, Lukas)
+  x — used for both, unclear, or not a first name at all (Kim, Alex, Team, Booking)
+Never explain. Never use a capital letter. Never answer with anything else.
+"""
+
+func normalizeFirstName(_ raw: String) -> String? {
+    let token = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if token.hasPrefix("f") { return "f" }
+    if token.hasPrefix("m") { return "m" }
+    if token.hasPrefix("x") { return "x" }
+    return nil
+}
 
 func normalize(_ raw: String) -> String? {
     let token = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -91,6 +114,7 @@ let raw = FileHandle.standardInput.readDataToEndOfFile()
 guard let input = try? JSONDecoder().decode(Input.self, from: raw) else {
     fail("bad-input", "Expected {\"names\":[…]} on stdin.")
 }
+let firstNames = input.kind == "firstname"
 
 var genders: [String: String] = [:]
 var failures: [String] = []
@@ -101,9 +125,9 @@ for name in input.names {
     do {
         // A fresh session per name: these are independent questions, and a shared
         // session would carry one venue's answer into the next one's context.
-        let session = LanguageModelSession(instructions: instructions)
+        let session = LanguageModelSession(instructions: firstNames ? firstNameInstructions : instructions)
         let reply = try await session.respond(to: trimmed)
-        if let gender = normalize(reply.content) {
+        if let gender = firstNames ? normalizeFirstName(reply.content) : normalize(reply.content) {
             genders[trimmed] = gender
         } else {
             failures.append(trimmed)

@@ -6,8 +6,8 @@ import {
 import { normalizeSettings } from '@core/settings'
 
 const rows = [
-  { _idx: 0, _status: 'SEND', Venue: 'Jazzfabrik', Band: 'Almost Natural', Country: 'Germany', Email: 'a@b.c', Draft: 'TRUE' },
-  { _idx: 1, _status: 'CONFIRMED', Venue: 'Moldejazz', Band: 'Trillmann', Country: 'Norway', Email: 'm@b.c', 'Last played': '01.07.27' },
+  { _idx: 0, _status: 'SEND', Venue: 'Jazzfabrik', Band: 'Almost Natural', Country: 'Germany', Email: 'a@b.cc', Draft: 'TRUE' },
+  { _idx: 1, _status: 'CONFIRMED', Venue: 'Moldejazz', Band: 'Trillmann', Country: 'Norway', Email: 'm@b.cc', 'Last played': '01.07.27' },
   { _idx: 2, _status: 'NEVER_CONTACTED', Venue: 'Achter', Band: 'Almost Natural', Country: 'Germany', Email: '' },
 ]
 const shown = (f, ctx) => rows.filter(r => matchesFilters(r, f, ctx)).map(r => r._idx)

@@ -26,6 +26,7 @@ export const UNSUPPORTED = {
   pickCsvOpen: 'localFiles',
   pickCsvSave: 'localFiles',
   pickCsvOpenMany: 'localFiles',
+  pickFolder: 'multiBand',
   readCsvFile: 'localFiles',
   writeCsvFile: 'localFiles',
   createCsvFile: 'localFiles',

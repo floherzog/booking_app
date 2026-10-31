@@ -1,6 +1,6 @@
 import { mergeRules, DEFAULT_RULES } from './rules.js'
 import { normalizeBands } from './bands.js'
-import { normalizeVenueTypes, DEFAULT_VENUE_TYPES } from './venueTypes.js'
+import { normalizeVenueTypes, DEFAULT_VENUE_TYPES, normalizeTypeRules, migrateVenueTypes, VENUE_TYPES_VERSION, DEFAULT_TYPE_RULES } from './venueTypes.js'
 import { normalizeAccounts } from './mailAccounts.js'
 import { DEFAULT_TEMPLATE_OPTIONS } from './templates.js'
 import { normalizeFilterChips } from './filterRows.js'
@@ -24,6 +24,9 @@ export const DEFAULT_SETTINGS = {
   rules: DEFAULT_RULES,
   bands: [],
   venueTypes: DEFAULT_VENUE_TYPES,
+  // What each venue type does — see src/core/venueTypes.js.
+  venueTypeRules: DEFAULT_TYPE_RULES,
+  venueTypesVersion: VENUE_TYPES_VERSION,
   templates: DEFAULT_TEMPLATE_OPTIONS,
   languages: {
     default: 'en',
@@ -52,6 +55,9 @@ export const DEFAULT_SETTINGS = {
   },
   dismissedDupes: [],
   draftLog: {},                // 'Venue||City||Band' → ISO timestamp
+  // Venues that keep Dates of their own instead of their band's (see keepKey
+  // in bandDates.js): the band-dates notice leaves them out.
+  keptVenueDates: [],
   // The chips above the list: default ones switched off, and saved filter sets.
   filterChips: { hidden: [], custom: [] },
 }
@@ -79,11 +85,17 @@ export function normalizeSettings(stored) {
     },
     rules: mergeRules(s.rules),
     bands: normalizeBands(s.bands),
-    // An empty/absent list means "never configured" → fall back to the defaults,
-    // so an older settings.json still offers main/festival/dead.
+    // An empty/absent list means "never configured" → fall back to the defaults.
+    // A list from before venue-type rules gets the built-in types added once.
     venueTypes: normalizeVenueTypes(s.venueTypes).length
-      ? normalizeVenueTypes(s.venueTypes)
+      ? migrateVenueTypes(s.venueTypes, s.venueTypesVersion)
       : [...DEFAULT_VENUE_TYPES],
+    // Before rules, "Book filler venues" was a checkbox on each band.
+    venueTypeRules: normalizeTypeRules(
+      s.venueTypeRules,
+      (Array.isArray(s.bands) ? s.bands : []).filter(b => b?.bookFiller && b?.name).map(b => b.name),
+    ),
+    venueTypesVersion: VENUE_TYPES_VERSION,
     templates: {
       ...DEFAULT_TEMPLATE_OPTIONS,
       ...(s.templates || {}),
@@ -111,6 +123,7 @@ export function normalizeSettings(stored) {
     general: { ...DEFAULT_SETTINGS.general, ...(isPlainObject(s.general) ? s.general : {}) },
     dismissedDupes: Array.isArray(s.dismissedDupes) ? s.dismissedDupes : [],
     draftLog: isPlainObject(s.draftLog) ? s.draftLog : {},
+    keptVenueDates: Array.isArray(s.keptVenueDates) ? s.keptVenueDates.filter(k => typeof k === 'string') : [],
     filterChips: normalizeFilterChips(s.filterChips),
   }
 }

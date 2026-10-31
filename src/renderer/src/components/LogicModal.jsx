@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { STATUS_META } from '@core/constants'
-import { buildLogicNodes, describeWindow, describeBatchRule } from '@core/logicTree'
+import { buildLogicNodes, describeWindow, describeBatchRule, TYPE_GATES } from '@core/logicTree'
+import { setTypeRule, typeRuleFor } from '@core/venueTypes'
 import { validateRules } from '@core/rules'
-import { useRules } from '../lib/rulesContext'
+import { useRules, useClassifyCtx } from '../lib/rulesContext'
 import RulesEditor from './RulesEditor'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import { useEscape } from '../lib/useEscape'
 
 // A leaf: either a status outcome (blue-ish status pill) or a "keep going" fall-through.
 function Outcome({ value }) {
@@ -65,7 +67,72 @@ function SubDecision({ sub }) {
   )
 }
 
-function Gate({ node, isLast }) {
+// "Type is [festival ×] [+ type]": the types a gate applies to, as chips. With
+// `onChange` (Settings ▸ Rules ▸ Flow) they can be added and removed, which
+// edits the types' rules — the same ones Settings ▸ Venue types shows.
+function TypeGateQuestion({ node, typeRules, venueTypes = [], bandNames = [], onChange }) {
+  const gate = TYPE_GATES[node.gate]
+  const others = venueTypes.filter(t => !node.types.includes(t.toLowerCase()))
+  const chip = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+        <span>Type is</span>
+        {node.types.length === 0 && <span className="text-gray-400 dark:text-gray-500 font-normal">(no type)</span>}
+        {node.types.map((t, i) => (
+          <span key={t} className="inline-flex items-center gap-1">
+            {i > 0 && <span className="font-normal text-gray-400">or</span>}
+            <span className={chip}>
+              {t}
+              {onChange && (
+                <button type="button" onClick={() => onChange(setTypeRule(typeRules, t, gate.remove))}
+                  className="text-gray-400 hover:text-red-500 leading-none" title={`Take “${t}” out of this gate`} aria-label={`Remove ${t}`}>×</button>
+              )}
+            </span>
+          </span>
+        ))}
+        {onChange && others.length > 0 && (
+          <select
+            value=""
+            onChange={e => e.target.value && onChange(setTypeRule(typeRules, e.target.value, gate.add))}
+            className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-0.5 pl-2 pr-7"
+            aria-label="Add a venue type to this gate"
+          >
+            <option value="">+ type…</option>
+            {others.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+        {node.rest && <span>{node.rest}</span>}
+        <span>?</span>
+      </div>
+      {onChange && node.gate === 'bands' && node.types.map(t => {
+        const booked = typeRuleFor(typeRules, t).bands || []
+        return (
+          <div key={t} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-mono">{t}</span> is booked by
+            {bandNames.length === 0 && <span>— no bands yet</span>}
+            {bandNames.map(name => {
+              const on = booked.some(b => b.toLowerCase() === name.toLowerCase())
+              return (
+                <button key={name} type="button" aria-pressed={on}
+                  onClick={() => onChange(setTypeRule(typeRules, t, {
+                    bands: on ? booked.filter(b => b.toLowerCase() !== name.toLowerCase()) : [...booked, name],
+                  }))}
+                  className={`px-2 py-0.5 rounded-full border transition-colors ${on
+                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'}`}>
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Gate({ node, isLast, typeProps }) {
   return (
     <div className="flex gap-3">
       {/* Trunk: orange decision node + the "no" connector down to the next gate */}
@@ -73,7 +140,9 @@ function Gate({ node, isLast }) {
         <span className="mt-1 w-4 h-4 rounded-full bg-orange-400 dark:bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900/30 z-10" aria-hidden />
         {!isLast && (
           <div className="relative flex-1 w-px bg-gray-300 dark:bg-gray-600 my-1">
-            <span className="absolute top-1/2 left-1.5 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wider text-rose-400 dark:text-rose-400/80">no</span>
+            {/* At the foot of the connector, in the gap between gates, so a tall
+                gate's text never runs into it. */}
+            <span className="absolute bottom-1 left-1.5 text-[9px] font-bold uppercase tracking-wider text-rose-400 dark:text-rose-400/80">no</span>
           </div>
         )}
       </div>
@@ -84,7 +153,9 @@ function Gate({ node, isLast }) {
           <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">
             {node.col}
           </span>
-          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{node.q}?</span>
+          {node.gate
+            ? <TypeGateQuestion node={node} {...typeProps} />
+            : <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{node.q}?</span>}
         </div>
         {node.note && (
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 leading-relaxed">{node.note}</p>
@@ -110,9 +181,13 @@ function Gate({ node, isLast }) {
 }
 
 // The diagram on its own: every venue at the top, then each gate in order.
-// Settings ▸ Rules shows it too, drawn from the numbers being edited there.
-export function LogicFlow({ rules }) {
-  const nodes = buildLogicNodes(rules)
+// Settings ▸ Rules shows it too, drawn from the numbers being edited there, and
+// there the type gates are editable (`onTypeRulesChange`).
+export function LogicFlow({ rules, typeRules, venueTypes, bandNames, onTypeRulesChange }) {
+  const saved = useClassifyCtx().typeRules
+  const activeTypeRules = typeRules || saved
+  const nodes = buildLogicNodes(rules, activeTypeRules)
+  const typeProps = { typeRules: activeTypeRules, venueTypes, bandNames, onChange: onTypeRulesChange }
   return (
     <>
       {/* Root */}
@@ -128,7 +203,7 @@ export function LogicFlow({ rules }) {
       </div>
 
       {nodes.map((node, i) => (
-        <Gate key={i} node={node} isLast={i === nodes.length - 1} />
+        <Gate key={i} node={node} isLast={i === nodes.length - 1} typeProps={typeProps} />
       ))}
     </>
   )
@@ -136,6 +211,7 @@ export function LogicFlow({ rules }) {
 
 export default function LogicModal({ onClose, onSaveRules }) {
   const backdrop = useBackdropClose(onClose)
+  useEscape(onClose)
   const rules = useRules()
   const [tab, setTab] = useState('flow')
   // The diagram renders from the draft, so editing a number redraws the gates it
@@ -229,7 +305,7 @@ export default function LogicModal({ onClose, onSaveRules }) {
                 : ruleErrors.length > 0 ? <span className="text-red-500">{ruleErrors[0]}</span>
                 : savedAt ? <span className="text-emerald-600 dark:text-emerald-400">Saved</span>
                 : dirty ? 'Unsaved changes'
-                : <>{describeWindow(draft)} {describeBatchRule(draft)} "Action needed" = Send + Follow Up + Never Contacted.</>}
+                : <>{describeWindow(draft)} {describeBatchRule(draft)} "Action needed" = Send + Follow up + Never contacted.</>}
             </p>
             {editable && (
               <div className="flex items-center gap-2 shrink-0">

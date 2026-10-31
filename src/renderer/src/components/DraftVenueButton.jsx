@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import RelDate from './RelDate'
 import { prepareDraft, createDraft, createDraftViaAppleScript, sendEmail } from '../lib/drafts'
-import { useGenders } from '../lib/genders'
+import { useGenders, useContactGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
 
 // The per-venue draft action. The IMAP path is primary; the AppleScript one sits
@@ -21,11 +21,14 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
   const needsGender = languageForRow(row, languages) === 'de'
     && (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
   const genderVersion = useGenders([row['Venue']], needsGender)
+  // The contact's first name, for {{greeting}} (Liebe / Lieber, Ms / Mr).
+  const onDevice = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
+  const nameVersion = useContactGenders([row['Contact']], onDevice)
 
   const prepared = useMemo(
     () => prepareDraft(row, templates, languages, settings),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [row, templates, languages, settings, genderVersion],
+    [row, templates, languages, settings, genderVersion, nameVersion],
   )
 
   async function run(fn, successMessage, { sent = false } = {}) {

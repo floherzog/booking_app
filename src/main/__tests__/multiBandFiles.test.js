@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync, renameSync, mkdirSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,7 +8,7 @@ import { join } from 'node:path'
 vi.mock('electron', () => ({ ipcMain: { handle: () => {} }, dialog: {}, BrowserWindow: {} }))
 
 const { readCsvFiles, writeCsvFiles, moveFile, listCsvFiles } = await import('../ipc/storage.js')
-const { planSplit, enableMultiBand, disableMultiBand, planOpenBandFiles, openBandFiles, planNewBandSet, createNewBandSet, planImportBandFiles } = await import('../../renderer/src/lib/multiBandSwitch.js')
+const { planSplit, enableMultiBand, disableMultiBand, planOpenBandFiles, openBandFiles, planNewBandSet, createNewBandSet, planImportBandFiles, planRelocate, relocateBandFiles, forgetBandFiles } = await import('../../renderer/src/lib/multiBandSwitch.js')
 const { getAdapter } = await import('../../renderer/src/lib/storageAdapters.js')
 const { linkVenues, isMultiBand } = await import('../../core/multiBand.js')
 
@@ -191,5 +191,50 @@ describe('importing band files', () => {
   it('sends a file without the app\'s columns to the Import CSV wizard', async () => {
     writeFileSync(join(dir, 'foreign.csv'), 'Name,Ort\nClub,Bremen\n')
     await expect(planImportBandFiles([join(dir, 'foreign.csv')])).rejects.toThrow(/Import CSV/)
+  })
+})
+
+describe('a folder that is gone', () => {
+  it('is created again on save instead of failing on the temp file', async () => {
+    const gone = join(dir, 'thomas csv')
+    const path = join(gone, 'x-unassigned.csv')
+    await writeCsvFiles({ files: [{ path, text: 'Venue;Band\n', expectedMtimeMs: null }] })
+    expect(readFileSync(path, 'utf8')).toBe('Venue;Band\n')
+    expect(readdirSync(gone)).toEqual(['x-unassigned.csv'])
+  })
+})
+
+describe('band files in another folder', () => {
+  it('follows a folder that was moved in Finder', async () => {
+    settings = { ...settings, storage: await enableMultiBand(settings) }
+    const moved = join(dir, 'moved')
+    mkdirSync(moved)
+    for (const n of readdirSync(dir).filter(n => n.endsWith('.csv'))) renameSync(join(dir, n), join(moved, n))
+    expect((await loadAll(settings)).rows).toEqual([])
+
+    const plan = await planRelocate(settings, moved)
+    expect(plan.found.sort()).toEqual(['booking-Alpha.csv', 'booking-Beta.csv', 'booking-Gamma.csv', 'booking-unassigned.csv'])
+    expect(plan.toMove).toEqual([])
+    settings = { ...settings, storage: await relocateBandFiles(settings, plan) }
+    expect(settings.storage.multiBand.dir).toBe(moved)
+    expect(settings.storage.multiBand.sourcePath).toBe(join(moved, 'booking.csv'))
+    expect((await loadAll(settings)).rows).toHaveLength(3)
+  })
+
+  it('moves the files to a folder chosen for them', async () => {
+    settings = { ...settings, storage: await enableMultiBand(settings) }
+    const target = join(dir, 'Tour 2027')
+    const plan = await planRelocate(settings, target)
+    expect(plan.toMove).toHaveLength(4)
+    settings = { ...settings, storage: await relocateBandFiles(settings, plan) }
+    expect(readdirSync(target).sort()).toEqual(['booking-Alpha.csv', 'booking-Beta.csv', 'booking-Gamma.csv', 'booking-unassigned.csv'])
+    expect((await loadAll(settings)).rows).toHaveLength(3)
+  })
+
+  it('can let go of band files that are gone, back to the single CSV', async () => {
+    settings = { ...settings, storage: await enableMultiBand(settings) }
+    const storage = forgetBandFiles(settings)
+    expect(storage.multiBand.enabled).toBe(false)
+    expect(storage.filePath).toBe(join(dir, 'booking.csv'))
   })
 })

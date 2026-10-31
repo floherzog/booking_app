@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bandDateGaps, gapsKey } from '@core/bandDates'
+import { bandDateGaps, gapsKey, keepKey, datesSuggestions, agreedDates } from '@core/bandDates'
 
 const bands = [
   { name: 'Trillmann', tourDates: '12. - 20.9.26' },
@@ -44,5 +44,42 @@ describe('gapsKey', () => {
     const c = bandDateGaps([row(0, 'Trillmann', '', 'A'), row(1, 'Trillmann', 'y', 'B')], bands)
     expect(gapsKey(a)).toBe(gapsKey(b))
     expect(gapsKey(a)).not.toBe(gapsKey(c))
+  })
+})
+
+describe('keeping a venue on its own dates', () => {
+  it('drops a kept mismatch until either side changes', () => {
+    const rows = [row(1, 'Trillmann', '1. - 5.10.26')]
+    const gap = bandDateGaps(rows, bands).mismatch[0]
+    expect(bandDateGaps(rows, bands, [keepKey(gap)]).mismatch).toEqual([])
+    expect(bandDateGaps(rows, [{ name: 'Trillmann', tourDates: 'Mai 2027' }], [keepKey(gap)]).mismatch).toHaveLength(1)
+  })
+})
+
+describe('datesSuggestions', () => {
+  const today = new Date(2026, 9, 30)
+  const rows = [
+    row(0, 'Trillmann', 'Mar - Apr 2027'),
+    row(1, 'Trillmann', 'Mar – Apr 2027'),
+    row(2, 'Trillmann', 'mar-apr 2027'),
+    row(3, 'Trillmann', '1. - 5.10.26'),
+    row(4, 'Trillmann', '1. - 5.10.26'),
+    row(5, 'Trillmann', 'Spring tour'),
+    row(6, 'Trillmann', ''),
+    row(7, 'Other', 'Mai 2027'),
+  ]
+
+  it('lists each distinct value once with its count, past dates last', () => {
+    expect(datesSuggestions(rows, 'Trillmann', today)).toEqual([
+      { text: 'Mar - Apr 2027', count: 3, past: false },
+      { text: 'Spring tour', count: 1, past: false },
+      { text: '1. - 5.10.26', count: 2, past: true },
+    ])
+  })
+
+  it('fills in a band’s Dates on its own only when its venues agree', () => {
+    expect(agreedDates(rows, 'Other')).toBe('Mai 2027')
+    expect(agreedDates(rows, 'Trillmann')).toBe('')
+    expect(agreedDates(rows, 'Nobody')).toBe('')
   })
 })

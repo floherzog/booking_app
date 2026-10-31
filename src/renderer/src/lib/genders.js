@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../platform'
+import { firstNameOf } from '@core/templates'
 
 // Renderer-side mirror of the main process's venue-gender cache.
 //
@@ -11,6 +12,8 @@ import { api } from '../platform'
 // mirror of it rather than hidden state.
 
 let registry = {}
+// The same for contacts' first names ('f' | 'm' | 'x'), for {{greeting}}.
+let names = {}
 
 export function genderOf(venue) {
   const key = String(venue || '').trim()
@@ -66,6 +69,55 @@ export function useGenders(venues, enabled = true) {
     if (!enabled || !key) return
     let cancelled = false
     ensureGenders(key.split('|')).then(r => {
+      if (!cancelled && r?.added) setVersion(v => v + 1)
+    })
+    return () => { cancelled = true }
+  }, [key, enabled])
+
+  return version
+}
+
+// --- first names, for "Liebe / Lieber" ---------------------------------------
+
+export function contactGenderOf(contact) {
+  const first = firstNameOf(contact)
+  return (first && names[first]) || null
+}
+
+export async function ensureContactGenders(contacts = []) {
+  const wanted = [...new Set(contacts.map(firstNameOf).filter(Boolean))]
+  const unknown = wanted.filter(n => !(n in names))
+  if (unknown.length === 0) return { ok: true, added: 0 }
+  try {
+    const result = await api.resolveGenders(unknown, 'firstname')
+    if (result?.genders) names = { ...names, ...result.genders }
+    return { ok: !!result?.ok, added: Object.keys(result?.genders || {}).length }
+  } catch (e) {
+    return { ok: false, error: e.message, added: 0 }
+  }
+}
+
+// gender '' clears the correction and lets the model answer again.
+export async function overrideContactGender(contact, gender) {
+  const first = firstNameOf(contact)
+  if (!first) return { ok: false }
+  const result = await api.setGenderOverride(first, gender, 'firstname')
+  if (result?.ok) {
+    if (gender) names = { ...names, [first]: gender }
+    else { const next = { ...names }; delete next[first]; names = next }
+  }
+  return result
+}
+
+// useGenders for contacts: resolve the first names of exactly these contacts.
+export function useContactGenders(contacts, enabled = true) {
+  const [version, setVersion] = useState(0)
+  const key = enabled ? contacts.filter(Boolean).join('|') : ''
+
+  useEffect(() => {
+    if (!enabled || !key) return
+    let cancelled = false
+    ensureContactGenders(key.split('|')).then(r => {
       if (!cancelled && r?.added) setVersion(v => v + 1)
     })
     return () => { cancelled = true }

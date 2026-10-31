@@ -22,11 +22,11 @@ Mail drafts have their own, longer checklist: **[VERIFY-MAIL.md](VERIFY-MAIL.md)
 - [ ] **Conflict guard** — with the app open, edit the CSV in another editor and
       save it. Then make an edit in the app and press Save: it should refuse
       with "the file changed on disk" and offer *Overwrite anyway*.
-- [ ] **GitHub adapter** — Settings → Storage → GitHub, on a throwaway repo with
+- [ ] **GitHub adapter** — Settings ▸ Data & storage ▸ GitHub, on a throwaway repo with
       a test CSV and a token. Load, edit, Save, then confirm the commit landed
       with the right content. Restart: the token is still stored (keychain) and
       no token appears anywhere in `settings.json`.
-- [ ] **Export** — Settings → Data → Export CSV writes a copy to the chosen
+- [ ] **Export** — Settings ▸ Data & storage ▸ Export CSV writes a copy to the chosen
       location, byte-identical in format to the source.
 - [ ] **Import wizard** — feed it a **comma**-delimited CSV with differently
       named headers. The wizard should auto-map most columns via its aliases;
@@ -35,7 +35,7 @@ Mail drafts have their own, longer checklist: **[VERIFY-MAIL.md](VERIFY-MAIL.md)
 
 ## Rules
 
-- [ ] Settings → Rules → set **Next batch size** to 3. The Next-batch chip count
+- [ ] Settings ▸ Rules ▸ set **Next batch size** to 3. The Next-batch chip count
       drops to 3 immediately, without a reload.
 - [ ] Add a hold keyword that appears in one venue's Note. That venue flips to
       **On Hold**, and the keyword shows up in the ⓘ Logic modal's keyword list.
@@ -54,14 +54,14 @@ Mail drafts have their own, longer checklist: **[VERIFY-MAIL.md](VERIFY-MAIL.md)
 
 ## Appearance
 
-- [ ] Settings → General → Light / Dark / System. The whole window follows,
+- [ ] Settings ▸ General ▸ Light / Dark / System. The whole window follows,
       including the table, modals and the map controls.
 - [ ] The theme survives a relaunch, and is not written into `settings.json`
       (it is deliberately a per-Mac preference).
 
 ## Templates
 
-- [ ] Settings → Templates → *Manage email templates…* → create a `de` and an
+- [ ] Settings ▸ Mail templates ▸ *Manage email templates…* → create a `de` and an
       `en` template for one band, each with `{{venue}}` in the subject and
       `{{contact}}` in the body.
 - [ ] Insert an image; it renders in the editor and in the preview.
@@ -120,7 +120,7 @@ above all others:
 - [ ] ▶ asks for a YouTube URL, fetches the thumbnail, and inserts it at roughly
       the size Apple Mail gives its own link previews. A Vimeo URL is refused
       with a readable message.
-- [ ] Settings ▸ Templates ▸ Video links — with both options on, an inserted
+- [ ] Settings ▸ Mail templates ▸ Video links — with both options on, an inserted
       video shows a centred play button on the thumbnail *and* the "▶ Title"
       line under it.
 - [ ] Turn off **Text link under the thumbnail**, insert another video: bare
@@ -139,7 +139,7 @@ above all others:
 - [ ] Click the dimmed area outside the panel — nothing closes.
 - [ ] With unsaved edits the left button reads *Discard & close*; with none it
       reads *Close*.
-- [ ] Settings ▸ Templates ▸ *Manage email templates…* → the manager shows
+- [ ] Settings ▸ Mail templates ▸ *Manage email templates…* → the manager shows
       **← Settings**, which returns to the panel. Editing a template shows
       **← Templates**. Opening the manager from the toolbar shows neither.
 - [ ] Settings ▸ Data ▸ *Import CSV* → same **← Settings**, and the wizard's own
@@ -147,7 +147,7 @@ above all others:
 
 ## Sending and scheduling
 
-- [ ] Settings ▸ Mail: SMTP server/port are prefilled; *Test connection* still
+- [ ] Settings ▸ Mail settings: SMTP server/port are prefilled; *Test connection* still
       only tests IMAP.
 - [ ] ✉ Drafts ▸ **Auto column decides**: rows flagged `Auto` show a red *send*
       badge, the rest *draft*, and the button reads "Send n, draft m".
@@ -183,7 +183,7 @@ above all others:
 ## Import as the source of truth
 
 - [ ] Import a CSV as *Replace the table* with **Use this file as my CSV from now
-      on** ticked → Settings ▸ Storage now points at that file, Save writes to
+      on** ticked → Settings ▸ Data & storage now points at that file, Save writes to
       it, and relaunching loads from it.
 - [ ] The same import with the box unticked leaves Storage pointing where it was,
       and Save writes the imported rows into the old file.
@@ -192,7 +192,7 @@ above all others:
 
 ## Contact fallback
 
-- [ ] Settings ▸ Templates: set the German fallback to `{{venue}} Team`.
+- [ ] Settings ▸ Mail templates: set the German fallback to `{{venue}} Team`.
       Preview a German venue **with no Contact** — the greeting reads
       "Kulturzentrum Team", and the "Empty for this venue" warning no longer
       lists `{{contact}}`.

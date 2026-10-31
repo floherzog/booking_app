@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
-import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, describeStatus } from '@core/constants'
+import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOnlineForm, describeStatus } from '@core/constants'
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
-import { useRules } from '../lib/rulesContext'
+import { useRules, useClassifyCtx } from '../lib/rulesContext'
 
 // Three kinds of chip, three shapes (Filter / Chips ▸ Chips / saved filters explains them too):
 // - status pills (round): one per status. Every venue has exactly one status,
@@ -30,10 +30,18 @@ const SHORTCUT_STYLE = {
     on: 'bg-rose-500 text-white border-rose-500 dark:bg-rose-500 dark:border-rose-500',
     off: 'bg-transparent text-rose-600 border-rose-300 hover:border-rose-400 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-800 dark:hover:border-rose-600 dark:hover:bg-rose-900/20',
   },
+  onlineForm: {
+    on: 'bg-cyan-600 text-white border-cyan-600 dark:bg-cyan-500 dark:border-cyan-500',
+    off: 'bg-transparent text-cyan-700 border-cyan-300 hover:border-cyan-400 hover:bg-cyan-50 dark:text-cyan-400 dark:border-cyan-800 dark:hover:border-cyan-600 dark:hover:bg-cyan-900/20',
+  },
   autoSend: {
     on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
     off: 'bg-transparent text-teal-600 border-teal-300 hover:border-teal-400 hover:bg-teal-50 dark:text-teal-400 dark:border-teal-800 dark:hover:border-teal-600 dark:hover:bg-teal-900/20',
   },
+}
+const SHORTCUT_TITLES = {
+  missingInfo: 'Venues with something missing — everything behind the “Missing info” status, plus a missing contact or location, which don’t stop an email.',
+  onlineForm: 'Venues that only take enquiries through a form on their website. They keep their status but are never drafted.',
 }
 // Shown even with nothing in them; the others only once they have a venue.
 const ALWAYS_SHOWN = new Set(['actionOnly', 'nextBatch'])
@@ -98,6 +106,7 @@ export const columnLabel = key => ADVANCED_COLUMNS.find(c => c.key === key)?.lab
 
 export default function StatsBar({ rows, filters, onChange, duplicateCount, isDuplicate, chips }) {
   const rules = useRules()
+  const classify = useClassifyCtx()
   const hidden = useMemo(() => new Set(chips?.hidden || []), [chips])
   const custom = chips?.custom || []
 
@@ -109,15 +118,16 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
       actionOnly: rows.filter(r => ACTION_STATUSES.has(r._status)).length,
       // Next batch folds in manually flagged "Draft" venues (see row dots).
       nextBatch: rows.filter(r => r._nextBatch || r['Draft'] === 'TRUE').length,
-      missingInfo: rows.filter(r => getMissingFields(r).length > 0).length,
+      missingInfo: rows.filter(r => getMissingFields(r, classify).length > 0).length,
+      onlineForm: rows.filter(isOnlineForm).length,
       duplicate: duplicateCount,
       autoSend: rows.filter(r => r['Auto'] === 'TRUE').length,
     }
-  }, [rows, duplicateCount])
+  }, [rows, duplicateCount, classify])
 
   const customCounts = useMemo(
-    () => custom.map(c => rows.filter(r => matchesFilters(r, c.filters, { isDuplicate })).length),
-    [custom, rows, isDuplicate],
+    () => custom.map(c => rows.filter(r => matchesFilters(r, c.filters, { isDuplicate, classify })).length),
+    [custom, rows, isDuplicate, classify],
   )
 
   const activeStatus = filters.status
@@ -144,6 +154,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
         {shortcuts.map(s => (
           <ShortcutChip
             key={s.key} shortcut={s.key} label={s.label} count={counts[s.key]} active={!!filters[s.key]}
+            title={SHORTCUT_TITLES[s.key]}
             onClick={() => onChange(f => toggleShortcut(f, s.key))}
           />
         ))}

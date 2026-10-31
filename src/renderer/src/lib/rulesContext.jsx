@@ -13,3 +13,16 @@ export function RulesProvider({ rules, children }) {
 export function useRules() {
   return useContext(RulesContext)
 }
+
+// The classify context (venue-type rules, bands with Dates or templates — see
+// classifyContext in core/classify.js), for the components that say why a
+// venue is missing info.
+const ClassifyContext = createContext({})
+
+export function ClassifyProvider({ value, children }) {
+  return <ClassifyContext.Provider value={value || {}}>{children}</ClassifyContext.Provider>
+}
+
+export function useClassifyCtx() {
+  return useContext(ClassifyContext)
+}

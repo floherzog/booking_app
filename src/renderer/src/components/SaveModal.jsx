@@ -1,14 +1,10 @@
 import { useState, useRef } from 'react'
-import { ADVANCED_COLUMNS } from '@core/constants'
+import { ADVANCED_COLUMNS, fieldLabel } from '@core/constants'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import { useEscape } from '../lib/useEscape'
 import EditableCell from './EditableCell'
 
-const FIELD_LABELS = {
-  'Last emailed': 'Last Emailed',
-  'Follow Up Date': 'Follow Up Date',
-  'Time Frame': 'Time Frame',
-}
-function label(f) { return FIELD_LABELS[f] || f }
+const label = fieldLabel
 const DATE_FIELDS = new Set(ADVANCED_COLUMNS.filter(c => c.type === 'date').map(c => c.key))
 // "Kulturfabrik · Band A": in multi-band mode one venue has a line per band, and
 // the list has to say which one changed. Harmless in normal mode.
@@ -22,6 +18,7 @@ function venueLabel(row, idx) {
 // dropped (onDiscard).
 export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose, onEdit, onRevert, onDiscard }) {
   const backdrop = useBackdropClose(onClose)
+  useEscape(onClose)
   const [pushing, setPushing] = useState(false)
   const [error, setError] = useState('')
   const [confirmDiscard, setConfirmDiscard] = useState(false)

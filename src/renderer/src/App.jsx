@@ -1,22 +1,22 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
-import { classifyBooking } from '@core/classify'
+import { classifyBooking, classifyContext, classifyContextKey } from '@core/classify'
 import { getSettings, saveSettings } from './lib/config'
 import { APP_COLUMNS, getMissingSeverity } from '@core/constants'
-import { effectiveBandOptions, bandsFromRows, normalizeBands, fillerBandSet } from '@core/bands'
+import { effectiveBandOptions, bandsFromRows, normalizeBands } from '@core/bands'
 import { effectiveTypeOptions } from '@core/venueTypes'
 import { computeNextBatch } from '@core/nextBatch'
 import { computeDuplicates, dismissPair } from '@core/duplicates'
-import { bandDateGaps, gapsKey } from '@core/bandDates'
+import { bandDateGaps, gapsKey, agreedDates, keepKey } from '@core/bandDates'
 import { EMPTY_FILTERS, matchesFilters, normalizeFilterChips } from '@core/filterRows'
 import { linkVenues, reconcileShared, isMultiBand, isSharedField, SHARED_FIELDS } from '@core/multiBand'
-import { enableMultiBand, disableMultiBand, openBandFiles, createNewBandSet } from './lib/multiBandSwitch'
+import { enableMultiBand, disableMultiBand, openBandFiles, createNewBandSet, relocateBandFiles, forgetBandFiles } from './lib/multiBandSwitch'
 import { mergeRules } from '@core/rules'
-import { RulesProvider } from './lib/rulesContext'
+import { RulesProvider, ClassifyProvider } from './lib/rulesContext'
 import { getAdapter, isStorageConfigured } from './lib/storageAdapters'
 import FirstRun from './components/FirstRun'
 import { syncFromMail, mailSyncEnabled } from './lib/mailSync'
 import { listTemplates } from './lib/templates'
-import { draftKey, draftedAt, createDraft, prepareDraft, deliverPrepared } from './lib/drafts'
+import { draftKey, draftedAt, createDraft, prepareDraft, deliverPrepared, resolveForDraft } from './lib/drafts'
 import { selectRows, deliveryForRow } from '@core/delivery'
 import { formatDateDDMMYY } from '@core/parseDate'
 import StatsBar from './components/StatsBar'
@@ -34,6 +34,7 @@ import { useInlinePrompt } from './components/InlinePrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
 import BandDatesBanner from './components/BandDatesBanner'
+import ActionDock from './components/ActionDock'
 import { api, caps } from './platform'
 import { checkOpenclawPolicy } from './lib/policySync'
 
@@ -98,12 +99,18 @@ export default function App() {
   const today = useMemo(() => new Date(), [])
   const rules = useMemo(() => mergeRules(settings?.rules), [settings])
   const multiBand = isMultiBand(settings)
-  // Bands that book filler venues: a venue of Type "filler" only counts as an
-  // outreach target for these. Keyed on the names, so it is stable across
-  // unrelated settings changes and the reclassify effect below runs only when
-  // the set really changes.
-  const fillerKey = [...fillerBandSet(settings?.bands)].sort().join('\n')
-  const classifyCtx = useMemo(() => ({ fillerBands: new Set(fillerKey ? fillerKey.split('\n') : []) }), [fillerKey])
+  // What classifying needs beyond the rules: the venue-type rules, which bands
+  // have Dates, and — once the app has templates of its own — which bands have
+  // one. A list drafted elsewhere (OpenClaw) has no templates here, so then
+  // nothing is held back for want of one. Keyed, so the reclassify effect below
+  // runs only when the context really changes.
+  const templatesForCtx = caps.mail && templates.length ? templates : null
+  const templatesRef = useRef(templatesForCtx)
+  templatesRef.current = templatesForCtx
+  const ctxNow = classifyContext(settings, templatesForCtx)
+  const ctxKey = classifyContextKey(ctxNow)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const classifyCtx = useMemo(() => ctxNow, [ctxKey])
 
   // Single writer for the settings file: persist, then adopt whatever main
   // actually stored (it re-applies defaults and merges the rules).
@@ -130,9 +137,10 @@ export default function App() {
       setMissingFile(null)
       setNeedsToken(false)
       const multi = isMultiBand(s)
-      const classified = linkVenues(raw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, activeRules, { fillerBands: fillerBandSet(s.bands) }) })), multi)
+      const ctx = classifyContext(s, templatesRef.current)
+      const classified = linkVenues(raw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, activeRules, ctx) })), multi)
       const nextBatchSet = computeNextBatch(classified, today, activeRules)
-      const loaded = classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) }))
+      const loaded = classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, ctx) }))
       setRows(loaded)
       // Band files that disagree about a venue's shared data (edited outside the
       // app, or separate rows before the split) are made to agree — staged, like
@@ -142,7 +150,12 @@ export default function App() {
       for (const f of fixes) staged[f._idx] = { ...staged[f._idx], [f.field]: f.value }
       setEdits(staged)
       const notes = []
-      if (missing.length) notes.push(`Missing band file${missing.length !== 1 ? 's' : ''} ${missing.join(', ')} — treated as empty and recreated on the next Save.`)
+      const bandFiles = multi ? Object.keys(s.storage.multiBand.files || {}).length + 1 : 0
+      if (multi && missing.length >= bandFiles) {
+        notes.push(`The band files folder ${s.storage.multiBand.dir} is gone (moved, renamed or deleted), so the list is empty. In Settings ▸ Data & storage, choose where it is now, or switch back to a single CSV.`)
+      } else if (missing.length) {
+        notes.push(`Missing band file${missing.length !== 1 ? 's' : ''} ${missing.join(', ')} — treated as empty and recreated on the next Save.`)
+      }
       if (fixes.length) notes.push(`${new Set(fixes.map(f => f._idx)).size} band entr${fixes.length !== 1 ? 'ies' : 'y'} had venue details that differed from the same venue's other bands — staged the most recently emailed version for review. Save to apply.`)
       if (notes.length) setSyncNote(notes.join(' '))
       setDeletions(new Set())
@@ -150,7 +163,9 @@ export default function App() {
       setLastFetched(new Date())
       // One-time seed of the managed band list from bands already in the CSV.
       if (!s.bands || s.bands.length === 0) {
-        const seeded = bandsFromRows(raw).map(name => ({ name, tourDates: '', bookFiller: false }))
+        // A band's Dates are filled in only when all its venues agree on them;
+        // otherwise Settings ▸ Bands offers what the venues have.
+        const seeded = bandsFromRows(raw).map(name => ({ name, tourDates: agreedDates(raw, name) }))
         if (seeded.length) await persist({ ...s, bands: seeded })
       }
       // Handed back so a caller that loads and then adds to the list (importing
@@ -192,6 +207,7 @@ export default function App() {
       return
     }
     const picked = selectRows(job.recipe.source, { rows, filteredRows })
+    await resolveForDraft(picked, settings)
     const results = []
     for (const row of picked) {
       const delivery = deliveryForRow(row, job.recipe.mode)
@@ -326,8 +342,8 @@ export default function App() {
     refreshTemplates()
   }, [refreshTemplates])
 
-  // Reclassify in place whenever the rules change — or which bands book filler
-  // venues — so the edit shows up on the badges and the next-batch chip
+  // Reclassify in place whenever the rules change — or the venue-type rules,
+  // band Dates or templates — so the edit shows up on the badges and the next-batch chip
   // immediately, no reload needed.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -335,7 +351,7 @@ export default function App() {
       if (prev.length === 0) return prev
       const reclassified = prev.map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
       const nextBatchSet = computeNextBatch(reclassified, today, rules)
-      return reclassified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) }))
+      return reclassified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) }))
     })
   }, [rules, today, classifyCtx])
 
@@ -347,8 +363,8 @@ export default function App() {
     checkOpenclawPolicy({ openclaw: JSON.parse(openclawKey) }, rules).then(setPolicyDrift).catch(() => {})
   }, [openclawKey, rules])
 
-  // When a band's touring dates or filler flag change in Settings, offer to push
-  // those values onto that band's venue rows (Dates / filler columns). Applied as
+  // When a band's Dates change in Settings, offer to push them onto that band's
+  // venue rows (Dates column). Applied as
   // normal unsaved edits — they reach the CSV only via the existing Save flow.
   function propagateBandChanges(oldBands, newBands) {
     // Multi-band mode: a band renamed in place (same position in the list, the
@@ -377,13 +393,6 @@ export default function App() {
       if (nb.tourDates !== ob.tourDates && nb.tourDates) {
         if (window.confirm(`Set the "Dates" column for ${matching.length} "${nb.name}" venue(s) to "${nb.tourDates}"?`)) {
           matching.forEach(r => handleEdit(r._idx, 'Dates', nb.tourDates))
-        }
-      }
-
-      if (nb.bookFiller !== ob.bookFiller) {
-        const label = nb.bookFiller ? 'TRUE' : 'empty'
-        if (window.confirm(`Set the "filler" column to ${label} for ${matching.length} "${nb.name}" venue(s)?`)) {
-          matching.forEach(r => handleEdit(r._idx, 'filler', nb.bookFiller ? 'TRUE' : ''))
         }
       }
     }
@@ -432,6 +441,18 @@ export default function App() {
   async function handleOpenBandFiles(plan) {
     if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
     return switchStorage(await openBandFiles(settings, plan))
+  }
+
+  // The band files' folder moved (or should): see planRelocate.
+  async function handleRelocateBandFiles(plan) {
+    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    return switchStorage(await relocateBandFiles(settings, plan))
+  }
+
+  // Band files that are gone: back to the single CSV, without merging.
+  async function handleForgetBandFiles() {
+    if (editCount > 0) throw new Error('Save or discard your unsaved changes first.')
+    return switchStorage(forgetBandFiles(settings))
   }
 
   // Start a new, empty set of band files somewhere else; the current files stay.
@@ -491,6 +512,7 @@ export default function App() {
   async function handleQuickDraft(row) {
     setDraftingIdx(row._idx)
     try {
+      await resolveForDraft([row], settings)
       await createDraft(row, templates, settings.languages, settings)
       setDraftResults(prev => ({ ...prev, [row._idx]: { ok: true } }))
       await recordDraft(row)
@@ -524,7 +546,7 @@ export default function App() {
           && !deletions.has(r._idx) && (edits[r._idx]?.['Band'] ?? r['Band']) === value)
         if (clash) { setError(`${originalRow['Venue'] || 'This venue'} already has ${value}.`); return }
       }
-      // Swapping a venue's band also fills its Dates from that band's touring
+      // Swapping a venue's band also fills its Dates from that band's Dates
       // text (only when the band has one — never wipe an existing Dates value).
       const band = (settings?.bands || []).find(b => b.name === value)
       if (band?.tourDates) changes.push([rowIndex, 'Dates', band.tourDates])
@@ -564,7 +586,7 @@ export default function App() {
     }
     const reclassified = updatedRows.map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
     const nextBatchSet = computeNextBatch(reclassified, today, rules)
-    setRows(reclassified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) })))
+    setRows(reclassified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) })))
     setEdits({})
     setDeletions(new Set())
     setAdditions(new Set())
@@ -591,7 +613,7 @@ export default function App() {
     // replace
     const classified = linkVenues(importedRaw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, rules, classifyCtx) })), multiBand)
     const nextBatchSet = computeNextBatch(classified, today, rules)
-    setRows(classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) })))
+    setRows(classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) })))
     setEdits({})
     setDeletions(new Set())
     setAdditions(new Set())
@@ -609,7 +631,7 @@ export default function App() {
     const appended = importedRaw.map((r, i) => ({ ...r, _idx: nextIdx + i }))
     const merged = linkVenues([...baseRows, ...appended], multi).map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
     const nextBatchSet = computeNextBatch(merged, today, rules)
-    setRows(merged.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r) })))
+    setRows(merged.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) })))
     setAdditions(prev => new Set([...prev, ...appended.map(r => r._idx)]))
     return appended.length
   }
@@ -643,7 +665,7 @@ export default function App() {
       _idx: newIdx,
       _venueId: row._venueId,
     }
-    const classifiedEntry = { ...entry, _status: classifyBooking(entry, today, rules, classifyCtx), _nextBatch: false, _missingSeverity: getMissingSeverity(entry) }
+    const classifiedEntry = { ...entry, _status: classifyBooking(entry, today, rules, classifyCtx), _nextBatch: false, _missingSeverity: getMissingSeverity(entry, classifyCtx) }
     setRows(prev => [...prev, classifiedEntry])
     setAdditions(prev => new Set([...prev, newIdx]))
     return newIdx
@@ -661,14 +683,7 @@ export default function App() {
   }
 
   // --- Bulk (multi-venue) edit -----------------------------------------------
-  function toggleRowSelect(idx) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(idx)) next.delete(idx)
-      else next.add(idx)
-      return next
-    })
-  }
+  // Rows are picked in the table (click, shift-click, drag — see useDragSelect).
 
   // Select or clear all currently-filtered rows at once (header checkbox).
   function toggleAllSelect(idxs, checked) {
@@ -731,7 +746,7 @@ export default function App() {
       _venueId: `new${newIdx}`,
       _status: classifyBooking({}, today, rules, classifyCtx),
       _nextBatch: false,
-      _missingSeverity: getMissingSeverity({}),
+      _missingSeverity: getMissingSeverity({}, classifyCtx),
     }
     setRows(prev => [...prev, emptyRow])
     setVenueDetail(newIdx)
@@ -814,16 +829,20 @@ export default function App() {
   const isDuplicate = useCallback(r => duplicateSet.has(venueRep.get(r._venueId)), [duplicateSet, venueRep])
   const liveRows = useMemo(() => rows.filter(r => !deletions.has(r._idx)), [rows, deletions])
   const filteredRows = useMemo(
-    () => liveRows.filter(r => matchesFilters(r, filters, { isDuplicate })),
-    [liveRows, filters, isDuplicate],
+    () => liveRows.filter(r => matchesFilters(r, filters, { isDuplicate, classify: classifyCtx })),
+    [liveRows, filters, isDuplicate, classifyCtx],
   )
 
-  // Venues whose Dates have fallen out of step with their band's touring dates —
+  // Venues whose Dates have fallen out of step with their band's Dates —
   // judged on what the table shows, so a fix (or any edit) clears it at once.
   const dateGaps = useMemo(
-    () => bandDateGaps(rows.filter(r => !deletions.has(r._idx)).map(r => ({ ...r, ...(edits[r._idx] || {}) })), settings?.bands),
+    () => bandDateGaps(rows.filter(r => !deletions.has(r._idx)).map(r => ({ ...r, ...(edits[r._idx] || {}) })), settings?.bands, settings?.keptVenueDates),
     [rows, edits, deletions, settings],
   )
+  // "Keep" on one venue: it stays on its own dates.
+  function keepVenueDates(gap) {
+    persist({ ...settings, keptVenueDates: [...(settings.keptVenueDates || []), keepKey(gap)] })
+  }
   const dateGapsKey = gapsKey(dateGaps)
   const [dismissedDateGaps, setDismissedDateGaps] = useState(() => {
     try { return localStorage.getItem('dismissedBandDates') } catch { return null }
@@ -917,7 +936,6 @@ export default function App() {
       ) : (
         <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">Discard</button>
       ))}
-      {caps.mail && <button onClick={() => setShowBulkDraft(true)} className={iconBtn} title="Create drafts in Mail">✉</button>}
       <button onClick={() => setShowLogic(true)} className={iconBtn} title="How venues are classified">ⓘ</button>
       <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : '↻'}</button>
       <button onClick={() => setShowSettings(true)} className={iconBtn} title="Settings">{SlidersIcon}</button>
@@ -926,6 +944,7 @@ export default function App() {
 
   return (
     <RulesProvider rules={rules}>
+    <ClassifyProvider value={classifyCtx}>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {promptNode}
       <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl space-y-2">
@@ -935,6 +954,7 @@ export default function App() {
             gaps={dateGaps}
             onApply={gaps => applyEdits(gaps.map(g => [g.idx, 'Dates', g.want]))}
             onOpenVenue={setVenueDetail}
+            onKeep={keepVenueDates}
             onDismiss={dismissDateGaps}
           />
         )}
@@ -973,7 +993,6 @@ export default function App() {
                 )}
               </>
             )}
-            {caps.mail && <button onClick={() => setShowBulkDraft(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Create drafts in Mail for several venues">✉ Drafts</button>}
             <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="How venues are classified">ⓘ Logic</button>
             <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? 'Reload the CSV and check the mail account' : 'Reload the CSV'} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? 'Loading…' : syncing ? 'Checking mail…' : '↻'}</button>
             <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Settings">⚙</button>
@@ -1051,13 +1070,6 @@ export default function App() {
                   {editCount > 0 && (
                     <span className="text-amber-600 dark:text-amber-400 font-medium">{editCount} unsaved edit{editCount !== 1 ? 's' : ''}</span>
                   )}
-                  {/* Low-key desktop-only bulk-edit toggle */}
-                  <button
-                    onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-                    className="hidden sm:inline text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline decoration-dotted underline-offset-2"
-                  >
-                    {selectMode ? `Done${selected.size ? ` (${selected.size})` : ''}` : 'Select'}
-                  </button>
                 </div>
                 {rows.length === 0 ? (
                   <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">
@@ -1077,7 +1089,7 @@ export default function App() {
                   onAddType={handleAddType}
                   selectMode={selectMode}
                   selected={selected}
-                  onToggleRow={toggleRowSelect}
+                  onSetSelected={setSelected}
                   onToggleAll={toggleAllSelect}
                   templates={templates}
                   languages={settings.languages}
@@ -1100,6 +1112,16 @@ export default function App() {
         )}
       </div>
 
+      {settings && rows.length > 0 && (
+        <ActionDock
+          selectMode={selectMode}
+          selectedCount={selected.size}
+          canSelect={view === 'list'}
+          onToggleSelect={() => (selectMode ? exitSelect() : setSelectMode(true))}
+          onEmail={caps.mail ? () => setShowBulkDraft(true) : null}
+        />
+      )}
+
       {selectMode && view === 'list' && (
         <BulkEditBar
           selectedCount={selected.size}
@@ -1110,7 +1132,6 @@ export default function App() {
           onClear={() => setSelected(new Set())}
           onBulkEdit={handleBulkEdit}
           onBulkDelete={handleBulkDelete}
-          onExit={exitSelect}
         />
       )}
 
@@ -1124,6 +1145,8 @@ export default function App() {
           onNewCsv={handleNewCsv}
           onSetMultiBand={handleSetMultiBand}
           onOpenBandFiles={handleOpenBandFiles}
+          onRelocateBandFiles={handleRelocateBandFiles}
+          onForgetBandFiles={handleForgetBandFiles}
           onNewBandSet={handleNewBandSet}
           onImportBandFiles={handleImportBandFiles}
           unsavedEdits={editCount}
@@ -1146,6 +1169,7 @@ export default function App() {
         <BulkDraftModal
           rows={rows}
           filteredRows={filteredRows}
+          selected={selectMode ? selected : null}
           templates={templates}
           languages={settings.languages}
           settings={settings}
@@ -1234,6 +1258,7 @@ export default function App() {
         </ErrorBoundary>
       )}
     </div>
+    </ClassifyProvider>
     </RulesProvider>
   )
 }

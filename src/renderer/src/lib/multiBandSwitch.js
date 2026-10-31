@@ -212,3 +212,66 @@ export async function planImportBandFiles(paths) {
   const venues = new Set(linkVenues(rows).map(r => r._venueId)).size
   return { kind: 'import', rows, files, venues }
 }
+
+// --- Moving the set: the band files' folder was moved, or should be ----------
+// The stored paths name a folder. When the files are no longer there (renamed,
+// moved in Finder, set up on another Mac), point the app at where they are now;
+// when they still are, move them to the folder chosen.
+
+// → { kind: 'relocate', dir, found, toMove, missing, clashes, sourcePath }
+// (file names). `found` are already in the new folder, `toMove` are still in
+// the old one and get moved, `missing` are in neither and are created empty on
+// the next Save.
+export async function planRelocate(settings, newDir) {
+  const mb = settings.storage.multiBand
+  const paths = [mb.unassigned, ...Object.values(mb.files || {})].filter(Boolean)
+  const found = []
+  const toMove = []
+  const missing = []
+  const clashes = []
+  for (const path of paths) {
+    const target = `${newDir}/${fileName(path)}`
+    const there = await api.fileExists(target)
+    const here = path !== target && await api.fileExists(path)
+    if (there && here) clashes.push(fileName(path))
+    else if (there) found.push(fileName(path))
+    else if (here) toMove.push(fileName(path))
+    else missing.push(fileName(path))
+  }
+  // The single CSV that switching off merges back to moves along when it lived
+  // with the band files.
+  const source = mb.sourcePath || `${mb.dir}/${mb.base}.csv`
+  const sourcePath = splitPath(source).dir === mb.dir ? `${newDir}/${fileName(source)}` : source
+  return { kind: 'relocate', dir: newDir, oldDir: mb.dir, found, toMove, missing, clashes, sourcePath }
+}
+
+// → the new `storage` section.
+export async function relocateBandFiles(settings, plan) {
+  if (plan.clashes.length) {
+    throw new Error(`Both folders have ${plan.clashes.join(', ')}. Move one copy away first.`)
+  }
+  const mb = settings.storage.multiBand
+  for (const name of plan.toMove) {
+    await api.moveFile({ from: `${mb.dir}/${name}`, to: `${plan.dir}/${name}` })
+  }
+  const moved = path => (path ? `${plan.dir}/${fileName(path)}` : path)
+  return storageFor(settings, {
+    dir: plan.dir,
+    base: mb.base,
+    files: Object.fromEntries(Object.entries(mb.files || {}).map(([band, path]) => [band, moved(path)])),
+    unassigned: moved(mb.unassigned),
+  }, plan.sourcePath)
+}
+
+// Multi-band mode off without merging — for band files that are gone. The app
+// goes back to the single CSV they came from; if that is gone too, the
+// first-run screen offers to pick or create one.
+export function forgetBandFiles(settings) {
+  const mb = settings.storage.multiBand
+  return {
+    ...settings.storage,
+    adapter: 'file',
+    filePath: mb.sourcePath || `${mb.dir}/${mb.base}.csv`,
+    multiBand: { enabled: false, dir: '', base: '', files: {}, unassigned: '', sourcePath: '' },
+  }
+}

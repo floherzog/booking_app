@@ -13,16 +13,18 @@ import EditableCell from './EditableCell'
 import SelectCell from './SelectCell'
 import RelDate from './RelDate'
 import { lastEmailedColor, followUpColor, lastPlayedColor, lastReplyColor } from '@core/dateColors'
-import { ADVANCED_COLUMNS, STATUS_META, HEALTH_RANK, getMissingFields, getMissingSeverity } from '@core/constants'
+import { ADVANCED_COLUMNS, STATUS_META, HEALTH_RANK, getMissingFields, getMissingSeverity, describeMissing } from '@core/constants'
 import { parseDate, displayDateText, normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
 import { parseReplyStatus, composeReplyStatus, replyHealth } from '@core/replyStatus'
 import { healthMeta, HEALTH_META } from '../lib/health'
 import { prepareDraft } from '../lib/drafts'
+import { useClassifyCtx } from '../lib/rulesContext'
+import { useDragSelect } from '../lib/useDragSelect'
 import { isSharedField } from '@core/multiBand'
 
 
-// The Last Reply kind reads as a recorded fact (a tinted badge with an inbound
+// The Reply Status kind reads as a recorded fact (a tinted badge with an inbound
 // icon), deliberately unlike the additive +pills of the Outreach action column.
 // Same palette as the row tint (see lib/health.js) so the badge and the colour of
 // the row it sits in never tell different stories.
@@ -150,7 +152,7 @@ const COLUMNS = [
   helper.accessor('_status', {
     // Every badge, invisible and zero-height: the column widths are frozen from
     // the rows drawn first (see colWidths below), and when those all said
-    // "Send", a "Filler (not booking)" further down spilled into the Venue column.
+    // "Send", a "Not for this band" further down spilled into the Venue column.
     header: () => (
       <>
         <div aria-hidden className="h-0 overflow-hidden invisible normal-case tracking-normal">
@@ -169,11 +171,11 @@ const COLUMNS = [
   helper.accessor('Venue', {
     header: 'Venue',
     cell: i => {
-      const { edits } = i.table.options.meta
+      const { edits, classify } = i.table.options.meta
       const row = i.row.original
       const rowEdits = edits[row._idx] || {}
       const effective = { ...row, ...rowEdits }
-      const missing = getMissingFields(effective)
+      const missing = getMissingFields(effective, classify)
       const website = effective['Website']
       const nameEl = website ? (
         <a
@@ -201,7 +203,7 @@ const COLUMNS = [
           {nameEl}
           {missing.length > 0 && (
             <span
-              title={`Missing: ${missing.join(', ')}`}
+              title={missingTitle(missing)}
               className={`flex-shrink-0 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${SEVERITY_BADGE[row._missingSeverity] || SEVERITY_BADGE[1]}`}
             >
               !
@@ -293,7 +295,7 @@ const COLUMNS = [
   }),
   mkEditable('Note', { header: 'Note', cellClass: 'text-xs text-gray-500' }),
   helper.accessor('Status', {
-    header: 'Last Reply',
+    header: 'Reply Status',
     cell: i => {
       const { edits, onEdit } = i.table.options.meta
       return <ReplyStatusCell rowIndex={i.row.original._idx} value={i.row.original['Status'] || ''} edits={edits} onEdit={onEdit} />
@@ -579,11 +581,12 @@ function MobileEntry({ entry, edits, onEdit }) {
 }
 
 function MobileCard({ row, edits, onVenueClick, onEdit }) {
+  const classify = useClassifyCtx()
   const r = row.original
   const entries = r._entries || [r]
   if (entries.length > 1) {
     const effective = { ...r, ...(edits[r._idx] || {}) }
-    const missing = getMissingFields(effective)
+    const missing = getMissingFields(effective, classify)
     return (
       <div
         onClick={e => {
@@ -596,7 +599,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
         <div className="flex items-start justify-between gap-2">
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">{effective['Venue'] || '—'}</span>
           {missing.length > 0 && (
-            <span title={`Missing: ${missing.join(', ')}`} className={`w-4 h-4 shrink-0 rounded-full text-[10px] font-bold flex items-center justify-center ${SEVERITY_BADGE[getMissingSeverity(effective)] || SEVERITY_BADGE[1]}`}>!</span>
+            <span title={missingTitle(missing)} className={`w-4 h-4 shrink-0 rounded-full text-[10px] font-bold flex items-center justify-center ${SEVERITY_BADGE[getMissingSeverity(effective, classify)] || SEVERITY_BADGE[1]}`}>!</span>
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-500 dark:text-gray-400">
@@ -612,7 +615,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
 
   const rowEdits = edits[r._idx] || {}
   const effective = { ...r, ...rowEdits }
-  const missing = getMissingFields(effective)
+  const missing = getMissingFields(effective, classify)
   const hasEdits = !!edits[r._idx]
   const meta = STATUS_META[r._status] || {}
   const highlight = hasEdits ? '' : rowHighlight(r)
@@ -640,7 +643,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {missing.length > 0 && (
-            <span title={`Missing: ${missing.join(', ')}`} className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${SEVERITY_BADGE[getMissingSeverity(effective)] || SEVERITY_BADGE[1]}`}>!</span>
+            <span title={missingTitle(missing)} className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${SEVERITY_BADGE[getMissingSeverity(effective, classify)] || SEVERITY_BADGE[1]}`}>!</span>
           )}
           <StatusBadge status={r._status} />
         </div>
@@ -683,7 +686,9 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
   )
 }
 
-export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onToggleRow, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
+const missingTitle = missing => `Missing: ${describeMissing(missing)}`
+
+export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
   const [sorting, setSorting] = useState(sortBy || [{ id: '_status', desc: false }])
 
   useEffect(() => {
@@ -704,6 +709,7 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
   // expected here and safe, so silence the compatibility hint.
   // eslint-disable-next-line react-hooks/incompatible-library
   const groups = useMemo(() => groupEntries(rows), [rows])
+  const classify = useClassifyCtx()
   const table = useReactTable({
     data: groups,
     columns,
@@ -711,10 +717,20 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    meta: { edits, onEdit, onVenueClick, bandOptions, typeOptions, onAddType, selected, onToggleRow, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults },
+    meta: { edits, classify, onEdit, onVenueClick, bandOptions, typeOptions, onAddType, selected, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults },
   })
 
   const sortedRows = table.getRowModel().rows
+
+  // Select mode: the whole row selects (click, shift-click, drag) instead of
+  // opening the venue or editing a cell.
+  const selectPointerDown = useDragSelect({
+    enabled: selectMode,
+    count: sortedRows.length,
+    idsAt: i => (sortedRows[i]?.original._entries || [sortedRows[i]?.original]).filter(Boolean).map(e => e._idx),
+    selected: selected || new Set(),
+    setSelected: onSetSelected,
+  })
 
   // Only one of the two layouts is ever visible, so only one is mounted. Both are
   // windowed against the page scroller (the app has no inner scroll container, and
@@ -850,12 +866,22 @@ export default function BookingTable({ rows, edits, onEdit, onVenueClick, sortBy
                 const meta = STATUS_META[row.original._status] || {}
                 const hasRowEdits = (row.original._entries || [row.original]).some(e => edits[e._idx])
                 const highlight = hasRowEdits ? '' : rowHighlight(row.original)
+                const isSelected = selectMode && (row.original._entries || [row.original]).every(e => selected?.has(e._idx))
                 return (
                   <tr
                     key={row.id}
                     data-index={v.index}
                     ref={virtualizer.measureElement}
-                    className={`cursor-pointer ${meta.row || ''} ${highlight} hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors ${hasRowEdits ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}
+                    className={`cursor-pointer ${meta.row || ''} ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/30' : highlight} hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors ${hasRowEdits && !isSelected ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''} ${selectMode ? 'select-none' : ''}`}
+                    onPointerDownCapture={selectMode ? e => selectPointerDown(e, v.index) : undefined}
+                    // In Select mode nothing inside a row reacts to a click
+                    // (editing a cell, following a link, opening the venue) —
+                    // the press already selected it.
+                    onClickCapture={selectMode ? e => {
+                      if (e.target.closest('input[type="checkbox"]')) return
+                      e.preventDefault()
+                      e.stopPropagation()
+                    } : undefined}
                     onClick={e => {
                       if (e.target.closest('input, textarea, button, a, select')) return
                       const line = e.target.closest('[data-entry]')

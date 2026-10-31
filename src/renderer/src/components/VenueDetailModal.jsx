@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getMissingFields, STATUS_META } from '@core/constants'
+import { getMissingFields, describeMissing, fieldLabel, isOnlineForm, onlineFormUrl, STATUS_META } from '@core/constants'
 import { normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
 import { geocodeCity } from '../lib/geocode'
@@ -12,6 +12,10 @@ import { lastEmailedColor, followUpColor, lastPlayedColor } from '@core/dateColo
 import { healthMeta } from '../lib/health'
 import { isSharedField } from '@core/multiBand'
 import { useBackdropClose } from '../lib/useBackdropClose'
+import { useEscape } from '../lib/useEscape'
+import { useClassifyCtx } from '../lib/rulesContext'
+import { contactGenderOf, overrideContactGender, useContactGenders } from '../lib/genders'
+import { greetingFor, contactOptionsFor } from '@core/templates'
 
 function MiniMap({ city, country, status, onOpenMap }) {
   const [pos, setPos] = useState(null)
@@ -64,48 +68,85 @@ const SECTIONS = [
   {
     title: 'Venue Info',
     fields: [
-      { key: 'Venue', label: 'Venue', type: 'text', span: 2 },
-      { key: 'Band', label: 'Band', type: 'select' },
-      { key: 'Type', label: 'Type', type: 'select', hint: 'Only "festival", "filler" and "dead" change the classification.' },
-      { key: 'City', label: 'City', type: 'text' },
-      { key: 'Country', label: 'Country', type: 'text' },
+      { key: 'Venue', label: fieldLabel('Venue'), type: 'text', span: 2 },
+      { key: 'Band', label: fieldLabel('Band'), type: 'select' },
+      { key: 'Type', label: fieldLabel('Type'), type: 'select', hint: 'What a type does is set in Settings ▸ Venue types.' },
+      { key: 'City', label: fieldLabel('City'), type: 'text' },
+      { key: 'Country', label: fieldLabel('Country'), type: 'text' },
     ],
   },
   {
     title: 'Contact',
     fields: [
-      { key: 'Contact', label: 'Contact person', type: 'text' },
-      { key: 'Email', label: 'Email', type: 'email' },
-      { key: 'Website', label: 'Website', type: 'url' },
+      { key: 'Contact', label: fieldLabel('Contact'), type: 'text' },
+      { key: 'Email', label: fieldLabel('Email'), type: 'email' },
+      { key: 'Website', label: fieldLabel('Website'), type: 'url' },
     ],
   },
   {
     title: 'Booking',
     fields: [
-      { key: 'Time Frame', label: 'Time Frame', type: 'textarea', span: 2 },
-      { key: 'Dates', label: 'Dates', type: 'text', span: 2 },
-      { key: 'Text', label: 'Outreach text', type: 'textarea', span: 2, rows: 5 },
+      { key: 'Time Frame', label: fieldLabel('Time Frame'), type: 'textarea', span: 2 },
+      { key: 'Dates', label: fieldLabel('Dates'), type: 'text', span: 2 },
+      { key: 'Text', label: fieldLabel('Text'), type: 'textarea', span: 2, rows: 5 },
     ],
   },
   {
     title: 'History & Status',
     fields: [
-      { key: 'Last emailed', label: 'Last Emailed', type: 'date', colorFn: lastEmailedColor },
-      { key: 'Follow Up Date', label: 'Follow Up Date', type: 'date', colorFn: followUpColor },
-      { key: 'frequency', label: 'Follow-up frequency', type: 'frequency', span: 2, hint: '· how often to re-contact (default 1 month)' },
-      { key: 'Last played', label: 'Last Played', type: 'date', colorFn: lastPlayedColor },
-      { key: 'Status', label: 'Status', type: 'text' },
-      { key: 'Note', label: 'Internal Note', type: 'textarea', span: 2, rows: 3 },
+      { key: 'Last emailed', label: fieldLabel('Last emailed'), type: 'date', colorFn: lastEmailedColor },
+      { key: 'Follow Up Date', label: fieldLabel('Follow Up Date'), type: 'date', colorFn: followUpColor },
+      { key: 'frequency', label: fieldLabel('frequency'), type: 'frequency', span: 2, hint: '· how often to re-contact (empty: the venue type’s interval, else the Rules default)' },
+      { key: 'Last played', label: fieldLabel('Last played'), type: 'date', colorFn: lastPlayedColor },
+      { key: 'Status', label: fieldLabel('Status'), type: 'text' },
+      { key: 'Note', label: fieldLabel('Note'), type: 'textarea', span: 2, rows: 3 },
     ],
   },
   {
     title: 'Outreach actions',
     fields: [
-      { key: 'Draft', label: 'Next batch', type: 'checkbox', hint: 'OpenClaw drafts this venue in its next batch' },
-      { key: 'Auto', label: 'Auto-send', type: 'checkbox', hint: 'OpenClaw sends without review' },
+      { key: 'Draft', label: fieldLabel('Draft'), type: 'checkbox', hint: 'OpenClaw drafts this venue in its next batch' },
+      { key: 'Auto', label: fieldLabel('Auto'), type: 'checkbox', hint: 'OpenClaw sends without review' },
     ],
   },
 ]
+
+// How {{greeting}} will address this contact, and a way to correct it when
+// the on-device model misreads the first name. A correction is per first name,
+// so it holds for every venue with an Anna or a Kim.
+const GREETING_CHOICES = [
+  { value: '', label: 'as worked out' },
+  { value: 'f', label: 'woman (Liebe / Frau)' },
+  { value: 'm', label: 'man (Lieber / Herr)' },
+  { value: 'x', label: 'neutral (Hallo / Guten Tag)' },
+]
+function GreetingField({ row, settings }) {
+  const onDevice = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
+  // Re-renders once the model has answered.
+  useContactGenders([row['Contact']], onDevice)
+  const [override, setOverride] = useState(null) // what was picked here
+  const gender = override ?? contactGenderOf(row['Contact'])
+  const opts = contactOptionsFor(row, settings)
+  const example = greetingFor({ contact: row['Contact'], style: opts.contactStyle, language: opts.language, gender })
+  async function pick(value) {
+    setOverride(value || null)
+    await overrideContactGender(row['Contact'], value)
+  }
+  return (
+    <div className="col-span-2 -mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <span>Greeting:</span>
+      <span className="font-medium text-gray-700 dark:text-gray-200">{example}</span>
+      <select
+        value={override ?? ''}
+        onChange={e => pick(e.target.value)}
+        className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-0.5 pl-2 pr-7"
+        title="Correct how the first name is read"
+      >
+        {GREETING_CHOICES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+      </select>
+    </div>
+  )
+}
 
 // Typed ("September 2026") or picked from the calendar; see DateInput.
 function DateField({ inputId, value, base, onChange }) {
@@ -178,7 +219,7 @@ function FrequencyField({ fieldDef, value, isEdited, onChange }) {
       </label>
       <div className="flex items-center gap-2">
         <select id={inputId} value={state.mode} onChange={handleSelect} className={`${base} flex-1`}>
-          <option value="default">Default (1 month)</option>
+          <option value="default">Default (the type’s, else the Rules’)</option>
           <option value="2 months">2 months</option>
           <option value="3 months">3 months</option>
           <option value="6 months">6 months</option>
@@ -338,10 +379,13 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
 export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand }) {
   const [confirmDelete, setConfirmDelete] = useState(false) // false | 'band' | 'venue'
   const backdrop = useBackdropClose(onClose)
+  useEscape(onClose)
+  const classify = useClassifyCtx()
   const severalBands = multiBand && entries.length > 1
   const rowEdits = edits[rowIndex] || {}
   const effective = { ...row, ...rowEdits }
-  const missing = getMissingFields(effective)
+  const missing = getMissingFields(effective, classify)
+  const formUrl = isOnlineForm(effective) ? onlineFormUrl(effective) : ''
   // The row tint in the table is this colour; here it gets a name, because a
   // colour on its own is only meaningful to whoever wrote the legend.
   const health = healthMeta(effective)
@@ -417,8 +461,17 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
           <div className="mx-6 mt-4 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md px-3 py-2 shrink-0">
             <span className="text-orange-500 text-sm">⚠</span>
             <span className="text-xs text-orange-700 dark:text-orange-400">
-              Missing: <span className="font-medium">{missing.join(', ')}</span>
+              Missing: <span className="font-medium">{describeMissing(missing)}</span>
             </span>
+          </div>
+        )}
+
+        {isOnlineForm(effective) && (
+          <div className="mx-6 mt-2 flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-md px-3 py-2 shrink-0 text-xs text-cyan-800 dark:text-cyan-300">
+            <span>Only takes enquiries through an online form, so it is never drafted.</span>
+            {formUrl && (
+              <a href={formUrl} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:no-underline whitespace-nowrap">Open form ↗</a>
+            )}
           </div>
         )}
 
@@ -475,6 +528,9 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                     />
                   )
                 })}
+                {section.title === 'Contact' && caps.articles && effective['Contact']?.trim() && (
+                  <GreetingField row={effective} settings={settings} />
+                )}
               </div>
             </div>
             )

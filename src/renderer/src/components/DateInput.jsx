@@ -72,7 +72,9 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
         onChange={e => { setText(e.target.value); onTextChange?.(e.target.value) }}
         onKeyDown={e => {
           if (e.key === 'Enter') { e.preventDefault(); commit(text) }
-          if (e.key === 'Escape') {
+          // Escape undoes typing; with nothing to undo it is left to close the
+          // dialog the field sits in (see useEscape).
+          if (e.key === 'Escape' && (onCancel || text !== committed.current)) {
             e.preventDefault()
             if (onCancel) onCancel()
             else setText(committed.current)

@@ -31,6 +31,14 @@ describe('prepareDraft', () => {
     expect(p.empties).toEqual(['dates'])
   })
 
+  it('writes only the real addresses, and refuses an online form', () => {
+    expect(prepareDraft({ ...ROW, Email: 'Anna <venue@example.com>; b@example.com' }, [DE, EN], LANGUAGES).draft.to)
+      .toBe('venue@example.com, b@example.com')
+    const p = prepareDraft({ ...ROW, Email: 'Kontaktformular' }, [DE, EN], LANGUAGES)
+    expect(p.ok).toBe(false)
+    expect(p.reason).toBe('This venue only takes an online form.')
+  })
+
   it('refuses a venue with no email, and says why', () => {
     const p = prepareDraft({ ...ROW, Email: '  ' }, [DE, EN], LANGUAGES)
     expect(p.ok).toBe(false)

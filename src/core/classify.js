@@ -1,5 +1,7 @@
 import { differenceInDays, addMonths, subMonths } from 'date-fns'
 import { STATUS, isSendBlocked, frequencyToDays } from './constants.js'
+import { DEFAULT_TYPE_RULES, typeRuleFor, bandBooksType } from './venueTypes.js'
+import { bandsWithDatesSet } from './bands.js'
 import { DEFAULT_RULES } from './rules.js'
 import { parseDate, parseMonthsFromTimeFrame } from './parseDate.js'
 
@@ -28,25 +30,48 @@ function festivalInWindow(timeFrame, today, rules) {
   })
 }
 
-// `ctx.fillerBands`: lower-cased names of the bands with "Book filler venues"
-// switched on (Settings ▸ Bands). A venue of Type "filler" only enters the
-// outreach lists for those bands; without the set, no band books fillers.
+// What classifyBooking needs to know beyond the row and the rules, built once
+// from the settings (and, on the Mac, the mail templates):
+//   typeRules           settings.venueTypeRules — what each venue type does
+//   bandsWithDates      bands whose Dates are set
+//   bandsWithTemplates  bands with at least one mail template; leave
+//                       `templates` out (web, not loaded yet) to skip the check
+export function classifyContext(settings, templates) {
+  return {
+    typeRules: settings?.venueTypeRules || DEFAULT_TYPE_RULES,
+    bandsWithDates: bandsWithDatesSet(settings?.bands),
+    bandsWithTemplates: templates
+      ? new Set(templates.map(t => String(t?.band || '').trim().toLowerCase()).filter(Boolean))
+      : null,
+  }
+}
+
+// A key that changes exactly when the context would classify differently, so
+// App only reclassifies on a real change.
+export function classifyContextKey(ctx) {
+  return JSON.stringify([
+    ctx.typeRules,
+    [...(ctx.bandsWithDates || [])].sort(),
+    ctx.bandsWithTemplates ? [...ctx.bandsWithTemplates].sort() : null,
+  ])
+}
+
 export function classifyBooking(row, today, rules = DEFAULT_RULES, ctx = {}) {
   const type = (row['Type'] || '').toLowerCase().trim()
   const note = row['Note'] || ''
   const followUpRaw = row['Follow Up Date'] || ''
   const lastEmailedRaw = row['Last emailed'] || ''
   const timeFrame = row['Time Frame'] || ''
+  const typeRules = ctx.typeRules || DEFAULT_TYPE_RULES
+  const typeRule = typeRuleFor(typeRules, type)
 
-  if (type === 'dead') return STATUS.DEAD
+  if (type && typeRule.behaves === 'never') return STATUS.DEAD
 
-  if (type === 'filler' && !ctx.fillerBands?.has(String(row['Band'] || '').trim().toLowerCase())) {
-    return STATUS.FILLER_OFF
-  }
+  if (type && !bandBooksType(typeRules, type, row['Band'])) return STATUS.FILLER_OFF
 
-  // Missing a field required to send (venue/band/email) → keep out of every
-  // send/follow-up list; the red "!" flag is enough of a prompt to fix it.
-  if (isSendBlocked(row)) return STATUS.MISSING_INFO
+  // Can't be emailed (no venue/band/real address, or the band has no Dates or
+  // template) → keep out of every send/follow-up list; the red "!" flag says why.
+  if (isSendBlocked(row, ctx)) return STATUS.MISSING_INFO
 
   // A gig still to come, or one played recently → not for booking outreach
   // right now. Mirrors the next-batch policy. "Still to come" is the same test
@@ -56,16 +81,18 @@ export function classifyBooking(row, today, rules = DEFAULT_RULES, ctx = {}) {
   if (lastPlayed && differenceInDays(today, lastPlayed) < rules.recentlyPlayedDays) return STATUS.RECENTLY_PLAYED
 
   const lastEmailed = parseDate(lastEmailedRaw)
-  // Per-venue re-contact window (Frequency column), defaulting to the rules'
-  // defaultFrequencyDays.
-  const freqDays = frequencyToDays(row['frequency'], rules)
+  // Re-contact window: the venue's own Frequency, else its type's interval,
+  // else the rules' defaultFrequencyDays.
+  const freqDays = frequencyToDays(row['frequency'], typeRule.frequencyDays
+    ? { ...rules, defaultFrequencyDays: typeRule.frequencyDays }
+    : rules)
 
   if (hasHoldKeyword(note, rules)) {
     const holdExpired = lastEmailed && differenceInDays(today, lastEmailed) >= rules.holdOverrideDays
     if (!holdExpired) return STATUS.ON_HOLD
   }
 
-  if (type === 'festival') {
+  if (type && typeRule.behaves === 'festival') {
     if (!festivalInWindow(timeFrame, today, rules)) return STATUS.FESTIVAL_INELIGIBLE
   }
 
