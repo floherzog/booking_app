@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, unlinkS
 import { join, dirname } from 'node:path'
 import { app } from 'electron'
 import { normalizeSettings } from '../core/settings.js'
+import { stampChanges } from '../core/settingsSync.js'
 
 // Plain JSON in userData. The shape and its defaults live in src/core/settings.js,
 // shared with the web build; this file only reads and writes it.
@@ -24,9 +25,12 @@ export function readSettings() {
 
 // Atomic write: a temp file in the SAME directory, then rename. Same-dir matters
 // on iCloud Drive and across volumes, where rename() across directories can fail.
-export function writeSettings(next) {
+// Every write stamps the synced sections it changes (src/core/settingsSync.js),
+// so a sync with the web app knows which side changed what last.
+export function writeSettings(next, { stamp = true } = {}) {
   const target = settingsPath()
-  const merged = withDefaults(next)
+  const normalized = withDefaults(next)
+  const merged = stamp ? stampChanges(readSettings(), normalized) : normalized
   mkdirSync(dirname(target), { recursive: true })
   const tmp = `${target}.${process.pid}.tmp`
   try {

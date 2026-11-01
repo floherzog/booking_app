@@ -21,6 +21,7 @@ import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
 import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
 import { token } from '../lib/placeholders'
+import WebSyncSettings from './WebSyncSettings'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -51,7 +52,7 @@ const panelPart = f => Object.fromEntries(PANEL_KEYS.filter(k => f?.[k] !== unde
 // (`onBandsSettled`, when you leave the Bands page or close the panel), and a
 // change of where the list lives, which reloads it (the "Use this" button, or
 // closing the panel).
-export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onBandsSettled, onClose, initialSection }) {
+export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onBandsSettled, onUpdateFound, webSync, onClose, initialSection }) {
   const t = useT()
   const [form, setForm] = useState(config)
   const [section, setSection] = useState(() => (SECTIONS.some(s => s.id === initialSection) ? initialSection : 'general'))
@@ -143,7 +144,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   async function checkUpdates() {
     setUpdateState({ checking: true })
     try {
-      setUpdateState(await api.checkForUpdates())
+      const r = await api.checkForUpdates()
+      setUpdateState(r)
+      // The banner at the top downloads it inside the app, like the menu's check.
+      if (r?.newer) onUpdateFound?.(r)
     } catch (e) {
       setUpdateState({ error: e.message })
     }
@@ -179,6 +183,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
       setSaving(false)
     }
   }
+
+  // Closing or reopening the panel (a sync replaced the settings underneath)
+  // still writes an edit made in the last half second.
+  const flushRef = useRef(null)
+  flushRef.current = () => { if (pending.current) saveNow() }
+  useEffect(() => () => flushRef.current?.(), [])
 
   useEffect(() => {
     clearTimeout(pending.current)
@@ -805,6 +815,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   </div>
                   )}
 
+                  {caps.settingsSync && webSync && (
+                    <WebSyncSettings webSync={config.webSync} multiBandOn={multiBandOn} {...webSync} />
+                  )}
+
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>{t("Version")}</p>
                     <div className="flex items-center gap-3">
@@ -818,21 +832,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     {updateState && !updateState.checking && (
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         {updateState.error ? updateState.error
-                          : updateState.newer ? (
-                            <>
-                              {t("Version")} <span className="font-mono">{updateState.latest}</span> {t("is available.")}{' '}
-                              <button
-                                type="button"
-                                // The .dmg for this Mac when the release has one: the
-                                // browser downloads it straight away.
-                                onClick={() => api.openExternal(updateState.downloadUrl || updateState.url)}
-                                className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                              >
-                                {t("Download it")}
-                              </button>
-                              {updateState.downloadUrl ? ` ${t('(saves the .dmg to Downloads)')}` : ''}{t(", then drag it into Applications over the old copy.")}
-                            </>
-                          ) : t('You are running the latest published version.')}
+                          : updateState.newer ? t('Booking {version} is available — download it from the banner at the top.', { version: updateState.latest })
+                          : t('You are running the latest published version.')}
                       </p>
                     )}
                     {caps.updates && (

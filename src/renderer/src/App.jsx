@@ -138,8 +138,29 @@ export default function App() {
   const persist = useCallback(async next => {
     const saved = await saveSettings(next)
     setSettings(saved)
+    scheduleWebSync()
     return saved
   }, [])
+
+  // Settings sync with your own web app (Settings ▸ General; src/main/ipc/
+  // webSync.js): on start, when the window comes back to the front (at most once
+  // a minute), and shortly after a save. Never while Settings is open — its
+  // autosave would write the old form back over what came in — but right after
+  // it closes. A sync that changed something while Settings is open (Connect,
+  // Sync now) reopens the panel on fresh settings.
+  const [webSyncNote, setWebSyncNote] = useState(null) // { text, tone, autoHide, signin }
+  const [webSyncError, setWebSyncError] = useState(null) // { code, message }
+  const [webSyncBusy, setWebSyncBusy] = useState(false)
+  const [settingsEpoch, setSettingsEpoch] = useState(0)
+  const showSettingsRef = useRef(false)
+  showSettingsRef.current = showSettings
+  const webSyncRef = useRef(null)
+  const webSyncTimer = useRef(null)
+  const webSyncAt = useRef(0)
+  function scheduleWebSync() {
+    clearTimeout(webSyncTimer.current)
+    webSyncTimer.current = setTimeout(() => { if (!showSettingsRef.current) webSyncRef.current?.() }, 2000)
+  }
 
   // Read the CSV through whichever adapter is configured, classify, and stage
   // it. A not-yet-configured adapter simply yields an empty table (FirstRun is
@@ -288,6 +309,28 @@ export default function App() {
     }).catch(() => { /* offline: say nothing */ })
   }, [settings])
   useEffect(() => api.onUpdateAvailable(r => setUpdate(r)), [])
+
+  const webSyncStarted = useRef(false)
+  useEffect(() => {
+    if (!settings || webSyncStarted.current) return
+    webSyncStarted.current = true
+    webSyncRef.current?.()
+  }, [settings])
+  useEffect(() => {
+    if (!caps.settingsSync) return undefined
+    const onFocus = () => {
+      if (!showSettingsRef.current && Date.now() - webSyncAt.current > 60000) webSyncRef.current?.()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
+  // Settings ▸ Check for updates: the same banner as the menu's check, even for
+  // a version dismissed before.
+  function showFoundUpdate(r) {
+    try { localStorage.removeItem('dismissedUpdate') } catch { /* storage unavailable */ }
+    setUpdate(r)
+  }
 
   function dismissUpdate() {
     try { localStorage.setItem('dismissedUpdate', update?.latest || '') } catch { /* storage unavailable */ }
@@ -517,6 +560,62 @@ export default function App() {
     }
     const added = appendImported(base, plan.rows, true)
     return { saved, added }
+  }
+
+  async function runWebSync({ first, force = false } = {}) {
+    if (!caps.settingsSync || (!force && !settings?.webSync?.url) || webSyncBusy) return null
+    setWebSyncBusy(true)
+    webSyncAt.current = Date.now()
+    try {
+      const r = await api.syncSettingsNow(first ? { first } : undefined)
+      if (r?.error) {
+        if (r.error === 'off') return r
+        setWebSyncError({ code: r.error, message: r.message })
+        if (r.error === 'signin') setWebSyncNote({ text: t('Settings sync: the web app signed this Mac out.'), tone: 'warning', signin: true })
+        return r
+      }
+      setWebSyncError(null)
+      setSettings(r.settings)
+      if (r.storageChanged) await load(r.settings)
+      if (r.changedLocal) {
+        setWebSyncNote({ text: t('Settings updated from the web app.'), tone: 'info', autoHide: true })
+        if (showSettingsRef.current) setSettingsEpoch(e => e + 1)
+      }
+      return r
+    } finally {
+      setWebSyncBusy(false)
+    }
+  }
+  webSyncRef.current = runWebSync
+
+  async function connectWebSync(url, code) {
+    const r = await api.connectWebSync(url, code)
+    if (r?.error) return r
+    let first = 'mac'
+    if (r.remoteHasSettings) {
+      const pick = await confirm({
+        title: t('This Mac and the web app both have settings. Which should win?'),
+        message: t('Your choice replaces the other side’s rules, bands, venue types, chips and template options. After that, each change syncs both ways.'),
+        choices: [{ value: 'mac', label: t('Use this Mac’s settings') }, { value: 'web', label: t('Use the web app’s settings') }],
+      })
+      if (!pick) {
+        setSettings(await api.disconnectWebSync())
+        return { cancelled: true }
+      }
+      first = pick
+    }
+    await runWebSync({ first, force: true })
+    return r
+  }
+
+  async function disconnectWebSync() {
+    setSettings(await api.disconnectWebSync())
+    setWebSyncError(null)
+  }
+
+  async function setWebSyncCsv(on) {
+    const current = await getSettings()
+    await persist({ ...current, webSync: { ...current.webSync, useCsv: on } })
   }
 
   // Settings save themselves (SettingsPanel): `part` is only what the panel
@@ -1051,6 +1150,14 @@ export default function App() {
             onDismiss={dismissDateGaps}
           />
         )}
+        {webSyncNote && (
+          <NoticeBanner tone={webSyncNote.tone} onDismiss={() => setWebSyncNote(null)} autoHide={webSyncNote.autoHide ? 8000 : 0}>
+            {webSyncNote.text}
+            {webSyncNote.signin && (
+              <button onClick={() => { setWebSyncNote(null); setSettingsSection('general'); setShowSettings(true) }} className="ml-2 font-medium underline hover:no-underline">{t('Sign in again')}</button>
+            )}
+          </NoticeBanner>
+        )}
         {syncNote && (
           <NoticeBanner tone={syncNote.tone} onDismiss={dismissSyncNote} autoHide={syncNote.autoHide ? 8000 : 0}>
             {syncNote.text}
@@ -1239,6 +1346,7 @@ export default function App() {
 
       {showSettings && (
         <SettingsPanel
+          key={settingsEpoch}
           config={settings}
           rows={rows}
           onOpenImport={() => { setShowSettings(false); setCameFromSettings(true); setShowImport(true) }}
@@ -1255,7 +1363,9 @@ export default function App() {
           onPersist={form => persist({ ...settings, ...form })}
           onBandsSettled={propagateBandChanges}
           initialSection={settingsSection}
-          onClose={() => { setShowSettings(false); setSettingsSection(null) }}
+          onUpdateFound={showFoundUpdate}
+          webSync={{ error: webSyncError, busy: webSyncBusy, onConnect: connectWebSync, onSyncNow: () => runWebSync(), onDisconnect: disconnectWebSync, onUseCsv: setWebSyncCsv }}
+          onClose={() => { setShowSettings(false); setSettingsSection(null); runWebSync() }}
         />
       )}
       {showTemplates && caps.mail && (

@@ -79,6 +79,9 @@ const api = {
   openUpdate: () => ipcRenderer.invoke('updates:open'),
   revealUpdate: () => ipcRenderer.invoke('updates:reveal'),
   installUpdateAndQuit: () => ipcRenderer.invoke('updates:installAndQuit'),
+  connectWebSync: (url, code) => ipcRenderer.invoke('webSync:connect', url, code),
+  syncSettingsNow: opts => ipcRenderer.invoke('webSync:sync', opts),
+  disconnectWebSync: () => ipcRenderer.invoke('webSync:disconnect'),
   onUpdateProgress: cb => {
     const handler = (_e, p) => cb(p)
     ipcRenderer.on('updates:progress', handler)

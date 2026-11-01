@@ -1,4 +1,5 @@
 import { normalizeSettings } from '@core/settings'
+import { stampChanges, mergeSynced } from '@core/settingsSync'
 
 // The web build's side of the platform seam: the same `api` the preload exposes
 // in the Mac app (src/preload/index.js), built on what a browser has: the GitHub
@@ -19,6 +20,7 @@ export const caps = {
   storageChoice: false, // GitHub only
   openclawPolicy: true,
   windowChrome: false,
+  settingsSync: false,  // the web app is what a Mac syncs with
 }
 
 // method → the capability that hides every UI path to it. apiCoverage.test.js
@@ -61,6 +63,9 @@ export const UNSUPPORTED = {
   openUpdate: 'updates',
   revealUpdate: 'updates',
   installUpdateAndQuit: 'updates',
+  connectWebSync: 'settingsSync',
+  syncSettingsNow: 'settingsSync',
+  disconnectWebSync: 'settingsSync',
 }
 
 const BASE = import.meta.env.BASE_URL || '/'
@@ -153,7 +158,17 @@ async function legacySettings() {
   }
 }
 
+// What this tab last read or wrote. A save is stamped against it — not against
+// the server — so only what was edited here counts as changed, and a section
+// changed elsewhere meanwhile (the Mac app, another tab) isn't undone.
+let lastKnown = null
+
 async function getSettings() {
+  lastKnown = await readSettings()
+  return lastKnown
+}
+
+async function readSettings() {
   const stored = await serverGet('settings')
   serverStore = stored !== undefined
   if (stored) return forWeb(stored)
@@ -171,9 +186,14 @@ async function getSettings() {
 }
 
 async function setSettings(next) {
-  const saved = forWeb(next)
+  let saved = stampChanges(lastKnown || {}, forWeb(next))
+  if (serverStore) {
+    const server = await serverGet('settings')
+    if (server) saved = forWeb(mergeSynced(saved, server).local)
+  }
   local(SETTINGS_KEY, saved)
   if (serverStore) await serverPut('settings', saved)
+  lastKnown = saved
   return saved
 }
 

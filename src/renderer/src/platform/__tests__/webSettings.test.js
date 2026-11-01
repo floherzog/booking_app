@@ -101,4 +101,20 @@ describe('web settings', () => {
     await api.setSettings({ ...s, venueTypes: ['main', 'bar'] })
     expect(JSON.parse(storage.getItem('booking_settings')).venueTypes).toEqual(['main', 'bar'])
   })
+
+  it('keeps a change the Mac app synced meanwhile when an open tab saves something else', async () => {
+    const server = { settings: { bands: [{ name: 'Old' }], rules: { batchSize: 10 } } }
+    vi.stubGlobal('fetch', fakeServer(server))
+    vi.stubGlobal('localStorage', memoryStorage())
+    const { api } = await freshWeb()
+    const tab = await api.getSettings()
+    // The Mac pushes new bands while the tab is open…
+    server.settings = { ...server.settings, bands: [{ name: 'From the Mac' }], syncStamps: { bands: new Date(Date.now() + 1000).toISOString() } }
+    // …and the tab then saves a rules change from its own (stale) copy.
+    const saved = await api.setSettings({ ...tab, rules: { ...tab.rules, batchSize: 12 } })
+    expect(saved.bands.map(b => b.name)).toEqual(['From the Mac'])
+    expect(saved.rules.batchSize).toBe(12)
+    expect(server.settings.bands.map(b => b.name)).toEqual(['From the Mac'])
+    expect(server.settings.syncStamps.rules).toBeTruthy()
+  })
 })

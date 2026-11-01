@@ -60,6 +60,11 @@ export const DEFAULT_SETTINGS = {
   keptVenueDates: [],
   // The chips above the list: default ones switched off, and saved filter sets.
   filterChips: { hidden: [], colors: {}, custom: [] },
+  // Mac only, never synced: the web app this Mac syncs its settings with
+  // (src/main/ipc/webSync.js), and whether it also uses that web app's CSV.
+  webSync: { url: '', useCsv: true, lastSyncedAt: '' },
+  // When each synced section last changed (src/core/settingsSync.js).
+  syncStamps: {},
 }
 
 function isPlainObject(v) {
@@ -125,5 +130,7 @@ export function normalizeSettings(stored) {
     draftLog: isPlainObject(s.draftLog) ? s.draftLog : {},
     keptVenueDates: Array.isArray(s.keptVenueDates) ? s.keptVenueDates.filter(k => typeof k === 'string') : [],
     filterChips: normalizeFilterChips(s.filterChips),
+    webSync: { ...DEFAULT_SETTINGS.webSync, ...(isPlainObject(s.webSync) ? s.webSync : {}) },
+    syncStamps: isPlainObject(s.syncStamps) ? s.syncStamps : {},
   }
 }

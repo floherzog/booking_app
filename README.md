@@ -97,6 +97,14 @@ inside the app bundle, so nothing is lost:
   own.
 - **No title bar.** The Mac window keeps its traffic lights over the page; the
   strip across the top drags the window, even with a dialog open.
+- **Settings sync with your own web app.** *Settings ▸ General ▸ Sync with your
+  web app* takes the address of a Booking web app you run yourself and its
+  access code. Rules, bands, venue types, chips, dismissed duplicates, mail
+  languages, template options — and, if you like, which CSV to use — then stay
+  the same on this Mac, in the browser and on any other Mac connected to it.
+  Each section comes from whichever side changed it last. Mail accounts,
+  passwords and local file paths never leave the Mac. Nothing syncs until you
+  connect, and the app knows no one's web app but the one you enter.
 - **Every rule is editable.** The thresholds that decide all of the above are
   yours to change, and the app re-classifies as you change them — the **Logic**
   button both draws the decision tree and lets you edit the numbers behind it.
@@ -730,8 +738,9 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
 
 ## One UI, two builds: the Mac app and the web app
 
-The same React UI ships twice: as this Mac app, and as the web app at
-florianherzog.info/booking_app (the phone and any browser). Only the layer
+The same React UI ships twice: as this Mac app, and as a web app for the phone
+and any browser. Anyone can run their own web app from a fork of this repository
+— [docs/WEB.md](docs/WEB.md#run-your-own-copy) walks through it. Only the layer
 underneath differs, and all of it sits behind one seam,
 `src/renderer/src/platform/`:
 

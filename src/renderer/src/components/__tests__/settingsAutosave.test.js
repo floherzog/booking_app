@@ -9,8 +9,10 @@ const api = vi.hoisted(() => ({
   hasSecret: vi.fn(async () => false),
   getAppVersion: vi.fn(async () => '0.0.0'),
   setSecret: vi.fn(async () => {}),
+  checkForUpdates: vi.fn(async () => ({ newer: true, latest: '9.9.9', current: '0.15.0' })),
 }))
-vi.mock('../../platform', () => ({ api, caps: {} }))
+const caps = vi.hoisted(() => ({}))
+vi.mock('../../platform', () => ({ api, caps }))
 vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} })
 const { default: SettingsPanel } = await import('../SettingsPanel.jsx')
 
@@ -69,6 +71,17 @@ describe('SettingsPanel autosave', () => {
     expect(onSave).not.toHaveBeenCalled()
     await act(async () => button(el, 'Done').click())
     expect(onClose).toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it('hands a newer version from Check for updates to the banner', async () => {
+    caps.updates = true
+    const onUpdateFound = vi.fn()
+    const { el, root } = await open(config, { initialSection: 'general', onUpdateFound })
+    await act(async () => button(el, 'Check for updates').click())
+    expect(onUpdateFound).toHaveBeenCalledWith(expect.objectContaining({ latest: '9.9.9' }))
+    expect(el.textContent).toContain('Booking 9.9.9 is available — download it from the banner at the top.')
+    delete caps.updates
     await act(async () => root.unmount())
   })
 })

@@ -5,7 +5,8 @@ import { app, safeStorage } from 'electron'
 // Secrets are encrypted with Electron's safeStorage (macOS Keychain-backed) and
 // stored base64 in userData/secrets.json. The renderer never receives a value —
 // only `has…` booleans; every consumer of a secret runs in the main process.
-const KEYS = new Set(['githubToken', 'imapPassword'])
+// webSyncCookie: the web app's login cookie (ipc/webSync.js) — never the access code.
+const KEYS = new Set(['githubToken', 'imapPassword', 'webSyncCookie'])
 
 // One mail password per account: "imapPassword:<accountId>". The allowlist stays
 // closed — the suffix is matched against a narrow character set rather than the
