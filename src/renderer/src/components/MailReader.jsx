@@ -4,6 +4,7 @@ import { useT } from '../i18n'
 import { useEscape } from '../lib/useEscape'
 import { formatDay } from '@core/parseDate'
 import { useDateOrder } from '../lib/dateOrder'
+import Busy from './Busy'
 
 // The email page an HTML message is shown in. Nothing it references is loaded:
 // no scripts (the iframe is sandboxed without allow-scripts), no remote images
@@ -66,7 +67,7 @@ export default function MailReader({ message, onClose }) {
           {error ? (
             <p className="p-5 text-sm text-red-600 dark:text-red-400">{error}</p>
           ) : !mail ? (
-            <p className="p-5 text-sm text-gray-400">{t('Loading…')}</p>
+            <p className="p-5 text-sm text-gray-400"><Busy label={t('Loading…')} /></p>
           ) : mail.html ? (
             <iframe title={head.subject || 'email'} sandbox="allow-popups allow-popups-to-escape-sandbox" srcDoc={emailDocument(mail.html)} className="w-full h-[65vh] bg-white rounded-b-xl" />
           ) : (

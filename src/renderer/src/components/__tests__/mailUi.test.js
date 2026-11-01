@@ -118,3 +118,17 @@ describe('MailHistory while loading', () => {
     act(() => root.unmount())
   })
 })
+
+describe('newerThanCsv', () => {
+  it('marks the newest sent and received mail when they are later than the CSV dates', async () => {
+    const { newerThanCsv, messageKey } = await import('../../lib/mailHistory.js')
+    const msgs = [
+      { accountId: 'a', mailbox: 'Sent', uid: 3, direction: 'out', date: '2026-11-01T10:00:00Z' },
+      { accountId: 'a', mailbox: 'INBOX', uid: 2, direction: 'in', date: '2026-10-05T10:00:00Z' },
+      { accountId: 'a', mailbox: 'Sent', uid: 1, direction: 'out', date: '2026-10-01T10:00:00Z' },
+    ]
+    expect([...newerThanCsv(msgs, { lastEmailed: '01.10.26', lastReply: '05.10.26' })]).toEqual([messageKey(msgs[0])])
+    expect(newerThanCsv(msgs, { lastEmailed: '01.11.26', lastReply: '05.10.26' }).size).toBe(0)
+    expect(newerThanCsv(msgs, { lastEmailed: '01.11.26', lastReply: '' }).has(messageKey(msgs[1]))).toBe(true)
+  })
+})

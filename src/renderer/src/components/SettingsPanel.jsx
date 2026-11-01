@@ -24,6 +24,7 @@ import { useDateOrder, setDateOrderSetting } from '../lib/dateOrder'
 import { token } from '../lib/placeholders'
 import WebSyncSettings from './WebSyncSettings'
 import { csvSuggestions } from '@core/csvSuggestions'
+import Busy from './Busy'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -864,7 +865,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <span className="text-sm text-gray-800 dark:text-gray-200 font-mono">{version || '…'}</span>
                       {caps.updates && (
                         <button type="button" onClick={checkUpdates} disabled={updateState?.checking} className={outlineBtn}>
-                          {updateState?.checking ? t('Checking…') : t('Check for updates')}
+                          {updateState?.checking ? <Busy label={t('Checking…')} /> : t('Check for updates')}
                         </button>
                       )}
                     </div>
@@ -1621,10 +1622,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
                             <div className="flex flex-wrap items-center gap-2">
                               <button type="button" onClick={() => testAccount(acct.id, 'imap')} disabled={!!test.busy} className={outlineBtn}>
-                                {test.busy === 'imap' ? t('Connecting…') : t('Test receiving (IMAP)')}
+                                {test.busy === 'imap' ? <Busy label={t('Connecting…')} /> : t('Test receiving (IMAP)')}
                               </button>
                               <button type="button" onClick={() => testAccount(acct.id, 'smtp')} disabled={!!test.busy} className={outlineBtn}>
-                                {test.busy === 'smtp' ? t('Checking…') : t('Test sending (SMTP)')}
+                                {test.busy === 'smtp' ? <Busy label={t('Checking…')} /> : t('Test sending (SMTP)')}
                               </button>
                               {confirmRemove === acct.id ? (
                                 <span className="ml-auto flex items-center gap-2 text-xs text-red-700 dark:text-red-400">
@@ -1751,7 +1752,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   {error || t('{n} problem in Rules|{n} problems in Rules', { n: ruleErrors.length })}
                 </span>
               ) : saving ? (
-                <span className="text-gray-400 dark:text-gray-500">{t('Saving…')}</span>
+                <span className="text-gray-400 dark:text-gray-500"><Busy label={t('Saving…')} /></span>
               ) : savedAt ? (
                 <span className="text-green-600 dark:text-green-400">{t('Saved')}</span>
               ) : (

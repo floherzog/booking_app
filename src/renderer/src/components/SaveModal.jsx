@@ -4,6 +4,7 @@ import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import EditableCell from './EditableCell'
 import { UndoIcon } from './icons'
+import Busy from './Busy'
 import { t, useT } from '../i18n'
 
 const label = fieldLabel
@@ -56,7 +57,15 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
     lines.push(change)
     if (!change.reverted) changes.push(change)
   })
-  lines.sort((a, b) => a.venue.localeCompare(b.venue) || a.field.localeCompare(b.field))
+  // One group per venue line (in multi-band mode, per band): its name once,
+  // then what changed — a deletion or addition first, then the fields.
+  lines.sort((a, b) => a.venue.localeCompare(b.venue) || a.idx - b.idx || (b.isDelete || b.isAdd ? 1 : 0) - (a.isDelete || a.isAdd ? 1 : 0) || a.field.localeCompare(b.field))
+  const groups = []
+  for (const line of lines) {
+    const g = groups.at(-1)
+    if (g && g.idx === line.idx) g.lines.push(line)
+    else groups.push({ idx: line.idx, venue: line.venue, lines: [line] })
+  }
 
   async function handlePush(force = false) {
     setPushing(true)
@@ -100,38 +109,45 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                  <th className="text-left pb-2 font-medium w-1/4">{t("Venue")}</th>
-                  <th className="text-left pb-2 font-medium w-1/5">{t("Field")}</th>
-                  <th className="text-left pb-2 font-medium w-[30%]">{t("Before")}</th>
-                  <th className="text-left pb-2 font-medium w-[30%]">{t("After")}{onEdit && <span className="normal-case tracking-normal font-normal"> {t("· tap to edit")}</span>}</th>
+                  <th className="text-left pb-2 font-medium w-1/4">{t("Field")}</th>
+                  <th className="text-left pb-2 font-medium w-[35%]">{t("Before")}</th>
+                  <th className="text-left pb-2 font-medium w-[35%]">{t("After")}{onEdit && <span className="normal-case tracking-normal font-normal"> {t("· tap to edit")}</span>}</th>
                   <th className="pb-2 w-6"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                {lines.map(c => (
+              {groups.map(g => (
+              <tbody key={g.idx} data-venue-group className="border-t border-gray-200 dark:border-gray-700">
+                <tr>
+                  <th colSpan={4} scope="rowgroup" className="pt-3 pb-1 text-left font-semibold text-gray-900 dark:text-gray-100">
+                    {g.venue}
+                    {g.lines.filter(c => !c.isDelete && !c.isAdd && !c.reverted).length > 1 && (
+                      <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">{t('{n} change|{n} changes', { n: g.lines.filter(c => !c.isDelete && !c.isAdd && !c.reverted).length })}</span>
+                    )}
+                  </th>
+                </tr>
+                {g.lines.map(c => (
                   <tr key={`${c.idx}-${c.field}`} className={c.isDelete ? 'bg-red-50 dark:bg-red-900/10' : c.isAdd ? 'bg-emerald-50 dark:bg-emerald-900/10' : c.reverted ? 'opacity-50' : ''}>
-                    <td className="py-2 pr-3 text-gray-700 dark:text-gray-300 font-medium align-top">{c.venue}</td>
-                    <td className="py-2 pr-3 align-top">
+                    <td className="py-1.5 pr-3 pl-3 align-top">
                       {c.isDelete
                         ? <span className="text-red-600 dark:text-red-400 font-medium text-xs uppercase tracking-wide">{t("Deleted")}</span>
                         : c.isAdd
                           ? <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs uppercase tracking-wide">{t("Added")}</span>
                           : <span className="text-gray-500 dark:text-gray-400">{t(label(c.field))}</span>}
                     </td>
-                    <td className={`py-2 pr-3 align-top break-words ${c.reverted ? 'text-gray-400 dark:text-gray-500' : 'text-red-500 dark:text-red-400'}`}>
+                    <td className={`py-1.5 pr-3 align-top break-words ${c.reverted ? 'text-gray-400 dark:text-gray-500' : 'text-red-500 dark:text-red-400'}`}>
                       {c.isDelete || c.isAdd ? '' : (c.oldVal || <span className="text-gray-300 dark:text-gray-600 italic">{t("empty")}</span>)}
                     </td>
-                    <td className="py-2 pr-2 text-green-700 dark:text-green-400 font-medium align-top break-words">
+                    <td className="py-1.5 pr-2 text-green-700 dark:text-green-400 font-medium align-top break-words">
                       {c.isDelete ? '' : c.isAdd ? <span className="text-emerald-600 dark:text-emerald-400">{t("new")}</span>
                         : c.reverted ? <span className="text-gray-400 dark:text-gray-500 font-normal italic">{t("no change")}</span>
                         : onEdit ? <EditableCell value={c.oldVal} rowIndex={c.idx} field={c.field} edits={edits} onEdit={onEdit} isDate={DATE_FIELDS.has(c.field)} className="text-sm" />
                         : (c.newVal || <span className="text-gray-300 dark:text-gray-600 italic">{t("empty")}</span>)}
                     </td>
-                    <td className="py-2 align-top text-right w-6">
+                    <td className="py-1.5 align-top text-right w-6">
                       {onRevert && !c.reverted && (
                         <button
                           onClick={() => onRevert(c)}
-                          title={c.isDelete ? 'Keep this venue' : c.isAdd ? 'Leave this venue out' : 'Take back this change'}
+                          title={c.isDelete ? t('Keep this venue') : c.isAdd ? t('Leave this venue out') : t('Take back this change')}
                           className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 leading-none px-1"
                         ><UndoIcon className="w-3.5 h-3.5" /></button>
                       )}
@@ -139,6 +155,7 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
                   </tr>
                 ))}
               </tbody>
+              ))}
             </table>
           )}
           {conflict && (
@@ -189,7 +206,7 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
               disabled={pushing || changes.length === 0 || !adapter}
               className="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
             >
-              {pushing ? 'Saving…' : 'Save'}
+              {pushing ? <Busy label={t('Saving…')} /> : t('Save')}
             </button>
           </div>
           </div>

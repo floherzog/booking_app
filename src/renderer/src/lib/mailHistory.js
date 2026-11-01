@@ -34,3 +34,18 @@ export function findReply(messages, dateStr) {
   const same = d => d.getFullYear() === day.getFullYear() && d.getMonth() === day.getMonth() && d.getDate() === day.getDate()
   return messages.find(m => m.direction === 'in' && m.date && same(new Date(m.date))) || null
 }
+
+// Messages newer than what the CSV says: the newest sent one, if it is from a
+// later day than Last emailed, and the newest received one, if later than the
+// Last reply date (an empty date counts as older than anything). These are
+// what a mail sync would write — a sign the CSV is behind. → Set of keys.
+export const messageKey = m => `${m.accountId}|${m.mailbox}|${m.uid}`
+export function newerThanCsv(messages, { lastEmailed = '', lastReply = '' } = {}) {
+  const day = d => (d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() : -Infinity)
+  const out = new Set()
+  for (const [direction, csv] of [['out', lastEmailed], ['in', lastReply]]) {
+    const newest = messages.find(m => m.direction === direction && m.date) // newest first
+    if (newest && day(new Date(newest.date)) > day(parseDate(csv))) out.add(messageKey(newest))
+  }
+  return out
+}

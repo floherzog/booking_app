@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../platform'
 import { t, useT } from '../i18n'
-import { SpinnerIcon } from './icons'
+import Busy from './Busy'
 
 // A newer release, said once at the top of the window instead of in a dialog
 // that has to be dismissed before anything else works. Download fetches the
@@ -51,10 +51,10 @@ export default function UpdateBanner({ update, onDismiss, beforeQuit }) {
       <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
         <span className="text-indigo-900 dark:text-indigo-100 min-w-0">
           {phase === 'downloading' ? (
-            <>{t("Downloading")} <span className="font-semibold">Booking {update.latest}</span>
+            <><Busy className="mr-1.5 align-[-0.125em]" />{t("Downloading")} <span className="font-semibold">Booking {update.latest}</span>
               <span className="text-indigo-700/70 dark:text-indigo-300/70"> · {pct != null ? `${pct} %` : mb(progress.received)}</span></>
           ) : phase === 'installing' ? (
-            <span className="inline-flex items-center gap-2"><SpinnerIcon />{t('Installing Booking {version} — it reopens by itself…', { version: update.latest })}</span>
+            <Busy label={t('Installing Booking {version} — it reopens by itself…', { version: update.latest })} />
           ) : phase === 'done' ? (
             <><span className="font-semibold">Booking {update.latest}</span> {t("is in Downloads")}
               <span className="text-indigo-700/70 dark:text-indigo-300/70"> {result?.inPlace

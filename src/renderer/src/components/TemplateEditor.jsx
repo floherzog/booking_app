@@ -9,6 +9,7 @@ import { genderOf, contactGenderOf, useGenders, useContactGenders } from '../lib
 import { BoldIcon, ItalicIcon, UnderlineIcon, LinkIcon, ImageIcon, VideoIcon } from './icons'
 import { t, useT } from '../i18n'
 import { token } from '../lib/placeholders'
+import Busy from './Busy'
 
 const LANGUAGE_HINT = () => t('Two-letter code, e.g. de or en. It must match one of the codes in Settings → Languages.')
 
@@ -292,7 +293,7 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
                 title={t("Insert a YouTube video as a clickable thumbnail")}
                 disabled={busy === 'video'}
                 onClick={insertVideo}
-              >{busy === 'video' ? '…' : <VideoIcon />}</ToolbarButton>
+              >{busy === 'video' ? <Busy /> : <VideoIcon />}</ToolbarButton>
               <span className="flex-1" />
               <PlaceholderMenu onInsert={tx => editor.chain().focus().insertContent(tx).run()} />
             </div>
@@ -351,7 +352,7 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
             disabled={saving}
             className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
           >
-            {saving ? t('Saving…') : t('Save template')}
+            {saving ? <Busy label={t('Saving…')} /> : t('Save template')}
           </button>
         </div>
       </div>

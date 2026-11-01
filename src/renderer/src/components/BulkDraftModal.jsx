@@ -13,6 +13,7 @@ import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
 import { CheckIcon, XIcon } from './icons'
 import { t, useT, getLanguage } from '../i18n'
 import { token } from '../lib/placeholders'
+import Busy from './Busy'
 
 function whenLabel(iso) {
   const d = new Date(iso)
@@ -331,7 +332,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                   />
                 ) : (
                   <span className="mt-0.5 w-4 text-center text-sm shrink-0">
-                    {current === row._idx ? '…' : result ? (result.ok ? <CheckIcon className="w-4 h-4 text-green-600 inline" /> : <XIcon className="w-4 h-4 text-red-600 inline" />) : ''}
+                    {current === row._idx ? <Busy /> : result ? (result.ok ? <CheckIcon className="w-4 h-4 text-green-600 inline" /> : <XIcon className="w-4 h-4 text-red-600 inline" />) : ''}
                   </span>
                 )}
 

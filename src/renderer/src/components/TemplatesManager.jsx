@@ -3,6 +3,7 @@ import { effectiveBandOptions } from '@core/bands'
 import { listTemplates, saveTemplate, deleteTemplate } from '../lib/templates'
 import TemplateEditor from './TemplateEditor'
 import { t, useT } from '../i18n'
+import Busy from './Busy'
 
 function emptyTemplate(band, language) {
   return {
@@ -125,7 +126,7 @@ export default function TemplatesManager({ settings, rows = [], onBack, onClose 
         ) : (
           <>
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
-              {loading && <p className="text-sm text-gray-400 dark:text-gray-500">{t("Loading…")}</p>}
+              {loading && <p className="text-sm text-gray-400 dark:text-gray-500"><Busy label={t("Loading…")} /></p>}
 
               {!loading && templates.length === 0 && (
                 <div className="text-center py-10">

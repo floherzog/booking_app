@@ -8,6 +8,7 @@ import RulesEditor from './RulesEditor'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { t, useT } from '../i18n'
+import Busy from './Busy'
 
 // A leaf: either a status outcome (blue-ish status pill) or a "keep going" fall-through.
 function Outcome({ value }) {
@@ -332,7 +333,7 @@ export default function LogicModal({ onClose, onSaveRules }) {
                   disabled={!dirty || saving || ruleErrors.length > 0}
                   className="bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-40"
                 >
-                  {saving ? t('Saving…') : t('Save')}
+                  {saving ? <Busy label={t('Saving…')} /> : t('Save')}
                 </button>
               </div>
             )}

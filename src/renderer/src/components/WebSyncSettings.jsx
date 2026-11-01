@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useT } from '../i18n'
+import Busy from './Busy'
 
 // Settings ▸ General ▸ Sync with your web app (Mac only, caps.settingsSync).
 // Connecting, syncing and disconnecting run in App (they replace the settings
@@ -50,7 +51,7 @@ export default function WebSyncSettings({ webSync = {}, multiBandOn, error, busy
             <span className="text-sm text-gray-800 dark:text-gray-200">
               {last ? t('Synced with {host} · last synced {time}', { host, time: last }) : t('Connected to {host}', { host })}
             </span>
-            <button type="button" onClick={onSyncNow} disabled={busy} className={outlineBtn}>{busy ? t('Syncing…') : t('Sync now')}</button>
+            <button type="button" onClick={onSyncNow} disabled={busy} className={outlineBtn}>{busy ? <Busy label={t('Syncing…')} /> : t('Sync now')}</button>
             <button type="button" onClick={onDisconnect} disabled={busy} className={outlineBtn}>{t('Disconnect')}</button>
           </div>
           {error && <p className="text-xs text-red-600 dark:text-red-400">{message(error.code, error.message)}</p>}
@@ -62,7 +63,7 @@ export default function WebSyncSettings({ webSync = {}, multiBandOn, error, busy
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); connect(webSync.url) } }} />
               </div>
               <button type="button" onClick={() => connect(webSync.url)} disabled={connecting || !code} className={outlineBtn}>
-                {connecting ? t('Connecting…') : t('Connect')}
+                {connecting ? <Busy label={t('Connecting…')} /> : t('Connect')}
               </button>
               {connectError && <span className="text-xs text-red-600 dark:text-red-400 self-center">{connectError}</span>}
             </div>
@@ -100,7 +101,7 @@ export default function WebSyncSettings({ webSync = {}, multiBandOn, error, busy
           </div>
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => connect()} disabled={connecting || !url.trim() || !code} className={outlineBtn}>
-              {connecting ? t('Connecting…') : t('Connect')}
+              {connecting ? <Busy label={t('Connecting…')} /> : t('Connect')}
             </button>
             {connectError && <span className="text-xs text-red-600 dark:text-red-400">{connectError}</span>}
           </div>

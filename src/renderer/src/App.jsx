@@ -48,6 +48,7 @@ import MailSetupNotice, { mailSetupGaps } from './components/MailSetupNotice'
 import { api, caps } from './platform'
 import { checkOpenclawPolicy } from './lib/policySync'
 import { t, useT, getLanguage, useLanguage } from './i18n'
+import Busy from './components/Busy'
 
 // Mail-only views, loaded when first opened: they carry the template editor
 // (TipTap), which the web build never shows and so never downloads.
@@ -1203,7 +1204,7 @@ export default function App() {
         <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">{t("Discard")}</button>
       ))}
       <button onClick={() => setShowLogic(true)} className={iconBtn} title={t("How venues are classified")}><InfoIcon /></button>
-      <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : <RefreshIcon />}</button>
+      <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? <Busy /> : <RefreshIcon />}</button>
       <button onClick={() => setShowSettings(true)} className={iconBtn} title={t("Settings")}>{sliders}</button>
     </div>
   )
@@ -1308,7 +1309,7 @@ export default function App() {
               </>
             )}
             <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors inline-flex items-center gap-1.5" title={t("How venues are classified")}><InfoIcon className="w-[1em] h-[1em]" /> {t('Logic')}</button>
-            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? t('Loading…') : syncing ? t('Checking mail…') : <RefreshIcon className="w-[1.1em] h-[1.1em]" />}</button>
+            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? <Busy label={t('Loading…')} /> : syncing ? <Busy label={t('Checking mail…')} /> : <RefreshIcon className="w-[1.1em] h-[1.1em]" />}</button>
             <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("Settings")}>{sliders}</button>
           </div>
         </div>
@@ -1318,7 +1319,7 @@ export default function App() {
         )}
 
         {loading && rows.length === 0 && (
-          <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center">{t("Loading booking data…")}</div>
+          <div className="text-sm text-gray-400 dark:text-gray-500 py-12 text-center"><Busy label={t("Loading booking data…")} /></div>
         )}
 
         {/* Mobile: the same count line the desktop header carries */}

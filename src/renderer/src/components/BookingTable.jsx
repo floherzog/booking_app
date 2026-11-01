@@ -36,6 +36,7 @@ import { MailContext } from '../lib/mailHistory'
 import { useDateOrder } from '../lib/dateOrder'
 import { isSharedField } from '@core/multiBand'
 import { t, useT } from '../i18n'
+import Busy from './Busy'
 
 
 // The Reply Status kind reads as a recorded fact (a tinted badge with an inbound
@@ -374,7 +375,7 @@ function DraftAction({ row, meta }) {
             : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
       }`}
     >
-      {busy ? '…' : <><MailIcon className="w-3.5 h-3.5" />{result?.ok ? <CheckIcon className="w-3 h-3 ml-0.5 text-green-600" /> : result ? <XIcon className="w-3 h-3 ml-0.5 text-red-600" /> : null}</>}
+      {busy ? <Busy /> : <><MailIcon className="w-3.5 h-3.5" />{result?.ok ? <CheckIcon className="w-3 h-3 ml-0.5 text-green-600" /> : result ? <XIcon className="w-3 h-3 ml-0.5 text-red-600" /> : null}</>}
     </button>
   )
 }
@@ -538,7 +539,7 @@ function ReplyStatusCell({ rowIndex, value, email, edits, onEdit }) {
           >
             {dateStr ? (
               <div className="leading-tight">
-                <span className="text-xs text-gray-600 dark:text-gray-300">{opening ? t('Opening…') : displayDateText(dateStr)}</span>
+                <span className="text-xs text-gray-600 dark:text-gray-300">{opening ? <Busy label={t('Opening…')} /> : displayDateText(dateStr)}</span>
                 <div><RelDate raw={dateStr} colorFn={colorFn} /></div>
               </div>
             ) : (

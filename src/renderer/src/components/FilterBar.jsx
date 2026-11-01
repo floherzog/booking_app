@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import AdvancedPanel from './AdvancedPanel'
 import { EMPTY_FILTERS, isEmptyFilters } from '@core/filterRows'
-import { FilterIcon, SelectIcon, MailIcon } from './icons'
+import { FilterIcon, SelectIcon, MailIcon, XIcon } from './icons'
 import { chromeTop, scrollY, scrollToY } from '../lib/windowChrome'
 import { t, useT } from '../i18n'
 
@@ -188,8 +188,10 @@ export default function FilterBar({
       <div className="flex flex-wrap gap-2 items-center !mt-2">
         {dropdowns}
         {hasFilters && (
-          <button onClick={clear} className="shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline">
-            {t("Clear")}
+          <button onClick={clear} title={t('Show all venues again')}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors">
+            <XIcon className="w-3.5 h-3.5" />
+            {t('Clear filters')}
           </button>
         )}
       </div>

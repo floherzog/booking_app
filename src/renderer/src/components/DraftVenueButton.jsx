@@ -7,6 +7,7 @@ import { languageForRow } from '@core/templates'
 import { MoreIcon } from './icons'
 import { t, useT } from '../i18n'
 import { token } from '../lib/placeholders'
+import Busy from './Busy'
 
 // The per-venue draft action. The IMAP path is primary; the AppleScript one sits
 // in the overflow because it drives Mail's window by keystroke and needs macOS
@@ -79,7 +80,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
           title={noAccount ? t('Set up a mail account first (Settings ▸ Mail settings)') : prepared.ok ? t('Create a draft in your Drafts mailbox over IMAP') : prepared.reason}
           className="bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-gray-700 dark:hover:bg-white transition-colors disabled:opacity-40"
         >
-          {busy ? t('Drafting…') : t('Draft in Mail')}
+          {busy ? <Busy label={t('Drafting…')} /> : t('Draft in Mail')}
         </button>
 
         {showSend && (
@@ -97,7 +98,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
               ? 'bg-rose-600 text-white hover:bg-rose-700'
               : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'}`}
           >
-            {busy ? t('Sending…') : confirmSend ? t('Really send?') : t('Send now')}
+            {busy ? <Busy label={t('Sending…')} /> : confirmSend ? t('Really send?') : t('Send now')}
           </button>
         )}
 

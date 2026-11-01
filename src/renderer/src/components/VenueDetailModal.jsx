@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { statusMeta, useChipColors } from '../lib/palette'
 import { getMissingFields, describeMissing, fieldLabel, isOnlineForm, onlineFormUrl } from '@core/constants'
 import { normalizeDateText } from '@core/parseDate'
+import { parseReplyStatus } from '@core/replyStatus'
 import DateInput from './DateInput'
 import { geocodeCity } from '../lib/geocode'
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
@@ -20,6 +21,7 @@ import { contactGenderOf, overrideContactGender, useContactGenders } from '../li
 import { greetingFor, contactOptionsFor } from '@core/templates'
 import { t, useT } from '../i18n'
 import MailHistory from './MailHistory'
+import Busy from './Busy'
 
 function MiniMap({ city, country, status, onOpenMap }) {
   const t = useT()
@@ -38,7 +40,7 @@ function MiniMap({ city, country, status, onOpenMap }) {
     return () => { cancelled = true }
   }, [city, country])
 
-  if (loading) return <div className="h-32 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse" />
+  if (loading) return <div className="h-32 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-400 dark:text-gray-500"><Busy className="text-lg" /></div>
   if (!pos) return null
 
   const color = statusMeta(status).mapColor ?? '#9CA3AF'
@@ -504,7 +506,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
               onOpenMap={onOpenMap}
             />
           )}
-          {caps.mail && <MailHistory email={effective['Email']} />}
+          {caps.mail && <MailHistory email={effective['Email']} lastEmailed={effective['Last emailed']} lastReply={parseReplyStatus(effective['Status']).dateStr} />}
           {SECTIONS.map(section => {
             // In multi-band mode the band is chosen with the tabs above, and the
             // section heading says whose data this is: the venue's (every band)
