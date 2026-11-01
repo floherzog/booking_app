@@ -38,6 +38,7 @@ import NoticeBanner from './components/NoticeBanner'
 import BannerSlot from './components/BannerSlot'
 import MailReader from './components/MailReader'
 import { MailContext, getHistory, findReply, forgetHistory } from './lib/mailHistory'
+import { useDateOrder } from './lib/dateOrder'
 import { csvSuggestions } from '@core/csvSuggestions'
 import { mailReady, normalizeAccounts, secretKeyFor } from '@core/mailAccounts'
 import { GlobeIcon, SettingsIcon, ListIcon, InfoIcon, RefreshIcon } from './components/icons'
@@ -56,6 +57,7 @@ const BulkDraftModal = lazy(() => import('./components/BulkDraftModal'))
 
 export default function App() {
   const t = useT()
+  const dateOrder = useDateOrder() // the empty-batch explanations name a date
   // The whole persisted config lives in the main process (userData/settings.json);
   // null until the first settings:get resolves.
   const [settings, setSettings] = useState(null)
@@ -303,17 +305,21 @@ export default function App() {
   // Updates: once per launch when Settings ▸ General asks for it, quietly — the
   // banner appears only for something newer, and not again for a version the
   // user dismissed. "Check for Updates…" in the menu always shows it.
-  const updateChecked = useRef(false)
-  useEffect(() => {
-    if (!settings || updateChecked.current) return
-    updateChecked.current = true
-    if (!caps.updates || !settings.general?.autoCheckUpdates) return
+  // The ↻ button asks again too (refreshAll), under the same setting.
+  const checkUpdatesQuietly = useCallback(current => {
+    if (!caps.updates || !current?.general?.autoCheckUpdates) return
     api.checkForUpdates().then(r => {
       let dismissed = null
       try { dismissed = localStorage.getItem('dismissedUpdate') } catch { /* storage unavailable */ }
       if (r?.newer && r.latest !== dismissed) setUpdate(r)
     }).catch(() => { /* offline: say nothing */ })
-  }, [settings])
+  }, [])
+  const updateChecked = useRef(false)
+  useEffect(() => {
+    if (!settings || updateChecked.current) return
+    updateChecked.current = true
+    checkUpdatesQuietly(settings)
+  }, [settings, checkUpdatesQuietly])
   useEffect(() => api.onUpdateAvailable(r => setUpdate(r)), [])
 
   const webSyncStarted = useRef(false)
@@ -423,9 +429,10 @@ export default function App() {
   // The ↻ button: reload the CSV, then (when configured) ask the mail account.
   // Order matters — load() clears staged edits, so syncing first would wipe them.
   const refreshAll = useCallback(async () => {
+    checkUpdatesQuietly(settings)
     await load()
     await runMailSync({ silent: true })
-  }, [load, runMailSync])
+  }, [load, runMailSync, checkUpdatesQuietly, settings])
 
   // Once after the first load, if the user asked for it.
   const syncedOnOpen = useRef(false)
@@ -1088,14 +1095,14 @@ export default function App() {
   const batchWhyEmpty = useMemo(
     () => (batchCount ? null : explainEmptyBatch({ rows: liveRows, filters: { nextBatch: true }, rules, today, t })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [batchCount, liveRows, rules, today, language],
+    [batchCount, liveRows, rules, today, language, dateOrder],
   )
   const listWhyEmpty = useMemo(
     () => (filters.nextBatch && filteredRows.length === 0
       ? explainEmptyBatch({ rows: liveRows, filters, rules, today, ctx: { isDuplicate, classify: classifyCtx }, columnLabel: statsColumnLabel, t })
       : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, classifyCtx, language],
+    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, classifyCtx, language, dateOrder],
   )
   const batchActions = {
     rules: { label: t('Open Rules'), run: () => openSettings('rules') },

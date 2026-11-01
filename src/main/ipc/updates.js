@@ -4,6 +4,7 @@ import { createWriteStream } from 'node:fs'
 import { access, rename, rm } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { join, extname, basename } from 'node:path'
+import { replaceableBundle, stageUpdate, scheduleSwap } from './selfInstall.js'
 
 // The app is distributed as a file you hand someone, so there is no auto-update
 // feed. Instead we ask GitHub for the latest release of the public source repo
@@ -186,6 +187,8 @@ export function registerUpdatesIpc() {
 
   let running = null // { controller } while a download is in progress
   let downloaded = '' // the last file this session downloaded — the only one Open/Reveal act on
+  let downloadedVersion = ''
+  const inPlace = () => replaceableBundle({ isPackaged: app.isPackaged, exePath: app.getPath('exe') })
   ipcMain.handle('updates:download', async event => {
     if (running) return { error: 'A download is already running.' }
     // The file to fetch comes from GitHub, never from the window.
@@ -204,7 +207,8 @@ export function registerUpdatesIpc() {
         onProgress: send,
       })
       downloaded = path
-      return { path, name: basename(path), version: update.latest, quarantineCleared }
+      downloadedVersion = update.latest
+      return { path, name: basename(path), version: update.latest, quarantineCleared, inPlace: !!(await inPlace()) }
     } catch (err) {
       if (err.message === 'cancelled') return { cancelled: true }
       if (err.code === 'EPERM' || err.code === 'EACCES') {
@@ -218,10 +222,23 @@ export function registerUpdatesIpc() {
   ipcMain.handle('updates:cancel', () => { running?.controller.abort() })
   ipcMain.handle('updates:open', async () => (downloaded ? shell.openPath(downloaded) : 'Nothing downloaded yet.'))
   ipcMain.handle('updates:reveal', () => { if (downloaded) shell.showItemInFolder(downloaded) })
-  // Nothing installs itself: open the .dmg so its window is there to drag from,
-  // then quit, so the running copy isn't in the way of replacing it.
+  // Replaces Booking in place and reopens it (selfInstall.js) where it can;
+  // otherwise opens the .dmg so its window is there to drag from, then quits,
+  // so the running copy isn't in the way of replacing it.
   ipcMain.handle('updates:installAndQuit', async () => {
     if (!downloaded) return 'Nothing downloaded yet.'
+    const bundle = await inPlace()
+    if (bundle) {
+      try {
+        const stage = await stageUpdate({ dmg: downloaded, bundle, version: downloadedVersion })
+        await scheduleSwap({ stage, bundle })
+        await shell.trashItem(downloaded).catch(() => {}) // in the Trash, not gone
+        setTimeout(() => app.quit(), 200)
+        return ''
+      } catch (err) {
+        console.error('In-place update failed, opening the disk image instead:', err.message)
+      }
+    }
     const err = await shell.openPath(downloaded)
     if (err) return err
     setTimeout(() => app.quit(), 400)

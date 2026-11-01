@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { displayDateText, normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
+import { useDateOrder } from '../lib/dateOrder'
 import { t, useT } from '../i18n'
 
 const MULTILINE_FIELDS = ['Note', 'Text', 'Time Frame']
 
 export default function EditableCell({ value, rowIndex, field, edits, onEdit, className = '', isDate = false }) {
   const t = useT()
+  useDateOrder()
   const edited = edits[rowIndex]?.[field]
   const rawValue = edited !== undefined ? edited : (value || '')
   const isEdited = edited !== undefined

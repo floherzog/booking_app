@@ -1,7 +1,9 @@
 import { useContext, useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { MailContext, getHistory } from '../lib/mailHistory'
-import { formatDateDDMMYY } from '@core/parseDate'
+import { SpinnerIcon } from './icons'
+import { formatDay } from '@core/parseDate'
+import { useDateOrder } from '../lib/dateOrder'
 
 // Under the map in a venue's details: every email from and to its address,
 // newest first, folded away until opened. Not there at all without a mailbox
@@ -9,20 +11,33 @@ import { formatDateDDMMYY } from '@core/parseDate'
 export default function MailHistory({ email }) {
   const t = useT()
   const mail = useContext(MailContext)
+  useDateOrder()
   const [messages, setMessages] = useState(null)
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     if (!mail.ready || !email?.trim()) return undefined
     let alive = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMessages(null)
     getHistory(email).then(m => { if (alive) setMessages(m) })
     return () => { alive = false }
   }, [mail.ready, email])
 
-  if (!mail.ready || !messages?.length) return null
-  // The app's own DD.MM.YY, like every other date in it — not the Mac's region
-  // format, which could print 1 November as 11/01/26.
-  const day = d => (d ? formatDateDDMMYY(new Date(d)) : '')
+  if (!mail.ready || !email?.trim()) return null
+  // Asking the mailbox can take a few seconds; say so rather than show nothing.
+  if (messages === null) {
+    return (
+      <p className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400" role="status">
+        <SpinnerIcon />
+        {t('Fetching emails…')}
+      </p>
+    )
+  }
+  if (!messages.length) return null
+  // The app's own date order (Settings ▸ General), like every other date in
+  // it — not the Mac's region format.
+  const day = d => (d ? formatDay(new Date(d)) : '')
   return (
     <section>
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}

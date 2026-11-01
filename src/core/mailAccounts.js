@@ -87,9 +87,12 @@ export function normalizeAccount(raw = {}, fallbackId = DEFAULT_ACCOUNT_ID) {
 
 // `mail` in either shape → a non-empty list of accounts. The first is the default
 // one: it is what an unassigned band sends from.
+// An `accounts` list — even an empty one, after the last account was removed —
+// is the whole truth. Only settings from before accounts existed (no list, flat
+// host/user fields) become a first account.
 export function normalizeAccounts(mail = {}) {
-  const stored = Array.isArray(mail?.accounts) ? mail.accounts.filter(Boolean) : []
-  if (stored.length) {
+  if (Array.isArray(mail?.accounts)) {
+    const stored = mail.accounts.filter(Boolean)
     const seen = new Set()
     return stored.map((a, i) => {
       const account = normalizeAccount(a, i === 0 ? DEFAULT_ACCOUNT_ID : `account-${i}`)
@@ -103,7 +106,9 @@ export function normalizeAccounts(mail = {}) {
     })
   }
   // The pre-accounts shape: the flat fields are the one and only account.
-  return [normalizeAccount(mail, DEFAULT_ACCOUNT_ID)]
+  return String(mail?.host || '').trim() || String(mail?.user || '').trim()
+    ? [normalizeAccount(mail, DEFAULT_ACCOUNT_ID)]
+    : []
 }
 
 // Whether any mailbox has been set up at all: an account with a server and a
@@ -144,6 +149,7 @@ export function hasMultipleAccounts(settings) {
 
 // A fresh account id that does not collide with the existing ones.
 export function nextAccountId(accounts = []) {
+  if (!accounts.length) return DEFAULT_ACCOUNT_ID
   const taken = new Set(accounts.map(a => a?.id))
   let n = accounts.length || 1
   let id = `account-${n}`

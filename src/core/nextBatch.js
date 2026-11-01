@@ -1,7 +1,7 @@
 import { ACTION_STATUSES, STATUS } from './constants.js'
 import { DEFAULT_RULES } from './rules.js'
 import { EMPTY_FILTERS, matchesFilters, describeFilters } from './filterRows.js'
-import { parseDate, formatDateDDMMYY } from './parseDate.js'
+import { parseDate, formatDay } from './parseDate.js'
 import { plainT } from './tr.js'
 
 // The next batch is simply the first N rows whose classified status is
@@ -60,7 +60,7 @@ export function explainEmptyBatch({ rows, filters, rules = DEFAULT_RULES, today 
   const parts = []
   if (waiting) parts.push(t('{n} venue is waiting for a reply or their next turn|{n} venues are waiting for a reply or their next turn', { n: waiting }))
   if (next) {
-    const date = formatDateDDMMYY(next.date)
+    const date = formatDay(next.date)
     parts.push(next.venue ? t('the next follow-up is due on {date} ({venue})', { date, venue: next.venue }) : t('the next follow-up is due on {date}', { date }))
   }
   reason += parts.length ? ` — ${parts.join(`, ${t('and')} `)}.` : '.'

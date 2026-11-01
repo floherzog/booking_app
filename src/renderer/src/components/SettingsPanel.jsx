@@ -20,6 +20,7 @@ import { useEscape } from '../lib/useEscape'
 import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
 import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
+import { useDateOrder, setDateOrderSetting } from '../lib/dateOrder'
 import { token } from '../lib/placeholders'
 import WebSyncSettings from './WebSyncSettings'
 import { csvSuggestions } from '@core/csvSuggestions'
@@ -63,6 +64,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const [theme, setThemeState] = useState(getStoredTheme)
   const pinToolbar = usePinToolbar()
   const pinItems = usePinItems()
+  const dateOrder = useDateOrder()
   useLanguage() // redraw the choice when it changes
   const languageSetting = getLanguageSetting()
   const [newBand, setNewBand] = useState('')
@@ -674,6 +676,32 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
                     <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       {t('Automatic follows the language of your system. Your templates and the CSV stay as they are.')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className={lbl}>{t('Date format')}</p>
+                    <div className="flex gap-2">
+                      {[
+                        { value: 'dmy', label: t('31.12.26 (day first)') },
+                        { value: 'mdy', label: t('12/31/26 (US, month first)') },
+                      ].map(o => (
+                        <button
+                          key={o.value}
+                          type="button"
+                          onClick={() => setDateOrderSetting(o.value)}
+                          aria-pressed={dateOrder === o.value}
+                          className={`flex-1 py-1.5 rounded-md text-sm font-medium border transition-colors
+                            ${dateOrder === o.value
+                              ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200'
+                              : 'text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                            }`}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      {t('How dates are shown and how a typed date like 11/01/26 is read. The CSV always stores day first (dd.mm.yy).')}
                     </p>
                   </div>
                   <div>
@@ -1627,8 +1655,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     )
                   })}
 
+                  {accounts.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('No mail account yet.')}</p>
+                  )}
                   <button type="button" onClick={addAccount} className={outlineBtn}>
-                    {t("Add another account…")}
+                    {accounts.length ? t("Add another account…") : t('Add an account…')}
                   </button>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">

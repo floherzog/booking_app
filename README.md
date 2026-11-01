@@ -51,14 +51,20 @@ the detour: it is what makes the app open *immediately* and without a warning.
 > Desktop, run `xattr -dr com.apple.quarantine ~/Desktop/Booking.app`, and drag it
 > back. Finder is allowed to move apps, so nothing blocks it.
 
-Afterwards, Booking tells you when there is a newer one (and **Booking → Check
+Afterwards, Booking tells you when there is a newer one — on start and whenever
+you press ↻, if *Check for updates automatically* is on (and **Booking → Check
 for Updates…** asks on demand). **Download** in that banner fetches the new `.dmg`
 inside the app, with a progress bar, checks it against the release's checksum and
 leaves it in Downloads **without the quarantine flag** — so updating that way
-needs no Terminal step: press **Quit and install** — Booking opens the `.dmg`
-and quits (asking first if you have unsaved changes) — then drag the new Booking
-into Applications in the window that opens, and start it again. The first time, macOS asks whether Booking may save to your Downloads folder. The
-`xattr` step above is only for a copy downloaded with a browser.
+needs no Terminal step. Then **Quit and install** (asking first if you have
+unsaved changes) copies the new Booking out of the `.dmg`, checks it (Booking's
+bundle id, the expected version, a valid signature), moves the `.dmg` to the
+Trash, quits, swaps the new app in for the old one and opens it — nothing to
+drag. That needs Booking to run from a folder it may write to, as Applications
+normally is; anywhere else (still on the disk image, say) it opens the `.dmg`
+and quits, and you drag the new Booking into Applications yourself. The first
+time, macOS asks whether Booking may save to your Downloads folder. The `xattr`
+step above is only for a copy downloaded with a browser.
 
 ## What an update keeps
 
@@ -134,6 +140,9 @@ inside the app bundle, so nothing is lost:
   click one to read it. Clicking a **Last reply** date opens that reply — the
   pencil beside it edits the date. See *Keeping the date columns honest*.
 - **Map view** of your venues, with offline-seeded coordinates.
+- **Your date format.** Settings ▸ General ▸ Date format shows dates day first
+  (31.12.26) or US-style month first (12/31/26), and reads a typed slash date
+  the same way. The CSV always stores day first (dd.mm.yy). Kept per device.
 - **In English or German.** Settings ▸ General ▸ Language: *Automatic*
   follows your system (German if it's German, English otherwise), or pick one.
   It's kept per device and switches straight away, menu bar included. Your

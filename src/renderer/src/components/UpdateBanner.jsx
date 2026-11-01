@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../platform'
 import { t, useT } from '../i18n'
+import { SpinnerIcon } from './icons'
 
 // A newer release, said once at the top of the window instead of in a dialog
 // that has to be dismissed before anything else works. Download fetches the
@@ -8,11 +9,13 @@ import { t, useT } from '../i18n'
 // of the quarantine mark a browser download carries, so it needs no Terminal
 // step — and then offers to open it. Should that fail, the browser download is
 // still a click away. What's new opens the release notes. × hides it for this
-// version — the next one shows again. Quit and install opens the .dmg and quits
-// Booking; `beforeQuit` (async → boolean) gets a say first, for unsaved edits.
+// version — the next one shows again. Quit and install replaces Booking and
+// reopens it (src/main/ipc/selfInstall.js) — or, where it can't (`inPlace`
+// false), opens the .dmg and quits. `beforeQuit` (async → boolean) gets a say
+// first, for unsaved edits.
 export default function UpdateBanner({ update, onDismiss, beforeQuit }) {
   const t = useT()
-  // idle → downloading → done | failed
+  // idle → downloading → done → installing | failed
   const [phase, setPhase] = useState('idle')
   const [progress, setProgress] = useState({ received: 0, total: 0 })
   const [result, setResult] = useState(null)
@@ -25,6 +28,7 @@ export default function UpdateBanner({ update, onDismiss, beforeQuit }) {
 
   async function installAndQuit() {
     if (beforeQuit && !(await beforeQuit())) return
+    setPhase('installing')
     const err = await api.installUpdateAndQuit()
     if (err) { setResult(r => ({ ...r, error: err })); setPhase('failed') }
   }
@@ -49,9 +53,13 @@ export default function UpdateBanner({ update, onDismiss, beforeQuit }) {
           {phase === 'downloading' ? (
             <>{t("Downloading")} <span className="font-semibold">Booking {update.latest}</span>
               <span className="text-indigo-700/70 dark:text-indigo-300/70"> · {pct != null ? `${pct} %` : mb(progress.received)}</span></>
+          ) : phase === 'installing' ? (
+            <span className="inline-flex items-center gap-2"><SpinnerIcon />{t('Installing Booking {version} — it reopens by itself…', { version: update.latest })}</span>
           ) : phase === 'done' ? (
             <><span className="font-semibold">Booking {update.latest}</span> {t("is in Downloads")}
-              <span className="text-indigo-700/70 dark:text-indigo-300/70"> {t('· Booking closes, then drag the new Booking into Applications in the window that opens')}</span></>
+              <span className="text-indigo-700/70 dark:text-indigo-300/70"> {result?.inPlace
+                ? t('· Quit and install replaces Booking and opens the new version')
+                : t('· Booking closes, then drag the new Booking into Applications in the window that opens')}</span></>
           ) : phase === 'failed' ? (
             <span className="text-red-700 dark:text-red-300">{t("Download failed:")} {result?.error}</span>
           ) : (
@@ -74,10 +82,10 @@ export default function UpdateBanner({ update, onDismiss, beforeQuit }) {
               <button onClick={browserDownload} className={link}>{t("Download in browser")}</button>
             </>
           )}
-          {phase !== 'downloading' && phase !== 'done' && (
+          {(phase === 'idle' || phase === 'failed') && (
             <button onClick={() => open(update.url)} className={link}>{t("What’s new")}</button>
           )}
-          {phase !== 'downloading' && (
+          {phase !== 'downloading' && phase !== 'installing' && (
             <button
               onClick={onDismiss}
               aria-label={t("Dismiss")}

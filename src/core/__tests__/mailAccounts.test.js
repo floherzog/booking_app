@@ -44,10 +44,13 @@ describe('normalizeAccounts — migration from the single-account shape', () => 
     expect(a.smtpHost).toBe('smtp.sendgrid.net')
   })
 
-  it('always returns at least one account, even from nothing', () => {
-    expect(normalizeAccounts()).toHaveLength(1)
-    expect(normalizeAccounts({}).at(0).id).toBe('default')
-    expect(normalizeAccounts({ accounts: [] })).toHaveLength(1)
+  it('has no account until one is set up, and none after the last is removed', () => {
+    expect(normalizeAccounts()).toEqual([])
+    expect(normalizeAccounts({})).toEqual([])
+    expect(normalizeAccounts({ accounts: [] })).toEqual([])
+    // An emptied list wins over leftover flat fields from the old shape.
+    expect(normalizeAccounts({ accounts: [], host: 'imap.gmail.com', user: 'a@b.com' })).toEqual([])
+    expect(normalizeAccounts({ host: 'imap.gmail.com', user: 'a@b.com' }).at(0).id).toBe('default')
   })
 
   it('reads a real accounts list and keeps the first as default', () => {

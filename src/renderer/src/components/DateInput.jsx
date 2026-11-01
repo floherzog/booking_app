@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { normalizeDateText, toInputValue, fromInputValue } from '@core/parseDate'
+import { normalizeDateText, displayDateText, toInputValue, fromInputValue } from '@core/parseDate'
+import { useDateOrder } from '../lib/dateOrder'
 import { t, useT } from '../i18n'
 
 // About as wide as the browser's own calendar (Chromium's is the widest).
@@ -7,7 +8,9 @@ const PICKER_WIDTH = 260
 
 // A date you can type — "12.03.26", "12.3.2026", "September 2026", "2027" — or
 // pick from the calendar behind the button. A day is stored as dd.MM.yy, just
-// as the picker would; anything vaguer is stored as typed.
+// as the picker would; anything vaguer is stored as typed. The field shows and
+// reads days in the chosen date order (lib/dateOrder.js), so with month first
+// "11/01/26" is 1 November; `value` and onCommit are always the stored form.
 //
 // onCommit(text) on Enter, on leaving the field and on picking a day; onCancel
 // on Escape (without one, Escape puts the value back). onTextChange, if given,
@@ -16,7 +19,8 @@ const PICKER_WIDTH = 260
 // moving to it does not count as leaving the field.
 export default function DateInput({ id, value, onCommit, onCancel, onTextChange, autoFocus = false, className = '', placeholder }) {
   const t = useT()
-  const [text, setText] = useState(value || '')
+  const order = useDateOrder()
+  const [text, setText] = useState(() => displayDateText(value || ''))
   const committed = useRef(value || '')
   const textRef = useRef(null)
   const pickerRef = useRef(null)
@@ -25,7 +29,7 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
   useEffect(() => {
     if ((value || '') !== committed.current) {
       committed.current = value || ''
-      setText(value || '')
+      setText(displayDateText(value || ''))
     }
   }, [value])
 
@@ -36,7 +40,7 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
   function commit(raw) {
     const next = normalizeDateText(raw)
     committed.current = next
-    setText(next)
+    setText(displayDateText(next))
     onCommit(next)
   }
 
@@ -70,16 +74,16 @@ export default function DateInput({ id, value, onCommit, onCancel, onTextChange,
         id={id}
         type="text"
         value={text}
-        placeholder={placeholder ?? t('dd.mm.yy or month')}
+        placeholder={placeholder ?? (order === 'mdy' ? t('mm/dd/yy or month') : t('dd.mm.yy or month'))}
         onChange={e => { setText(e.target.value); onTextChange?.(e.target.value) }}
         onKeyDown={e => {
           if (e.key === 'Enter') { e.preventDefault(); commit(text) }
           // Escape undoes typing; with nothing to undo it is left to close the
           // dialog the field sits in (see useEscape).
-          if (e.key === 'Escape' && (onCancel || text !== committed.current)) {
+          if (e.key === 'Escape' && (onCancel || text !== displayDateText(committed.current))) {
             e.preventDefault()
             if (onCancel) onCancel()
-            else setText(committed.current)
+            else setText(displayDateText(committed.current))
           }
         }}
         className={`min-w-0 flex-1 ${className}`}

@@ -33,6 +33,7 @@ import { useDragSelect } from '../lib/useDragSelect'
 import { usePinToolbar, usePinItems } from '../lib/uiPrefs'
 import { MailIcon, ReplyIcon, AutoReplyIcon, CheckIcon, XIcon, PencilIcon } from './icons'
 import { MailContext } from '../lib/mailHistory'
+import { useDateOrder } from '../lib/dateOrder'
 import { isSharedField } from '@core/multiBand'
 import { t, useT } from '../i18n'
 
@@ -487,6 +488,7 @@ function buildExtraColumnDef(field) {
 function ReplyStatusCell({ rowIndex, value, email, edits, onEdit }) {
   const t = useT()
   const mail = useContext(MailContext)
+  useDateOrder()
   const [opening, setOpening] = useState(false)
   const raw = edits[rowIndex]?.['Status'] ?? value ?? ''
   const { kind, dateStr } = parseReplyStatus(raw)

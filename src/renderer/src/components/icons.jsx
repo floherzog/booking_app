@@ -58,6 +58,15 @@ export const WarningIcon = icon('WarningIcon', <><path d="M10.3 3.9L2.4 17.5A2 2
 export const ExternalIcon = icon('ExternalIcon', <><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></>)
 export const CheckIcon = icon('CheckIcon', <path d="M5 12.5l4.5 4.5L19 7.5" />)
 export const XIcon = icon('XIcon', <path d="M6 6l12 12M18 6L6 18" />)
+// Turns while something loads; index.css stops it for "reduce motion".
+export function SpinnerIcon({ className = 'w-3.5 h-3.5' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={`spinner animate-spin ${className}`} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  )
+}
 export const PencilIcon = icon('PencilIcon', <><path d="M15.5 4.5l4 4L8 20H4v-4z" /><path d="M13 7l4 4" /></>)
 // Template editor toolbar.
 export const BoldIcon = icon('BoldIcon', <path d="M7 4.5h6a3.75 3.75 0 0 1 0 7.5H7zM7 12h7a3.75 3.75 0 0 1 0 7.5H7z" />)

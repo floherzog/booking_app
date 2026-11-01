@@ -101,3 +101,20 @@ describe('MailHistory', () => {
     act(() => root.unmount())
   })
 })
+
+describe('MailHistory while loading', () => {
+  it('says it is fetching, then goes away when there is nothing', async () => {
+    const { MailContext } = await import('../../lib/mailHistory.js')
+    const { default: MailHistory } = await import('../MailHistory.jsx')
+    let finish
+    api.listMailHistory.mockReturnValueOnce(new Promise(r => { finish = r }))
+    const ctx = { ready: true, openMessage: vi.fn(), openReply: async () => false }
+    const { el, root } = mount(h(MailContext.Provider, { value: ctx }, h(MailHistory, { email: 'slow@venue.de' })))
+    await wait(10)
+    expect(el.textContent).toBe('Fetching emails…')
+    expect(el.querySelector('svg.animate-spin')).toBeTruthy()
+    await act(async () => finish({ messages: [] }))
+    expect(el.innerHTML).toBe('')
+    act(() => root.unmount())
+  })
+})

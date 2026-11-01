@@ -153,4 +153,8 @@ html.window-chrome .fixed.inset-0 {
   .banner-slot {
     transition: none;
   }
+  /* A loading spinner still shows that something is happening, just slowly. */
+  .spinner {
+    animation-duration: 3s;
+  }
 }

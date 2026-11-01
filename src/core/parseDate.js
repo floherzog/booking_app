@@ -1,14 +1,23 @@
 import { parse, isValid, format } from 'date-fns'
 import { de } from 'date-fns/locale'
 
-const FORMATS = [
+// The CSV always stores a day as dd.MM.yy (formatDateDDMMYY). How one is shown
+// and how a slash date is read follow the date order picked in Settings ▸
+// General (lib/dateOrder.js): day first (31.12.26) or month first (12/31/26).
+// Dotted dates are always day first; only "11/01/26" is ambiguous.
+let dayFirst = true
+export function setDateOrder(order) { dayFirst = order !== 'mdy' }
+export function getDateOrder() { return dayFirst ? 'dmy' : 'mdy' }
+
+const SLASH_DMY = ['dd/MM/yy', 'dd/MM/yyyy']
+const SLASH_MDY = ['MM/dd/yy', 'MM/dd/yyyy']
+const formats = () => [
   'dd.MM.yy',
   'dd.MM.yyyy',
   'd.M.yyyy',
   'd.M.yy',
   'yyyy-MM-dd',
-  'dd/MM/yy',
-  'MM/dd/yy',
+  ...(dayFirst ? [...SLASH_DMY, ...SLASH_MDY] : [...SLASH_MDY, ...SLASH_DMY]),
   'MMMM yy',
   'MMMM yyyy',
   'd MMMM yyyy',
@@ -28,7 +37,7 @@ export function parseDate(str) {
     const iso = new Date(s)
     if (isValid(iso)) return iso
   }
-  for (const fmt of FORMATS) {
+  for (const fmt of formats()) {
     // Try English (default) then German, so month names like "Juni 2027" parse.
     for (const opts of [undefined, { locale: de }]) {
       try {
@@ -43,11 +52,11 @@ export function parseDate(str) {
 }
 
 // Formats that name a day, as opposed to "September 2026" or "2027".
-const DAY_FORMATS = FORMATS.filter(f => /d/.test(f))
+const dayFormats = () => formats().filter(f => /d/.test(f))
 
 function parseDay(s) {
   if (/^\d{4}-\d{2}-\d{2}T/.test(s) && isValid(new Date(s))) return new Date(s)
-  for (const fmt of DAY_FORMATS) {
+  for (const fmt of dayFormats()) {
     for (const opts of [undefined, { locale: de }]) {
       try {
         const d = parse(s, fmt, REF, opts)
@@ -69,10 +78,19 @@ export function normalizeDateText(str) {
   return d ? formatDateDDMMYY(d) : s
 }
 
-// How a date field shows its value: a day as dd.MM.yy, anything vaguer as
-// written — "September 2026" must not turn into 01.09.26.
+// How a date field shows its value: a day in the chosen order, anything vaguer
+// as written — "September 2026" must not turn into 01.09.26.
 export function displayDateText(str) {
-  return normalizeDateText(str)
+  const s = (str || '').trim()
+  if (!s) return ''
+  const d = parseDay(s)
+  return d ? formatDay(d) : s
+}
+
+// A day as shown on screen (never as stored): 31.12.26 or 12/31/26.
+export function formatDay(d) {
+  if (!d || !isValid(d)) return ''
+  return format(d, dayFirst ? 'dd.MM.yy' : 'MM/dd/yy')
 }
 
 export function formatDateDDMMYY(d) {

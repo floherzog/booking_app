@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { api } from '../platform'
 import { useT } from '../i18n'
 import { useEscape } from '../lib/useEscape'
-import { formatDateDDMMYY } from '@core/parseDate'
+import { formatDay } from '@core/parseDate'
+import { useDateOrder } from '../lib/dateOrder'
 
 // The email page an HTML message is shown in. Nothing it references is loaded:
 // no scripts (the iframe is sandboxed without allow-scripts), no remote images
@@ -35,8 +36,9 @@ export default function MailReader({ message, onClose }) {
   }, [message])
 
   const head = mail || message
+  useDateOrder()
   const when = head.date ? new Date(head.date) : null
-  const date = when ? `${formatDateDDMMYY(when)}, ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''
+  const date = when ? `${formatDay(when)}, ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''
   const row = (label, value) => value ? (
     <div className="flex gap-2"><span className="w-12 shrink-0 text-gray-400 dark:text-gray-500">{label}</span><span className="min-w-0 break-words">{value}</span></div>
   ) : null
