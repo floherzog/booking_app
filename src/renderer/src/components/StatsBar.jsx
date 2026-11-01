@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import { statusMeta, chipStyle, customChipStyle, useChipColors } from '../lib/palette'
+import { statusMeta, chipStyle, customChipStyle, useChipColors, PALETTE } from '../lib/palette'
 import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOnlineForm, describeStatus } from '@core/constants'
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
 import { useRules, useClassifyCtx } from '../lib/rulesContext'
+import { describeBatchRule } from '@core/logicTree'
 import { t, useT } from '../i18n'
 
 // Three kinds of chip, three shapes (Filter / Chips ▸ Chips / saved filters explains them too):
@@ -17,33 +18,45 @@ export const ORDERED_STATUSES = Object.entries(STATUS_META).sort((a, b) => a[1].
 
 const SHORTCUT_STYLE = {
   actionOnly: {
+    badge: PALETTE.gray.badge,
     on: 'bg-gray-800 text-white border-gray-800 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200',
     off: 'bg-transparent text-gray-600 border-gray-300 hover:border-gray-400 hover:text-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:text-gray-200',
   },
   nextBatch: {
+    badge: PALETTE.indigo.badge,
     on: 'bg-indigo-600 text-white border-indigo-600 dark:bg-indigo-500 dark:border-indigo-500',
     off: 'bg-transparent text-indigo-600 border-indigo-300 hover:border-indigo-400 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:border-indigo-600 dark:hover:bg-indigo-900/20',
   },
   missingInfo: {
+    badge: PALETTE.orange.badge,
     on: 'bg-orange-500 text-white border-orange-500 dark:bg-orange-500 dark:border-orange-500',
     off: 'bg-transparent text-orange-600 border-orange-300 hover:border-orange-400 hover:bg-orange-50 dark:text-orange-400 dark:border-orange-800 dark:hover:border-orange-600 dark:hover:bg-orange-900/20',
   },
   duplicate: {
+    badge: PALETTE.rose.badge,
     on: 'bg-rose-500 text-white border-rose-500 dark:bg-rose-500 dark:border-rose-500',
     off: 'bg-transparent text-rose-600 border-rose-300 hover:border-rose-400 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-800 dark:hover:border-rose-600 dark:hover:bg-rose-900/20',
   },
   onlineForm: {
+    badge: PALETTE.cyan.badge,
     on: 'bg-cyan-600 text-white border-cyan-600 dark:bg-cyan-500 dark:border-cyan-500',
     off: 'bg-transparent text-cyan-700 border-cyan-300 hover:border-cyan-400 hover:bg-cyan-50 dark:text-cyan-400 dark:border-cyan-800 dark:hover:border-cyan-600 dark:hover:bg-cyan-900/20',
   },
   autoSend: {
+    badge: PALETTE.teal.badge,
     on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
     off: 'bg-transparent text-teal-600 border-teal-300 hover:border-teal-400 hover:bg-teal-50 dark:text-teal-400 dark:border-teal-800 dark:hover:border-teal-600 dark:hover:bg-teal-900/20',
   },
 }
+// What each square chip shows — its tooltip, and the line under the chips while
+// it is on (like a status pill's). Next batch also says how it is picked.
 const SHORTCUT_TITLES = {
+  actionOnly: () => t('Every venue to write to now: Send, Follow up and Never contacted together.'),
+  nextBatch: rules => `${describeBatchRule(rules, t)} ${t('Venues you flagged Next Batch yourself are included too.')}`,
   missingInfo: () => t('Venues with something missing — everything behind the “Missing info” status, plus a missing contact or location, which don’t stop an email.'),
   onlineForm: () => t('Venues that only take enquiries through a form on their website. They keep their status but are never drafted.'),
+  duplicate: () => t('Venues in the same city with very similar names — probably one place entered twice. Open one to merge them, or mark them as not a duplicate.'),
+  autoSend: () => t('Venues flagged Auto: an email run set to “Auto column decides” sends to them straight away instead of drafting.'),
 }
 // Shown even with nothing in them; the others only once they have a venue.
 const ALWAYS_SHOWN = new Set(['actionOnly', 'nextBatch'])
@@ -90,6 +103,7 @@ export function ShortcutChip({ shortcut, label, count, active, onClick, title })
 }
 
 const CUSTOM_STYLE = {
+  badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   on: 'bg-slate-700 text-white border-slate-700 dark:bg-slate-300 dark:text-slate-900 dark:border-slate-300',
   off: 'bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-600 dark:hover:border-slate-500',
 }
@@ -144,6 +158,19 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
   const activeStatus = filters.status
   const activeMeta = activeStatus ? statusMeta(activeStatus) : null
   const shortcuts = SHORTCUTS.filter(s => !hidden.has(s.key) && (ALWAYS_SHOWN.has(s.key) || counts[s.key] > 0 || filters[s.key]))
+  // One line per chip that is on: the status, then the squares, then a saved chip.
+  const explainers = [
+    activeMeta && { key: 'status', label: t(activeMeta.label), text: describeStatus(activeStatus, rules, t), badge: activeMeta.badge },
+    ...SHORTCUTS.filter(s => filters[s.key]).map(s => ({
+      key: s.key, square: true, label: t(s.label),
+      text: s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key](rules),
+      badge: chipStyle(s.key, SHORTCUT_STYLE[s.key]).badge,
+    })),
+    ...custom.map(c => filtersEqual(filters, c.filters) && {
+      key: c.id, square: true, label: c.name, text: describeFilters(c.filters, columnLabel, t),
+      badge: customChipStyle(c.color, CUSTOM_STYLE).badge,
+    }),
+  ].filter(Boolean)
 
   return (
     <div className="space-y-2">
@@ -165,7 +192,7 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
         {shortcuts.map(s => (
           <ShortcutChip
             key={s.key} shortcut={s.key} label={t(s.label)} count={counts[s.key]} active={!!filters[s.key]}
-            title={s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key]?.()}
+            title={s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key]?.(rules)}
             onClick={() => onChange(f => toggleShortcut(f, s.key))}
           />
         ))}
@@ -184,10 +211,14 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
         })}
       </div>
 
-      {activeMeta && !strip && (
-        <p className={`text-xs px-3 py-1.5 rounded-md inline-block ${activeMeta.badge} bg-opacity-60`}>
-          <span className="font-medium">{t(activeMeta.label)}:</span> {describeStatus(activeStatus, rules, t)}
-        </p>
+      {!strip && explainers.length > 0 && (
+        <div className="flex flex-col items-start gap-1">
+          {explainers.map(x => (
+            <p key={x.key} className={`text-xs px-3 py-1.5 inline-block ${x.square ? 'rounded' : 'rounded-full'} ${x.badge}`}>
+              <span className="font-medium">{x.label}:</span> {x.text}
+            </p>
+          ))}
+        </div>
       )}
     </div>
   )

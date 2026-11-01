@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   PLACEHOLDERS, languageForRow, resolveTemplate, substitutePlaceholders,
   substituteDoc, substituteTemplate, contactOptionsFor, firstNameOf, lastNameOf, greetingFor,
-  DEFAULT_TEMPLATE_OPTIONS,
+  DEFAULT_TEMPLATE_OPTIONS, canonicalPlaceholders, placeholderName, GERMAN_PLACEHOLDERS,
 } from '@core/templates'
 
 const LANGUAGES = {
@@ -330,5 +330,28 @@ describe('{{greeting}}', () => {
     const settings = { templates: { contactStyle: 'formal' } }
     expect(contactOptionsFor({}, settings).contactStyle).toBe('formal')
     expect(substitutePlaceholders('{{contact}}', { Contact: 'Anna Müller' }, { contactStyle: 'formal' }).text).toBe('Anna Müller')
+  })
+})
+
+describe('German placeholder names', () => {
+  const row = { Venue: 'Club X', Contact: '', City: 'Berlin', Country: 'Germany', Band: 'The Band', Dates: '' }
+
+  it('works like the English ones, in any case and spacing', () => {
+    expect(canonicalPlaceholders('{{ Stadt }}, {{land}} {{begruessung}} {{other}}')).toBe('{{city}}, {{country}} {{greeting}} {{other}}')
+    const { text, empties } = substitutePlaceholders('{{venue}} in {{stadt}}, {{land}}: {{termine}} {{kontakt}}', row)
+    expect(text).toBe('Club X in Berlin, Germany:  ')
+    expect(empties.sort()).toEqual(['contact', 'dates'])
+  })
+
+  it('resolves {{artikel}} like {{article}} and reports it when there is no gender', () => {
+    expect(substitutePlaceholders('in {{artikel}} {{venue}}', row, { gender: 'n' }).text).toBe('im Club X')
+    expect(substitutePlaceholders('für {{artikel}} {{venue}}', row).empties).toEqual(['article'])
+  })
+
+  it('names each placeholder in the UI language', () => {
+    expect(placeholderName('greeting', 'de')).toBe('begrüßung')
+    expect(placeholderName('venue', 'de')).toBe('venue')
+    expect(placeholderName('greeting', 'en')).toBe('greeting')
+    expect(Object.keys(GERMAN_PLACEHOLDERS).every(k => PLACEHOLDERS.includes(k))).toBe(true)
   })
 })

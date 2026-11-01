@@ -34,6 +34,8 @@ import { useInlinePrompt, useConfirm } from './components/InlinePrompt'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
 import BandDatesBanner from './components/BandDatesBanner'
+import NoticeBanner from './components/NoticeBanner'
+import { GlobeIcon, SettingsIcon, ListIcon, InfoIcon, RefreshIcon } from './components/icons'
 import { usePinToolbar, usePinItems } from './lib/uiPrefs'
 import { setChipColors } from './lib/palette'
 import MailSetupNotice, { mailSetupGaps } from './components/MailSetupNotice'
@@ -63,6 +65,7 @@ export default function App() {
   const [needsToken, setNeedsToken] = useState(false)
   // Web build: how OpenClaw's hold logic differs from the Rules, if it does.
   const [policyDrift, setPolicyDrift] = useState([])
+  const dismissSyncNote = useCallback(() => setSyncNote(null), [])
   const [lastFetched, setLastFetched] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [promptNode, ask] = useInlinePrompt()
@@ -76,7 +79,8 @@ export default function App() {
   // A CSV chosen on first run whose columns don't match ours, awaiting mapping.
   const [importSeed, setImportSeed] = useState(null)
   const [syncing, setSyncing] = useState(false)
-  const [syncNote, setSyncNote] = useState('')
+  // A message for the banner stack: { text, tone: 'info' | 'warning' | 'error' }.
+  const [syncNote, setSyncNote] = useState(null)
   const [showBulkDraft, setShowBulkDraft] = useState(false)
   const [templates, setTemplates] = useState([])
   // Transient per-row draft feedback for the table action.
@@ -174,7 +178,7 @@ export default function App() {
         notes.push(t('Missing band file {files} — treated as empty and recreated on the next Save.|Missing band files {files} — treated as empty and recreated on the next Save.', { n: missing.length, files: missing.join(', ') }))
       }
       if (fixes.length) notes.push(t('{n} band entry had venue details that differed from the same venue’s other bands — staged the most recently emailed version for review. Save to apply.|{n} band entries had venue details that differed from the same venue’s other bands — staged the most recently emailed version for review. Save to apply.', { n: new Set(fixes.map(f => f._idx)).size }))
-      if (notes.length) setSyncNote(notes.join(' '))
+      if (notes.length) setSyncNote({ text: notes.join(' '), tone: 'warning' })
       setDeletions(new Set())
       setAdditions(new Set())
       setLastFetched(new Date())
@@ -249,7 +253,7 @@ export default function App() {
   const onScheduleDone = useRef(null)
   onScheduleDone.current = payload => {
     if (payload?.reason === 'run' && payload.job?.recipe) {
-      runScheduledRecipe(payload.job).catch(e => setError(t('Scheduled run: {error}', { error: e.message })))
+      runScheduledRecipe(payload.job).catch(e => setSyncNote({ text: t('Scheduled run: {error}', { error: e.message }), tone: 'error' }))
       return
     }
     if (payload?.reason !== 'completed') return
@@ -264,7 +268,7 @@ export default function App() {
       if (result.delivery === 'send') recordSend(row)
       else recordDraft(row)
     }
-    if (failures.length) setError(t('Scheduled run: {n} message failed — {error}|Scheduled run: {n} messages failed — {error}', { n: failures.length, error: failures[0] }))
+    if (failures.length) setSyncNote({ text: t('Scheduled run: {n} message failed — {error}|Scheduled run: {n} messages failed — {error}', { n: failures.length, error: failures[0] }), tone: 'error' })
   }
   // Subscribed once; the ref keeps the handler looking at the current rows.
   useEffect(() => api.onScheduleUpdate(p => onScheduleDone.current?.(p)), [])
@@ -314,17 +318,17 @@ export default function App() {
   const runMailSync = useCallback(async ({ silent = false } = {}) => {
     if (!caps.mail || !mailSyncEnabled(settings)) return
     setSyncing(true)
-    if (!silent) setSyncNote('')
+    if (!silent) setSyncNote(null)
     try {
       const result = await syncFromMail(rowsRef.current, settings)
-      if (result?.error) { setSyncNote(result.error); return }
+      if (result?.error) { setSyncNote({ text: result.error, tone: 'error' }); return }
       const found = result?.edits || []
       found.forEach(e => handleEdit(e._idx, e.field, e.value))
       setSyncNote(found.length
-        ? t('Mail sync staged {n} change — review and Save.|Mail sync staged {n} changes — review and Save.', { n: found.length })
-        : t('Mail sync found nothing new.'))
+        ? { text: t('Mail sync staged {n} change — review and Save.|Mail sync staged {n} changes — review and Save.', { n: found.length }), tone: 'info' }
+        : { text: t('Mail sync found nothing new.'), tone: 'info', autoHide: true })
     } catch (e) {
-      setSyncNote(e.message)
+      setSyncNote({ text: e.message, tone: 'error' })
     } finally {
       setSyncing(false)
     }
@@ -515,14 +519,15 @@ export default function App() {
     return { saved, added }
   }
 
-  async function handleSettingsSave(form) {
-    const bands = normalizeBands(form.bands)
-    await propagateBandChanges(settings.bands, bands)
-    const saved = await persist({ ...settings, ...form, bands })
+  // Settings save themselves (SettingsPanel): `part` is only what the panel
+  // edits, laid over the stored settings as they are now — never over a copy
+  // from when the panel opened, which would undo a draft logged meanwhile.
+  async function handleSettingsSave(part) {
+    const current = await getSettings()
+    const saved = await persist({ ...current, ...part, bands: normalizeBands(part.bands ?? current.bands) })
     // A rules change reclassifies through the effect below; a storage change
     // means the venues themselves come from somewhere else now, so refetch.
-    if (JSON.stringify(saved.storage) !== JSON.stringify(settings.storage)) await load(saved)
-    // Returned so the still-open panel can adopt exactly what was stored.
+    if (JSON.stringify(saved.storage) !== JSON.stringify(current.storage)) await load(saved)
     return saved
   }
 
@@ -794,6 +799,18 @@ export default function App() {
   }
 
   const editCount = Object.values(edits).reduce((sum, f) => sum + Object.keys(f).length, 0) + deletions.size + additions.size
+
+  // Quit and install (update banner): unsaved venue edits would go with the app.
+  async function confirmQuitForUpdate() {
+    if (!editCount) return true
+    const pick = await confirm({
+      title: t('Quit with {n} unsaved change?|Quit with {n} unsaved changes?', { n: editCount }),
+      message: t('Unsaved changes are lost when Booking quits.'),
+      choices: [{ value: 'quit', label: t('Quit anyway') }, { value: 'save', label: t('Save first') }],
+    })
+    if (pick === 'save') setShowSave(true)
+    return pick === 'quit'
+  }
   // One entry per venue: a venue's own band entries are the same venue, not
   // duplicates of each other. Results are keyed by that entry's _idx, so
   // `venueRep` maps every entry to it.
@@ -973,20 +990,8 @@ export default function App() {
   const viewToggleActive = 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
   const viewToggleInactive = 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'
 
-  const GlobeIcon = (
-    <svg className="w-[1em] h-[1em] inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="2" y1="12" x2="22" y2="12"/>
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-    </svg>
-  )
-  const SlidersIcon = (
-    <svg className="w-[1em] h-[1em] inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="3" y1="7" x2="10" y2="7"/><circle cx="13" cy="7" r="2.5"/><line x1="15.5" y1="7" x2="21" y2="7"/>
-      <line x1="3" y1="12" x2="6" y2="12"/><circle cx="9" cy="12" r="2.5"/><line x1="11.5" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="17" x2="16" y2="17"/><circle cx="19" cy="17" r="2.5"/>
-    </svg>
-  )
+  const globe = <GlobeIcon className="w-[1em] h-[1em] inline-block" />
+  const sliders = <SettingsIcon className="w-[1.15em] h-[1.15em] inline-block" />
 
   // Mobile-only: icon-only vertical controls sidebar
   // "Showing 120 of 316 venues · fetched 11:24 · 3 unsaved edits" — the
@@ -1004,8 +1009,8 @@ export default function App() {
   const mobileControls = (
     <div className="flex flex-col gap-0.5 items-stretch">
       <div className="flex flex-col rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-base">
-        <button onClick={() => setView('list')} className={`flex items-center justify-center p-2 transition-colors ${view === 'list' ? viewToggleActive : viewToggleInactive}`}>≡</button>
-        <button onClick={() => setView('map')} className={`flex items-center justify-center p-2 transition-colors border-t border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{GlobeIcon}</button>
+        <button onClick={() => setView('list')} className={`flex items-center justify-center p-2 transition-colors ${view === 'list' ? viewToggleActive : viewToggleInactive}`}><ListIcon /></button>
+        <button onClick={() => setView('map')} className={`flex items-center justify-center p-2 transition-colors border-t border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{globe}</button>
       </div>
       {editCount > 0 && (
         <button onClick={() => setShowSave(true)} className="flex items-center justify-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium px-2 py-1.5 rounded-md transition-colors">
@@ -1023,9 +1028,9 @@ export default function App() {
       ) : (
         <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">{t("Discard")}</button>
       ))}
-      <button onClick={() => setShowLogic(true)} className={iconBtn} title={t("How venues are classified")}>ⓘ</button>
-      <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : '↻'}</button>
-      <button onClick={() => setShowSettings(true)} className={iconBtn} title={t("Settings")}>{SlidersIcon}</button>
+      <button onClick={() => setShowLogic(true)} className={iconBtn} title={t("How venues are classified")}><InfoIcon /></button>
+      <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? '…' : <RefreshIcon />}</button>
+      <button onClick={() => setShowSettings(true)} className={iconBtn} title={t("Settings")}>{sliders}</button>
     </div>
   )
 
@@ -1035,8 +1040,8 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {promptNode}
       {confirmNode}
-      <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl space-y-2">
-        <UpdateBanner update={update} onDismiss={dismissUpdate} />
+      <div style={{ top: 'calc(var(--chrome-top, 0px) + 0.75rem)' }} className="fixed left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl space-y-2">
+        <UpdateBanner update={update} onDismiss={dismissUpdate} beforeQuit={confirmQuitForUpdate} />
         {!loading && dateGapsKey !== dismissedDateGaps && (
           <BandDatesBanner
             gaps={dateGaps}
@@ -1045,6 +1050,22 @@ export default function App() {
             onKeep={keepVenueDates}
             onDismiss={dismissDateGaps}
           />
+        )}
+        {syncNote && (
+          <NoticeBanner tone={syncNote.tone} onDismiss={dismissSyncNote} autoHide={syncNote.autoHide ? 8000 : 0}>
+            {syncNote.text}
+          </NoticeBanner>
+        )}
+        {showMailSetup && mailSetupGaps(settings, templates).length > 0 && (
+          <NoticeBanner tone="warning" onDismiss={() => setShowMailSetup(false)}>
+            <MailSetupNotice settings={settings} templates={templates} bare onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} />
+          </NoticeBanner>
+        )}
+        {policyDrift.length > 0 && (
+          <NoticeBanner tone="warning" onDismiss={() => setPolicyDrift([])}>
+            <p className="font-medium">{t('OpenClaw’s hold logic differs from the Rules — update them in Logic')}</p>
+            {policyDrift.map((d, i) => <p key={i} className="text-xs mt-0.5 opacity-80">{d}</p>)}
+          </NoticeBanner>
         )}
       </div>
       <div className="max-w-[1700px] mx-auto px-4 py-6 space-y-5">
@@ -1056,8 +1077,8 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
-              <button onClick={() => setView('list')} className={`px-3 py-1.5 transition-colors ${view === 'list' ? viewToggleActive : viewToggleInactive}`}>{t("≡ List")}</button>
-              <button onClick={() => setView('map')} className={`inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{GlobeIcon} {t("Map")}</button>
+              <button onClick={() => setView('list')} className={`px-3 py-1.5 transition-colors inline-flex items-center gap-1.5 ${view === 'list' ? viewToggleActive : viewToggleInactive}`}><ListIcon className="w-[1em] h-[1em]" /> {t('List')}</button>
+              <button onClick={() => setView('map')} className={`inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{globe} {t("Map")}</button>
             </div>
             {editCount > 0 && (
               <>
@@ -1077,40 +1098,14 @@ export default function App() {
                 )}
               </>
             )}
-            <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("How venues are classified")}>{t("ⓘ Logic")}</button>
-            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? t('Loading…') : syncing ? t('Checking mail…') : '↻'}</button>
-            <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("Settings")}>⚙</button>
+            <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors inline-flex items-center gap-1.5" title={t("How venues are classified")}><InfoIcon className="w-[1em] h-[1em]" /> {t('Logic')}</button>
+            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? t('Loading…') : syncing ? t('Checking mail…') : <RefreshIcon className="w-[1.1em] h-[1.1em]" />}</button>
+            <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("Settings")}>{sliders}</button>
           </div>
         </div>
 
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
-        )}
-
-        {policyDrift.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md px-4 py-3 flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{t("OpenClaw’s hold logic differs from the Rules — update them in ⓘ Logic")}</p>
-              {policyDrift.map((d, i) => (
-                <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{d}</p>
-              ))}
-            </div>
-            <button onClick={() => setPolicyDrift([])} className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-200 text-lg leading-none shrink-0">&times;</button>
-          </div>
-        )}
-
-        {showMailSetup && mailSetupGaps(settings, templates).length > 0 && (
-          <div className="flex items-start gap-2">
-            <MailSetupNotice settings={settings} templates={templates} onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} className="flex-1" />
-            <button onClick={() => setShowMailSetup(false)} aria-label={t("Dismiss")} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none px-1">&times;</button>
-          </div>
-        )}
-
-        {syncNote && (
-          <div className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>{syncNote}</span>
-            <button onClick={() => setSyncNote('')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 leading-none shrink-0">&times;</button>
-          </div>
         )}
 
         {loading && rows.length === 0 && (
@@ -1258,6 +1253,7 @@ export default function App() {
           onImportBandFiles={handleImportBandFiles}
           unsavedEdits={editCount}
           onPersist={form => persist({ ...settings, ...form })}
+          onBandsSettled={propagateBandChanges}
           initialSection={settingsSection}
           onClose={() => { setShowSettings(false); setSettingsSection(null) }}
         />

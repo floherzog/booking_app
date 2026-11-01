@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   cancelUpdateDownload: vi.fn(),
   openUpdate: vi.fn(),
   revealUpdate: vi.fn(),
+  installUpdateAndQuit: vi.fn(async () => ''),
   onUpdateProgress: vi.fn(cb => { api.progress = cb; return () => {} }),
 }))
 vi.mock('../../platform', () => ({ api, caps: {} }))
@@ -34,7 +35,7 @@ const click = async text => act(async () => button(text).click())
 describe('UpdateBanner', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('downloads inside the app with a progress bar, then offers Open and Show in Finder', async () => {
+  it('downloads inside the app with a progress bar, then offers Quit and install and Show in Finder', async () => {
     let finish
     api.downloadUpdate.mockReturnValue(new Promise(r => { finish = r }))
     await show()
@@ -47,8 +48,8 @@ describe('UpdateBanner', () => {
     await act(async () => finish({ path: '/Users/me/Downloads/Booking-0.11.0-arm64.dmg', name: 'Booking-0.11.0-arm64.dmg', quarantineCleared: true }))
     expect(el.textContent).toContain('is in Downloads')
     expect(el.textContent).not.toContain('xattr')
-    await click('Open')
-    expect(api.openUpdate).toHaveBeenCalled()
+    await click('Quit and install')
+    expect(api.installUpdateAndQuit).toHaveBeenCalled()
     await click('Show in Finder')
     expect(api.revealUpdate).toHaveBeenCalled()
   })
@@ -78,5 +79,15 @@ describe('UpdateBanner', () => {
     await click('Download')
     expect(api.downloadUpdate).not.toHaveBeenCalled()
     expect(api.openExternal).toHaveBeenCalledWith(update.downloadUrl)
+  })
+
+  it('asks before quitting, and stays put when told not to', async () => {
+    api.downloadUpdate.mockResolvedValue({ path: '/d/B.dmg', name: 'B.dmg', quarantineCleared: true })
+    const beforeQuit = vi.fn(async () => false)
+    await show({ beforeQuit })
+    await click('Download')
+    await click('Quit and install')
+    expect(beforeQuit).toHaveBeenCalled()
+    expect(api.installUpdateAndQuit).not.toHaveBeenCalled()
   })
 })

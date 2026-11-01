@@ -19,11 +19,12 @@ import { parseDate, displayDateText, normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
 import { parseReplyStatus, composeReplyStatus, replyHealth } from '@core/replyStatus'
 import { healthMeta, HEALTH_META } from '../lib/health'
+import { chromeTop } from '../lib/windowChrome'
 import { prepareDraft } from '../lib/drafts'
 import { useClassifyCtx } from '../lib/rulesContext'
 import { useDragSelect } from '../lib/useDragSelect'
 import { usePinToolbar, usePinItems } from '../lib/uiPrefs'
-import { MailIcon } from './icons'
+import { MailIcon, ReplyIcon, AutoReplyIcon, CheckIcon, XIcon } from './icons'
 import { isSharedField } from '@core/multiBand'
 import { t, useT } from '../i18n'
 
@@ -38,7 +39,7 @@ const REPLY_BADGE = {
   none: 'border border-dashed border-gray-300 text-gray-400 dark:border-gray-600 dark:text-gray-500',
 }
 const REPLY_LABEL = { reply: () => t('replied'), 'auto-reply': () => t('auto-reply'), none: () => t('no reply') }
-const REPLY_ICON = { reply: '↩', 'auto-reply': '⟳', none: '' }
+const REPLY_ICON = { reply: ReplyIcon, 'auto-reply': AutoReplyIcon, none: null }
 function rowHighlight(row) {
   return healthMeta(row).row
 }
@@ -364,7 +365,7 @@ function DraftAction({ row, meta }) {
             : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
       }`}
     >
-      {busy ? '…' : <><MailIcon className="w-3.5 h-3.5" />{result?.ok ? ' ✓' : result ? ' ✗' : ''}</>}
+      {busy ? '…' : <><MailIcon className="w-3.5 h-3.5" />{result?.ok ? <CheckIcon className="w-3 h-3 ml-0.5 text-green-600" /> : result ? <XIcon className="w-3 h-3 ml-0.5 text-red-600" /> : null}</>}
     </button>
   )
 }
@@ -495,6 +496,7 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
   }
 
   const colorFn = kind === 'auto-reply' ? () => 'text-gray-400' : lastReplyColor
+  const KindIcon = REPLY_ICON[kind]
   return (
     <div className={`space-y-1 min-w-[8rem] rounded px-1 -mx-1 ${isEdited ? 'bg-amber-50 ring-1 ring-amber-300 dark:bg-amber-900/20 dark:ring-amber-700' : ''}`}>
       {editingDate ? (
@@ -540,7 +542,7 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
           title={t("Click to change the reply type")}
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap transition-colors hover:opacity-80 ${REPLY_BADGE[kind]}`}
         >
-          {REPLY_ICON[kind] && <span className="leading-none">{REPLY_ICON[kind]}</span>}
+          {KindIcon && <KindIcon className="w-3 h-3 shrink-0" />}
           {REPLY_LABEL[kind]()}
         </button>
       )}
@@ -555,7 +557,7 @@ function FlagPill({ label, active, activeClass, onToggle }) {
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap border transition-colors
         ${active ? activeClass : 'bg-transparent text-gray-400 border-gray-200 dark:border-gray-700 dark:text-gray-500'}`}
     >
-      <span className="leading-none">{active ? '✓' : '+'}</span>{label}
+      {active ? <CheckIcon className="w-3 h-3 shrink-0" /> : <span className="leading-none">+</span>}{label}
     </button>
   )
 }
@@ -894,7 +896,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     const cells = () => head.querySelectorAll('th')
     const place = () => {
       frame = 0
-      const pinTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-top')) || 0
+      const pinTop = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-top')) || 0) + chromeTop()
       const r = head.getBoundingClientRect() // its own place: moving the cells doesn't move it
       const room = (tableRef.current?.getBoundingClientRect().bottom ?? r.bottom) - r.bottom
       const shift = Math.max(0, Math.min(pinTop - r.top, room))
@@ -992,7 +994,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
               {hg.headers.map((h, i) => (
                 <th
                   key={h.id}
-                  style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'var(--pin-top, 0px)' } : {}) }}
+                  style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'calc(var(--chrome-top, 0px) + var(--pin-top, 0px))' } : {}) }}
                   className={`px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide select-none
                     ${pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50 dark:bg-gray-800 shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]` : ''}
                     ${h.column.getCanSort() ? 'cursor-pointer hover:text-gray-800 dark:hover:text-gray-200' : ''}`}

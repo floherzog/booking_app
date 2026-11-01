@@ -55,8 +55,9 @@ Afterwards, Booking tells you when there is a newer one (and **Booking → Check
 for Updates…** asks on demand). **Download** in that banner fetches the new `.dmg`
 inside the app, with a progress bar, checks it against the release's checksum and
 leaves it in Downloads **without the quarantine flag** — so updating that way
-needs no Terminal step: press **Open**, drag Booking into Applications, done. The
-first time, macOS asks whether Booking may save to your Downloads folder. The
+needs no Terminal step: press **Quit and install** — Booking opens the `.dmg`
+and quits (asking first if you have unsaved changes) — then drag the new Booking
+into Applications in the window that opens, and start it again. The first time, macOS asks whether Booking may save to your Downloads folder. The
 `xattr` step above is only for a copy downloaded with a browser.
 
 ## What an update keeps
@@ -85,6 +86,17 @@ inside the app bundle, so nothing is lost:
 - **Venue types with rules of their own.** Any type can be never contacted,
   follow the festival window, be booked by only some bands, or have its own
   follow-up interval (Settings ▸ Venue types, and the dropdowns in Rules ▸ Flow).
+- **Settings save themselves.** Every change in Settings is stored as you make
+  it — there is no Save button there, and closing the panel loses nothing. Two
+  things wait for a natural moment: the questions a band change raises (rename
+  its venues, put its Dates on them) come when you leave the Bands page or close
+  Settings, and a new place for the list applies with **Use this**, because it
+  reloads the list. (Venue edits in the table still wait for **Save**.)
+- **Notices at the top.** Mail sync results, problems with band files and the
+  like appear as banners next to the update banner; "nothing new" fades on its
+  own.
+- **No title bar.** The Mac window keeps its traffic lights over the page; the
+  strip across the top drags the window, even with a dialog open.
 - **Every rule is editable.** The thresholds that decide all of the above are
   yours to change, and the app re-classifies as you change them — the **Logic**
   button both draws the decision tree and lets you edit the numbers behind it.
@@ -366,7 +378,10 @@ language and tells you it did.
 
 Placeholders — `{{greeting}}`, `{{venue}}`, `{{contact}}`, `{{city}}`,
 `{{country}}`, `{{dates}}`, `{{text}}`, `{{band}}` — work in the subject and the
-body. A field
+body. Each also has a German name, used whatever the app's language:
+`{{begrüßung}}`, `{{kontakt}}`, `{{stadt}}`, `{{land}}`, `{{termine}}`,
+`{{artikel}}` (`{{venue}}`, `{{band}}` and `{{text}}` stay as they are). With
+the app in German, *Insert field* writes the German names. A field
 that is empty for a venue becomes nothing at all, and the app warns you before
 you create the draft. Substitution runs on the document structure, not the
 rendered text, so a placeholder still works when part of it is bold.
@@ -699,6 +714,14 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   on any text without a German entry, or an entry nothing uses. Write whole
   sentences — German puts words in another order, so `t('Save') + n + t('changes')`
   can't be translated. The menu and update dialogs are in `src/main/i18n.js`.
+  Every new or changed text gets its German entry in the same commit.
+- One English word with two meanings gets a context: `t('Duplicate#verb')`.
+  English drops the `#verb`; German has its own entry for each.
+- Placeholders are stored in English or German (`canonicalPlaceholders` in
+  `src/core/templates.js` maps the German names); the UI shows them in the UI
+  language through `token()` in `src/renderer/src/lib/placeholders.js`.
+- The Mac window has no title bar: `lib/windowChrome.js` adds the drag strip and
+  `--chrome-top`, which anything fixed to the top of the window must start below.
 - `BOOKING_USER_DATA=/some/dir npm run dev` points a development run at a
   scratch copy of its settings and templates instead of the real ones.
 - Only `date-fns`, `papaparse`, `imapflow` and `nodemailer` are runtime

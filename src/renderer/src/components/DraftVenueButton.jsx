@@ -4,7 +4,9 @@ import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
 import { prepareDraft, createDraft, createDraftViaAppleScript, sendEmail } from '../lib/drafts'
 import { useGenders, useContactGenders } from '../lib/genders'
 import { languageForRow } from '@core/templates'
+import { MoreIcon } from './icons'
 import { t, useT } from '../i18n'
+import { token } from '../lib/placeholders'
 
 // The per-venue draft action. The IMAP path is primary; the AppleScript one sits
 // in the overflow because it drives Mail's window by keystroke and needs macOS
@@ -64,7 +66,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
             <span className="font-mono">{prepared.language}</span>
             {prepared.fallbackUsed && <span className="text-amber-600 dark:text-amber-400"> {t("(fallback)")}</span>}
             {prepared.empties.length > 0 && (
-              <span className="text-amber-600 dark:text-amber-400" title={t('Empty: {fields}', { fields: prepared.empties.join(', ') })}>
+              <span className="text-amber-600 dark:text-amber-400" title={t('Empty: {fields}', { fields: prepared.empties.map(token).join(', ') })}>
                 {' '}· {prepared.empties.length} {t("empty")}
               </span>
             )}
@@ -107,7 +109,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
             title={t("Other ways to create this draft")}
             className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-1.5 py-1.5 rounded transition-colors disabled:opacity-40"
           >
-            ⋯
+            <MoreIcon />
           </button>
           {overflow && (
             <div className="absolute right-0 bottom-full mb-1 z-10 w-64 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1">

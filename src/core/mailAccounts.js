@@ -47,6 +47,16 @@ function isICloudHost(host) {
   return /mail\.me\.com$/i.test(String(host || ''))
 }
 
+// Which provider an account belongs to, when that changes what to tell the
+// user: iCloud and Gmail both refuse the normal password and need an app
+// password. Read from the hosts and addresses typed so far; null otherwise.
+export function mailProvider(account) {
+  const text = ['host', 'smtpHost', 'user', 'fromAddress'].map(k => String(account?.[k] || '').toLowerCase()).join(' ')
+  if (/(^|[@.\s])(icloud|me|mac)\.com\b/.test(text)) return 'icloud'
+  if (/(^|[@.\s])(gmail|googlemail)\.com\b/.test(text)) return 'gmail'
+  return null
+}
+
 // An SMTP host of "smtp.mail.me.com" on a non-iCloud account was never a choice
 // anyone made — it was the old default being written out unconditionally. Clear
 // it so it derives from the IMAP host instead. An iCloud account keeps it,

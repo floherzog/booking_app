@@ -93,3 +93,45 @@
     font-size: inherit;
   }
 }
+
+/* --- Mac window without a title bar (lib/windowChrome.js) ----------------- */
+
+html.window-chrome {
+  --chrome-top: 28px;
+}
+
+html.window-chrome body {
+  padding-top: var(--chrome-top);
+}
+
+.window-drag-strip {
+  display: none;
+}
+
+html.window-chrome .window-drag-strip {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--chrome-top);
+  z-index: 2000;
+  -webkit-app-region: drag;
+  background: rgb(249 250 251 / 0.85); /* gray-50, the page */
+  backdrop-filter: blur(8px);
+}
+
+html.window-chrome.dark .window-drag-strip {
+  background: rgb(17 24 39 / 0.85); /* gray-900 */
+}
+
+/* With a modal open the strip goes clear, so the dimmed backdrop runs to the
+   top edge; the overlay's transparent top border keeps the dialog below it. */
+html.window-chrome body:has(.fixed.inset-0) .window-drag-strip {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+html.window-chrome .fixed.inset-0 {
+  border-top: var(--chrome-top) solid transparent;
+}

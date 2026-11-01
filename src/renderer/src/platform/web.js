@@ -18,6 +18,7 @@ export const caps = {
   updates: false,       // a deploy is the update
   storageChoice: false, // GitHub only
   openclawPolicy: true,
+  windowChrome: false,
 }
 
 // method → the capability that hides every UI path to it. apiCoverage.test.js
@@ -59,6 +60,7 @@ export const UNSUPPORTED = {
   cancelUpdateDownload: 'updates',
   openUpdate: 'updates',
   revealUpdate: 'updates',
+  installUpdateAndQuit: 'updates',
 }
 
 const BASE = import.meta.env.BASE_URL || '/'

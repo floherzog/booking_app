@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_ACCOUNT_ID, secretKeyFor, normalizeAccount, normalizeAccounts,
   accountById, accountIdForBand, accountForRow, accountLabel,
-  hasMultipleAccounts, nextAccountId, hasMailAccount,
+  hasMultipleAccounts, nextAccountId, hasMailAccount, mailProvider,
 } from '../mailAccounts.js'
 
 describe('secretKeyFor', () => {
@@ -153,5 +153,21 @@ describe('hasMailAccount', () => {
     expect(hasMailAccount({ mail: { accounts: [{ id: 'a', host: 'imap.x.de', user: '' }] } })).toBe(false)
     expect(hasMailAccount({ mail: { accounts: [{ id: 'a', host: 'imap.x.de', user: 'me@x.de' }] } })).toBe(true)
     expect(hasMailAccount({ mail: { host: 'imap.x.de', user: 'me@x.de' } })).toBe(true) // the pre-accounts shape
+  })
+})
+
+describe('mailProvider', () => {
+  it('spots iCloud and Gmail from whatever has been typed', () => {
+    expect(mailProvider({ host: 'imap.mail.me.com' })).toBe('icloud')
+    expect(mailProvider({ user: 'anna@icloud.com' })).toBe('icloud')
+    expect(mailProvider({ fromAddress: 'x@mac.com' })).toBe('icloud')
+    expect(mailProvider({ host: 'imap.gmail.com' })).toBe('gmail')
+    expect(mailProvider({ user: 'a@googlemail.com' })).toBe('gmail')
+  })
+  it('says nothing for anything else', () => {
+    expect(mailProvider({ host: 'imap.posteo.de', user: 'me@posteo.de' })).toBe(null)
+    expect(mailProvider({ user: 'someone@home.com' })).toBe(null)
+    expect(mailProvider({})).toBe(null)
+    expect(mailProvider(null)).toBe(null)
   })
 })

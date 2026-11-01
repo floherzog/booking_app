@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getStoredTheme, setTheme } from '../lib/theme'
 import { usePinToolbar, setPinToolbar, usePinItems, setPinItem, PIN_ITEMS } from '../lib/uiPrefs'
 import { exportCsv } from '../lib/csvFile'
@@ -11,6 +11,7 @@ import { typesWith, setTypeRule, typeRuleFor, bandBooksType, typeUsage, TYPE_BEH
 import {
   normalizeAccounts, accountLabel, nextAccountId, secretKeyFor,
   defaultSmtpHost, ACCOUNT_DEFAULTS,
+  mailProvider,
 } from '@core/mailAccounts'
 import LanguagesEditor from './LanguagesEditor'
 import { mergeRows } from '@core/multiBand'
@@ -19,6 +20,7 @@ import { useEscape } from '../lib/useEscape'
 import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
 import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
+import { token } from '../lib/placeholders'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -38,7 +40,18 @@ const SECTIONS = [
   { id: 'mail', label: 'Mail settings', needs: 'mail' },
 ].filter(s => !s.needs || caps[s.needs])
 
-export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onClose, initialSection }) {
+// What the panel itself edits — the only keys an autosave writes, so it never
+// overwrites what the app records meanwhile (draftLog, keptVenueDates, …).
+const PANEL_KEYS = ['rules', 'bands', 'venueTypes', 'venueTypeRules', 'venueTypesVersion', 'languages', 'mail', 'templates', 'general', 'storage']
+const panelPart = f => Object.fromEntries(PANEL_KEYS.filter(k => f?.[k] !== undefined).map(k => [k, f[k]]))
+
+// Settings save themselves: every change is stored half a second after the
+// last keystroke (`onSave` gets the panel's part of the settings). Two things
+// wait for a natural moment instead: the questions a band change raises
+// (`onBandsSettled`, when you leave the Bands page or close the panel), and a
+// change of where the list lives, which reloads it (the "Use this" button, or
+// closing the panel).
+export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onBandsSettled, onClose, initialSection }) {
   const t = useT()
   const [form, setForm] = useState(config)
   const [section, setSection] = useState(() => (SECTIONS.some(s => s.id === initialSection) ? initialSection : 'general'))
@@ -93,11 +106,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   useEscape(() => {
     if (typeDelete) setTypeDelete(null)
     else if (confirmRemove) setConfirmRemove(null)
-    else onClose()
+    else close()
   })
 
-  // The "Saved" confirmation is the only feedback now that Save no longer
-  // closes the panel, so it has to fade on its own.
+  // The "Saved" confirmation fades on its own.
   useEffect(() => {
     if (!savedAt) return undefined
     const tx = setTimeout(() => setSavedAt(0), 2500)
@@ -115,10 +127,6 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const accounts = normalizeAccounts(mail)
   const ruleErrors = validateRules(form.rules, t)
   const storageDirty = JSON.stringify(form.storage) !== JSON.stringify(config.storage)
-  // Cheap and good enough: the form is a few kB of plain JSON, and this only
-  // drives the footer label.
-  const dirty = JSON.stringify(form) !== JSON.stringify(config)
-    || !!githubToken.trim() || Object.values(accountPasswords).some(v => v?.trim())
 
   useEffect(() => {
     api.hasSecret('githubToken').then(setHasGithubToken).catch(() => {})
@@ -148,27 +156,79 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
   // Persisting settings is App's job (one writer for settings.json); the token
   // is the exception — it goes straight to the keychain, never into settings.
-  async function handleSave(e) {
-    e.preventDefault()
-    if (ruleErrors.length) { setSection('rules'); setRulesView('numbers'); return }
+  // The panel's settings minus a storage change still being typed: that one is
+  // applied on its own (applyStorage), because it reloads the list.
+  const pending = useRef(null)
+  const savedSnap = useRef(JSON.stringify(panelPart(config)))
+  const toAutoSave = { ...panelPart(form), storage: config.storage }
+
+  async function saveNow(next = toAutoSave) {
+    clearTimeout(pending.current)
+    pending.current = null
+    const snap = JSON.stringify(panelPart(next))
+    if (snap === savedSnap.current || validateRules(next.rules).length) return
     setSaving(true)
     setError('')
     try {
-      if (githubToken.trim()) await api.setSecret('githubToken', githubToken.trim())
-      await savePasswords()
-      const saved = await onSave(form)
-      // Saving deliberately leaves the panel open — settings are usually
-      // adjusted in batches. Adopt whatever main actually stored so the form
-      // stops reading as dirty.
-      if (saved) setForm(saved)
-      if (githubToken.trim()) { setGithubToken(''); setHasGithubToken(true) }
-
+      await onSave(next)
+      savedSnap.current = snap
       setSavedAt(Date.now())
     } catch (err) {
       setError(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  useEffect(() => {
+    clearTimeout(pending.current)
+    pending.current = setTimeout(() => { saveNow() }, 500)
+    return () => clearTimeout(pending.current)
+    // saveNow reads the latest form through toAutoSave on each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(toAutoSave)])
+
+  // Where the list lives: applied as a whole, then the list reloads.
+  async function applyStorage() {
+    if (!storageDirty) return
+    await saveNow({ ...toAutoSave, storage: form.storage })
+  }
+
+  // The questions a band change raises (rename its venues, set its Dates on
+  // them), asked once you are done with the Bands page rather than per keystroke.
+  const bandsBase = useRef(normalizeBands(config.bands))
+  async function settleBands() {
+    const now = normalizeBands(form.bands)
+    if (JSON.stringify(now) === JSON.stringify(bandsBase.current)) return
+    const from = bandsBase.current
+    bandsBase.current = now
+    await onBandsSettled?.(from, now)
+  }
+  function goToSection(id) {
+    if (section === 'bands' && id !== 'bands') settleBands()
+    setSection(id)
+  }
+
+  async function saveGithubToken() {
+    if (!githubToken.trim()) return
+    await api.setSecret('githubToken', githubToken.trim())
+    setGithubToken('')
+    setHasGithubToken(true)
+  }
+
+  // Closing loses nothing: whatever is still waiting is written first.
+  async function close() {
+    try {
+      await saveNow()
+      await savePasswords()
+      await saveGithubToken()
+      await applyStorage()
+      await settleBands()
+    } catch (err) {
+      setError(err.message)
+      return
+    }
+    onClose()
   }
 
   // One account's fields. Accounts are normalised on read, so this writes the
@@ -281,7 +341,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
   async function chooseFile() {
     const picked = await api.pickCsvOpen()
-    if (picked) setStorage({ filePath: picked })
+    if (!picked) return
+    // Picking a file is deliberate enough to apply straight away.
+    const next = { ...form.storage, filePath: picked }
+    setStorage({ filePath: picked })
+    await saveNow({ ...toAutoSave, storage: next })
   }
 
   async function forgetToken() {
@@ -302,7 +366,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // Why the switch can't be flipped right now, if it can't.
   const mbBlocked = config.storage?.adapter === 'github' && !multiBandOn
     ? t('Only available with a local CSV file — GitHub storage keeps one file.')
-    : storageDirty ? t('Save the storage change first.')
+    : storageDirty ? t('Apply the storage change first.')
       : unsavedEdits > 0 ? t('Save or discard your unsaved venue edit first.|Save or discard your {n} unsaved venue edits first.', { n: unsavedEdits })
         : ''
 
@@ -367,7 +431,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   // Why the band-file actions can't run right now, if they can't.
-  const bfBlocked = storageDirty ? t('Save the storage change first.')
+  const bfBlocked = storageDirty ? t('Apply the storage change first.')
     : unsavedEdits > 0 ? t('Save or discard your unsaved venue edit first.|Save or discard your {n} unsaved venue edits first.', { n: unsavedEdits })
       : ''
 
@@ -548,10 +612,10 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[90vh] sm:h-[min(90vh,48rem)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("Settings")}</h2>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+          <button type="button" onClick={close} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
 
-        <form onSubmit={handleSave} className="flex-1 min-h-0 flex flex-col">
+        <form onSubmit={e => { e.preventDefault(); saveNow() }} className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
             {/* Section rail — a scrolling row of tabs on a phone */}
             <nav className="sm:w-40 shrink-0 border-b sm:border-b-0 sm:border-r border-gray-100 dark:border-gray-700 py-2 sm:py-3 flex sm:block sm:space-y-0.5 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
@@ -559,7 +623,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setSection(s.id)}
+                  onClick={() => goToSection(s.id)}
                   className={`shrink-0 whitespace-nowrap sm:w-full text-left px-4 py-1.5 text-sm transition-colors ${section === s.id
                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
@@ -702,7 +766,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                     onClick={() => {
                                       const existing = mbPlan.files.find(f => mbPlan.clashes.includes(f.name))
                                       setMbPlan(null)
-                                      setSection('storage')
+                                      goToSection('storage')
                                       prepareBandFiles('open', existing.path)
                                     }}
                                     className="font-semibold underline hover:no-underline"
@@ -802,7 +866,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     <p className="text-xs text-gray-400 dark:text-gray-500">
                       {rulesView === 'flow'
                         ? t('How a venue gets its status: the first gate that matches wins, the trunk continues on “no”. Drawn from the numbers as they stand here.')
-                        : t('The numbers behind the statuses. Change one and the flow follows; Save applies them.')}
+                        : t('The numbers behind the statuses. Change one and the flow follows.')}
                     </p>
                     <div className="flex gap-1 bg-gray-50 dark:bg-gray-900 rounded-lg p-0.5 shrink-0">
                       {[['numbers', 'Numbers'], ['flow', 'Flow']].map(([id, label]) => (
@@ -925,6 +989,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           className={monoInput}
                           value={githubToken}
                           onChange={e => setGithubToken(e.target.value)}
+                          onBlur={() => saveGithubToken().catch(err => setError(err.message))}
                           placeholder={hasGithubToken ? t('•••••••• (stored — type to replace)') : 'ghp_…'}
                         />
                         <div className="mt-1 flex items-center justify-between gap-3">
@@ -987,7 +1052,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                           </button>
                         ) : (
                           <button type="button" disabled={!!mbBlocked || mbBusy}
-                            onClick={() => { setSection('general'); prepareMultiBand() }} className={outlineBtn}
+                            onClick={() => { goToSection('general'); prepareMultiBand() }} className={outlineBtn}
                             title={t("Merge the band files back into one CSV (General ▸ Multi-band mode)")}>
                             {t("Switch back to a single CSV…")}
                           </button>
@@ -1007,6 +1072,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       </p>
                     </div>
                     )
+                  )}
+
+                  {storageDirty && (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-3 py-2 text-xs text-indigo-900 dark:text-indigo-100">
+                      <span>{t('The list loads from here once you use it.')}</span>
+                      <button type="button" onClick={applyStorage} className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline shrink-0">{t('Use this')}</button>
+                    </div>
                   )}
 
                   {caps.openclawPolicy && (
@@ -1039,7 +1111,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       </button>
                     </div>
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      {t("Export")} {caps.localFiles ? 'writes a copy wherever you point it' : 'downloads a copy'}{t(". Import opens a guided wizard — replace the table or add to it, and match your file's columns to the app's. Changes stay in the app until you press Save.")}
+                      {caps.localFiles ? t('Export writes a copy wherever you point it.') : t('Export downloads a copy.')}{' '}
+                      {t('Import opens a guided wizard — replace the table or add to it, and match your file’s columns to the app’s. Changes stay in the app until you press Save.')}
                     </p>
                   </div>
 
@@ -1130,7 +1203,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     )}
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                       {storageDirty
-                        ? t('Save the storage change first — this empties the CSV the app currently has open.')
+                        ? t('Apply the storage change first — this empties the CSV the app currently has open.')
                         : wiped
                         ? t('Done — the list is empty. Add venues with + New Venue, or import a CSV.')
                         : multiBandOn
@@ -1230,7 +1303,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                    {t("A band's Dates fill in the")} <span className="font-mono">{t("Dates")}</span> {t("of its venues that have none — on Save you're asked whether to write a change onto them. A venue with no Dates whose band has none either can't be emailed, and shows as Missing info. Renaming only changes this list — it doesn't rewrite existing venues.")}
+                    {t('A band’s Dates fill in the Dates of its venues that have none — when you leave this page you’re asked whether to write a change onto them. A venue with no Dates whose band has none either can’t be emailed, and shows as Missing info. Renaming only changes this list — it doesn’t rewrite existing venues.')}
                   </p>
                 </div>
               )}
@@ -1247,7 +1320,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>{t("German articles —")} <span className="font-mono">{'{{article}}'}</span></p>
+                    <p className={lbl}>{t("German articles —")} <span className="font-mono">{token('article')}</span></p>
                     <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1258,8 +1331,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <span className="text-xs text-gray-600 dark:text-gray-300">
                         {t("Work out der/die/das for each venue — and Liebe / Lieber for each contact")}
                         <span className="block text-gray-400 dark:text-gray-500">
-                          {t("Put")} <span className="font-mono">{'{{article}}'}</span> {t("where the article belongs —")}
-                          <span className="font-mono"> in {'{{article}}'} {'{{venue}}'}</span> {t("becomes “in der Kulturfabrik” but “im Kulturzentrum”. The case comes from the words around it (für → die, wegen → der), and “in dem” contracts to “im” on its own.")}
+                          {t("Put")} <span className="font-mono">{token('article')}</span> {t("where the article belongs —")}
+                          <span className="font-mono"> in {token('article')} {token('venue')}</span> {t("becomes “in der Kulturfabrik” but “im Kulturzentrum”. The case comes from the words around it (für → die, wegen → der), and “in dem” contracts to “im” on its own.")}
                         </span>
                       </span>
                     </label>
@@ -1274,12 +1347,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         ) : articleState.status === 'disabled' ? (
                           <>
                             <span className="text-amber-600 dark:text-amber-400 font-medium">{t("Apple Intelligence is switched off.")}</span>{' '}
-                            {t("Turn it on in")} <span className="font-medium">{t("System Settings → Apple Intelligence & Siri")}</span>{t(", then reopen this panel. Until then")} <span className="font-mono">{'{{article}}'}</span> {t("is left out of drafts and flagged as missing.")}
+                            {t("Turn it on in")} <span className="font-medium">{t("System Settings → Apple Intelligence & Siri")}</span>{t(", then reopen this panel. Until then")} <span className="font-mono">{token('article')}</span> {t("is left out of drafts and flagged as missing.")}
                           </>
                         ) : articleState.status === 'downloading' ? (
                           <>{t("The on-device model is still downloading. This works once macOS has finished.")}</>
                         ) : articleState.status === 'ineligible' || articleState.status === 'unsupported' ? (
-                          <>{t("This Mac can’t run Apple’s on-device model — it needs Apple Silicon and macOS 26 or newer. Drafts still work;")} <span className="font-mono">{'{{article}}'}</span> {t("is left out and flagged.")}</>
+                          <>{t("This Mac can’t run Apple’s on-device model — it needs Apple Silicon and macOS 26 or newer. Drafts still work;")} <span className="font-mono">{token('article')}</span> {t("is left out and flagged.")}</>
                         ) : (
                           <>{articleState.error || t('The language helper is unavailable.')}</>
                         )}
@@ -1287,9 +1360,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>{t("Addressing the contact —")} <span className="font-mono">{'{{greeting}}'}</span> {t("and")} <span className="font-mono">{'{{contact}}'}</span></p>
+                    <p className={lbl}>{t("Addressing the contact —")} <span className="font-mono">{token('greeting')}</span> {t("and")} <span className="font-mono">{token('contact')}</span></p>
                     <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                      {t("Write")} <span className="font-mono">{'{{greeting}},'}</span> {t("and it becomes the whole salutation. In German, Apple’s on-device model reads the first name for Liebe / Lieber (and Frau / Herr); a name it can’t place gets the neutral form.")}
+                      {t("Write")} <span className="font-mono">{`${token('greeting')},`}</span> {t("and it becomes the whole salutation. In German, Apple’s on-device model reads the first name for Liebe / Lieber (and Frau / Herr); a name it can’t place gets the neutral form.")}
                     </p>
                     <div className="space-y-1.5">
                       {[
@@ -1351,7 +1424,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>{t("When a venue has no contact name")}</p>
                     <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                      {t("Used instead of an empty")} <span className="font-mono">{'{{contact}}'}</span>{t(", per language. It can itself contain placeholders —")} <span className="font-mono">{'{{venue}} Team'}</span> {t("becomes “Kulturzentrum Team”.")}
+                      {t("Used instead of an empty")} <span className="font-mono">{token('contact')}</span>{t(", per language. It can itself contain placeholders —")} <span className="font-mono">{`${token('venue')} Team`}</span> {t("becomes “Kulturzentrum Team”.")}
                     </p>
                     <div className="space-y-2">
                       {[...new Set([
@@ -1380,15 +1453,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               {section === 'mail' && (
                 <div className="space-y-4">
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    {t("One entry per mailbox you send from. Bands pick one in the")} <span className="font-medium">{t("Bands")}</span>
-                    {' '}{t("section; everything else uses the first. Drafts go straight into that account's Drafts mailbox over IMAP. iCloud needs an")} <span className="font-medium">{t("app-specific password")}</span>{t(", not your Apple ID password.")}{' '}
-                    <button type="button" onClick={() => api.openExternal('https://appleid.apple.com')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                      {t("Create one at appleid.apple.com")}
-                    </button>
-                    {t(". Gmail needs an")} <span className="font-medium">{t("app password")}</span> {t("too, which Google only offers once 2-Step Verification is on.")}{' '}
-                    <button type="button" onClick={() => api.openExternal('https://myaccount.google.com/apppasswords')} className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                      {t("Create one at myaccount.google.com")}
-                    </button>
+                    {t('One entry per mailbox you send from. Which one a band uses is set in the Bands section; everything else uses the first. Drafts go straight into that account’s Drafts mailbox over IMAP.')}
                   </p>
 
                   {accounts.map((acct, i) => {
@@ -1469,11 +1534,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                 <input
                                   type="password" className={input}
                                   value={accountPasswords[acct.id] || ''}
-                                  placeholder={hasPassword[acct.id] ? t('•••••••• stored') : t('app-specific password')}
+                                  placeholder={hasPassword[acct.id] ? t('•••••••• stored') : { icloud: t('app-specific password'), gmail: t('app password') }[mailProvider(acct)] || ''}
                                   onChange={e => setAccountPasswords(p => ({ ...p, [acct.id]: e.target.value }))}
+                                  onBlur={() => savePasswords().catch(err => setError(err.message))}
                                 />
                               </div>
                             </div>
+                            <ProviderHint provider={mailProvider(acct)} />
 
                             <div className="grid grid-cols-2 gap-3">
                               <div>
@@ -1629,24 +1696,21 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                 <span className="text-red-600 dark:text-red-400">
                   {error || t('{n} problem in Rules|{n} problems in Rules', { n: ruleErrors.length })}
                 </span>
+              ) : saving ? (
+                <span className="text-gray-400 dark:text-gray-500">{t('Saving…')}</span>
               ) : savedAt ? (
-                <span className="text-green-600 dark:text-green-400">{t("Saved")}</span>
-              ) : dirty ? (
-                <span className="text-gray-400 dark:text-gray-500">{t("Unsaved changes")}</span>
-              ) : null}
+                <span className="text-green-600 dark:text-green-400">{t('Saved')}</span>
+              ) : (
+                <span className="text-gray-400 dark:text-gray-500">{t('Changes save themselves.')}</span>
+              )}
             </p>
-            <div className="flex gap-3 shrink-0">
-              <button type="button" onClick={onClose} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                {dirty ? t('Discard & close') : t('Close')}
-              </button>
-              <button
-                type="submit"
-                disabled={saving || ruleErrors.length > 0}
-                className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
-              >
-                {saving ? t('Saving…') : t('Save')}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={close}
+              className="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shrink-0"
+            >
+              {t('Done')}
+            </button>
           </div>
         </form>
       </div>
@@ -1765,5 +1829,24 @@ function TypeRuleRow({ type, rule, bandNames, input, onRename, onRule, onRemove,
         </div>
       )}
     </div>
+  )
+}
+
+// iCloud and Gmail refuse the account's normal password over IMAP/SMTP; shown
+// only once the account being typed is one of them.
+function ProviderHint({ provider }) {
+  const t = useT()
+  if (!provider) return null
+  const link = 'underline hover:text-gray-600 dark:hover:text-gray-300'
+  return (
+    <p className="text-xs text-gray-400 dark:text-gray-500 -mt-1">
+      {provider === 'icloud'
+        ? t('iCloud needs an app-specific password, not your Apple ID password.')
+        : t('Gmail needs an app password, which Google only offers once 2-Step Verification is on.')}{' '}
+      <button type="button" className={link}
+        onClick={() => api.openExternal(provider === 'icloud' ? 'https://appleid.apple.com' : 'https://myaccount.google.com/apppasswords')}>
+        {provider === 'icloud' ? t('Create one at appleid.apple.com') : t('Create one at myaccount.google.com')}
+      </button>
+    </p>
   )
 }

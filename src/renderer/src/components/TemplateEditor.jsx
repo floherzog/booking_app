@@ -6,7 +6,9 @@ import { uploadAsset, fetchVideoThumb } from '../lib/templates'
 import { buildThumbFile } from '../lib/videoThumb'
 import { useInlinePrompt } from './InlinePrompt'
 import { genderOf, contactGenderOf, useGenders, useContactGenders } from '../lib/genders'
+import { BoldIcon, ItalicIcon, UnderlineIcon, LinkIcon, ImageIcon, VideoIcon } from './icons'
 import { t, useT } from '../i18n'
+import { token } from '../lib/placeholders'
 
 const LANGUAGE_HINT = () => t('Two-letter code, e.g. de or en. It must match one of the codes in Settings → Languages.')
 
@@ -31,10 +33,10 @@ function PlaceholderMenu({ onInsert, label }) {
             <button
               key={p}
               type="button"
-              onMouseDown={e => { e.preventDefault(); onInsert(`{{${p}}}`); setOpen(false) }}
+              onMouseDown={e => { e.preventDefault(); onInsert(token(p)); setOpen(false) }}
               className="block w-full text-left px-3 py-1 text-xs font-mono text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              {`{{${p}}}`}
+              {token(p)}
             </button>
           ))}
         </div>
@@ -62,6 +64,7 @@ function ToolbarButton({ active, disabled, onClick, title, children }) {
 export default function TemplateEditor({ template, bandOptions, languages, settings, rows = [], onSave, onCancel }) {
   const t = useT()
   const [band, setBand] = useState(template.band || bandOptions[0] || '')
+  const staleBand = template.band && !bandOptions.includes(template.band) ? template.band : ''
   const [language, setLanguage] = useState(template.language || languages.default || 'en')
   const [subject, setSubject] = useState(template.subject || '')
   const [previewIdx, setPreviewIdx] = useState('')
@@ -249,6 +252,10 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
             <select className={input} value={band} onChange={e => setBand(e.target.value)}>
               <option value="">{t("Choose a band…")}</option>
               {bandOptions.map(b => <option key={b} value={b}>{b}</option>)}
+              {/* A template can outlive its band (renamed or removed in Settings).
+                  Listed anyway, or the select shows "Choose a band…" while the
+                  template still belongs to it. */}
+              {staleBand && <option value={staleBand}>{t('{band} (no longer a band)', { band: staleBand })}</option>}
             </select>
           </div>
           <div>
@@ -270,22 +277,22 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
           <label className={lbl}>{t("Body")}</label>
           <div className="rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
             <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
-              <ToolbarButton title={t("Bold")} active={editor?.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></ToolbarButton>
-              <ToolbarButton title={t("Italic")} active={editor?.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></ToolbarButton>
-              <ToolbarButton title={t("Underline")} active={editor?.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><u>U</u></ToolbarButton>
+              <ToolbarButton title={t("Bold")} active={editor?.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><BoldIcon /></ToolbarButton>
+              <ToolbarButton title={t("Italic")} active={editor?.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><ItalicIcon /></ToolbarButton>
+              <ToolbarButton title={t("Underline")} active={editor?.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon /></ToolbarButton>
               <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
               <ToolbarButton
                 title={canLink ? t('Link (⌘K)') : t('Select some text first, then add a link')}
                 active={editor?.isActive('link')}
                 disabled={!canLink}
                 onClick={addLink}
-              >🔗</ToolbarButton>
-              <ToolbarButton title={t("Insert image")} onClick={() => fileRef.current?.click()}>🖼</ToolbarButton>
+              ><LinkIcon /></ToolbarButton>
+              <ToolbarButton title={t("Insert image")} onClick={() => fileRef.current?.click()}><ImageIcon /></ToolbarButton>
               <ToolbarButton
                 title={t("Insert a YouTube video as a clickable thumbnail")}
                 disabled={busy === 'video'}
                 onClick={insertVideo}
-              >{busy === 'video' ? '…' : '▶'}</ToolbarButton>
+              >{busy === 'video' ? '…' : <VideoIcon />}</ToolbarButton>
               <span className="flex-1" />
               <PlaceholderMenu onInsert={tx => editor.chain().focus().insertContent(tx).run()} />
             </div>
@@ -322,7 +329,7 @@ export default function TemplateEditor({ template, bandOptions, languages, setti
               />
               {preview.empties.length > 0 && (
                 <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800">
-                  {t("Empty for this venue:")} {preview.empties.map(e => `{{${e}}}`).join(', ')}
+                  {t("Empty for this venue:")} {preview.empties.map(token).join(', ')}
                 </p>
               )}
             </div>

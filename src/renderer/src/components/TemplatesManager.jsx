@@ -163,7 +163,7 @@ export default function TemplatesManager({ settings, rows = [], onBack, onClose 
                         ) : (
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button onClick={() => setEditing(tx)} className={outlineBtn}>{t("Edit")}</button>
-                            <button onClick={() => duplicate(tx)} className={outlineBtn}>{t("Duplicate")}</button>
+                            <button onClick={() => duplicate(tx)} className={outlineBtn}>{t("Duplicate#verb")}</button>
                             <button
                               onClick={() => setConfirmDelete(tx.id)}
                               className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 px-1.5 py-1 rounded transition-colors"

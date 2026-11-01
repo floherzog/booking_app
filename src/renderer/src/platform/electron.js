@@ -31,4 +31,5 @@ export const caps = {
   updates: true,         // GitHub-release update check and banner
   storageChoice: true,   // local file or GitHub; the web build is GitHub only
   openclawPolicy: false, // warn when OpenClaw's hold logic drifts from the rules
+  windowChrome: true,    // no title bar: the page draws the drag strip (lib/windowChrome.js)
 }

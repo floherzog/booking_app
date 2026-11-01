@@ -3,6 +3,7 @@ import { ADVANCED_COLUMNS, fieldLabel } from '@core/constants'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import EditableCell from './EditableCell'
+import { UndoIcon } from './icons'
 import { t, useT } from '../i18n'
 
 const label = fieldLabel
@@ -132,7 +133,7 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
                           onClick={() => onRevert(c)}
                           title={c.isDelete ? 'Keep this venue' : c.isAdd ? 'Leave this venue out' : 'Take back this change'}
                           className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 leading-none px-1"
-                        >↺</button>
+                        ><UndoIcon className="w-3.5 h-3.5" /></button>
                       )}
                     </td>
                   </tr>

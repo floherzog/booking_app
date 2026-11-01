@@ -10,7 +10,9 @@ import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { api } from '../platform'
 import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
+import { CheckIcon, XIcon } from './icons'
 import { t, useT, getLanguage } from '../i18n'
+import { token } from '../lib/placeholders'
 
 function whenLabel(iso) {
   const d = new Date(iso)
@@ -329,7 +331,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                   />
                 ) : (
                   <span className="mt-0.5 w-4 text-center text-sm shrink-0">
-                    {current === row._idx ? '…' : result ? (result.ok ? <span className="text-green-600">✓</span> : <span className="text-red-600">✗</span>) : ''}
+                    {current === row._idx ? '…' : result ? (result.ok ? <CheckIcon className="w-4 h-4 text-green-600 inline" /> : <XIcon className="w-4 h-4 text-red-600 inline" />) : ''}
                   </span>
                 )}
 
@@ -350,7 +352,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                       {row['Email']} · <span className="font-mono">{prepared.language}</span>
                       {prepared.fallbackUsed && <span className="text-amber-600 dark:text-amber-400"> {t("· fallback language")}</span>}
                       {prepared.empties.length > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400"> {t("· empty:")} {prepared.empties.join(', ')}</span>
+                        <span className="text-amber-600 dark:text-amber-400"> {t("· empty:")} {prepared.empties.map(token).join(', ')}</span>
                       )}
                     </p>
                   ) : (

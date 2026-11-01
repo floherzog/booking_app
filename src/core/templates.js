@@ -21,6 +21,37 @@ const PLACEHOLDER_FIELDS = {
 
 const PLACEHOLDER_RE = /\{\{\s*([a-z]+)\s*\}\}/gi
 
+// German names for the same placeholders. A template may use either; they are
+// turned into the English ones before anything else reads the text, so every
+// template works whatever language the app is shown in. {{venue}}, {{band}}
+// and {{text}} are the same in both.
+export const GERMAN_PLACEHOLDERS = {
+  greeting: 'begrüßung',
+  contact: 'kontakt',
+  city: 'stadt',
+  country: 'land',
+  dates: 'termine',
+  article: 'artikel',
+}
+const FROM_GERMAN = {
+  ...Object.fromEntries(Object.entries(GERMAN_PLACEHOLDERS).map(([en, de]) => [de, en])),
+  begruessung: 'greeting',
+}
+const ANY_PLACEHOLDER_RE = /\{\{\s*([\p{L}]+)\s*\}\}/gu
+
+// {{kontakt}} → {{contact}}, and so on; anything else is left as written.
+export function canonicalPlaceholders(text) {
+  return String(text ?? '').replace(ANY_PLACEHOLDER_RE, (m, name) => {
+    const en = FROM_GERMAN[name.toLowerCase()]
+    return en ? `{{${en}}}` : m
+  })
+}
+
+// What a placeholder is called in the given UI language: 'greeting' → 'begrüßung'.
+export function placeholderName(key, language) {
+  return (language === 'de' && GERMAN_PLACEHOLDERS[key]) || key
+}
+
 // How {{contact}} and {{greeting}} are rendered. `contactStyle` picks how a
 // known contact is addressed — first name, full name, or formally ("Sehr
 // geehrte Frau Müller"); `contactFallbacks` supplies a per-language stand-in
@@ -183,7 +214,7 @@ export function substitutePlaceholders(str, row, opts = {}) {
   // for the venue — an English template, or the on-device model unavailable — the
   // token is dropped rather than mailed out raw, and reported like an empty field
   // so the UI can warn before anything is sent.
-  let source = String(str ?? '')
+  let source = canonicalPlaceholders(str)
   if (hasArticlePlaceholder(source)) {
     if (opts.gender) {
       source = applyGermanArticles(source, opts.gender)

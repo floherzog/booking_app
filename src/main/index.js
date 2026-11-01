@@ -158,10 +158,11 @@ function createWindow() {
     minHeight: 600,
     show: false,
     title: 'Booking',
-    // A standard title bar, on purpose. With `hiddenInset` the only draggable
-    // area is the thin strip the renderer happens to leave free, and every
-    // `fixed inset-0` modal covers it — the window then reads as immovable.
-    titleBarStyle: 'default',
+    // No title bar, just the traffic lights over the page. The renderer lays a
+    // draggable strip across the top, above its modals (lib/windowChrome.js),
+    // so the window stays movable whatever is open.
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 12, y: 8 },
     resizable: true,
     movable: true,
     minimizable: true,

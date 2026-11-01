@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import AdvancedPanel from './AdvancedPanel'
 import { EMPTY_FILTERS, isEmptyFilters } from '@core/filterRows'
 import { FilterIcon, SelectIcon, MailIcon } from './icons'
+import { chromeTop } from '../lib/windowChrome'
 import { t, useT } from '../i18n'
 
 const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
@@ -16,7 +17,8 @@ const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shad
 // big Save button has scrolled away too), the dropdowns and the chips
 // (`pinnedChips`). It is fixed rather than sticky, so showing or hiding it
 // never moves the page. Its height goes into --pin-top, where the table's
-// column headings stick beneath it.
+// column headings stick beneath it; both start below --chrome-top (the Mac
+// window's drag strip, lib/windowChrome.js).
 export default function FilterBar({
   rows, filters, onChange, onNewVenue, bandOptions, typeOptions, chips, onChipsChange,
   canSelect = false, selectMode = false, selectedCount = 0, onToggleSelect, onEmail,
@@ -33,7 +35,9 @@ export default function FilterBar({
   useEffect(() => {
     const el = barRef.current
     if (!pinned || !el) { setScrolledPast(false); return }
-    const io = new IntersectionObserver(([e]) => setScrolledPast(!e.isIntersecting && e.boundingClientRect.top < 0))
+    // "Off the top" means under the Mac drag strip, where there is one.
+    const top = chromeTop()
+    const io = new IntersectionObserver(([e]) => setScrolledPast(!e.isIntersecting && e.boundingClientRect.top < top), { rootMargin: `-${top}px 0px 0px 0px` })
     io.observe(el)
     return () => io.disconnect()
   }, [pinned])
@@ -156,7 +160,7 @@ export default function FilterBar({
   // The panel isn't pinned: from the bar, Filter / Chips goes back up to it.
   function openPanelInPlace() {
     setAdvancedOpen(true)
-    const top = barRef.current.getBoundingClientRect().top + window.scrollY - 16
+    const top = barRef.current.getBoundingClientRect().top + window.scrollY - 16 - chromeTop()
     window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }
 
@@ -194,7 +198,8 @@ export default function FilterBar({
         <div
           ref={pinRef}
           data-pinned-bar
-          className="!mt-0 fixed top-0 inset-x-0 z-[900] bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 shadow-sm"
+          style={{ top: 'var(--chrome-top, 0px)' }}
+          className="!mt-0 fixed inset-x-0 z-[900] bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 shadow-sm"
         >
           <div className="max-w-[1700px] mx-auto px-4 py-2 space-y-2">
             {pinItems.chips && pinnedChips}

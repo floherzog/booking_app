@@ -11,13 +11,14 @@ export function mailSetupGaps(settings, templates) {
   return gaps
 }
 
-export default function MailSetupNotice({ settings, templates, onOpenSettings, appleScript = false, className = '' }) {
+// `bare` drops the amber box, for use inside a NoticeBanner that already is one.
+export default function MailSetupNotice({ settings, templates, onOpenSettings, appleScript = false, className = '', bare = false }) {
   const t = useT()
   const gaps = mailSetupGaps(settings, templates)
   if (!gaps.length) return null
   const link = 'font-medium text-indigo-700 dark:text-indigo-300 hover:underline whitespace-nowrap'
   return (
-    <div className={`rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/60 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 space-y-1 ${className}`}>
+    <div className={`${bare ? '' : 'rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/60 px-3 py-2 text-sm text-amber-900 dark:text-amber-100'} space-y-1 ${className}`}>
       {gaps.includes('account') && (
         <p>
           {t("No mail account set up yet — drafts and sending need one.")}

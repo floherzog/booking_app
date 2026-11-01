@@ -8,8 +8,9 @@ import { t, useT } from '../i18n'
 // of the quarantine mark a browser download carries, so it needs no Terminal
 // step — and then offers to open it. Should that fail, the browser download is
 // still a click away. What's new opens the release notes. × hides it for this
-// version — the next one shows again.
-export default function UpdateBanner({ update, onDismiss }) {
+// version — the next one shows again. Quit and install opens the .dmg and quits
+// Booking; `beforeQuit` (async → boolean) gets a say first, for unsaved edits.
+export default function UpdateBanner({ update, onDismiss, beforeQuit }) {
   const t = useT()
   // idle → downloading → done | failed
   const [phase, setPhase] = useState('idle')
@@ -21,6 +22,12 @@ export default function UpdateBanner({ update, onDismiss }) {
   const open = url => api.openExternal(url)
   const link = 'font-medium text-indigo-700 dark:text-indigo-300 hover:underline'
   const browserDownload = () => open(update.downloadUrl || update.url)
+
+  async function installAndQuit() {
+    if (beforeQuit && !(await beforeQuit())) return
+    const err = await api.installUpdateAndQuit()
+    if (err) { setResult(r => ({ ...r, error: err })); setPhase('failed') }
+  }
 
   async function download() {
     if (!update.download) return browserDownload()
@@ -44,7 +51,7 @@ export default function UpdateBanner({ update, onDismiss }) {
               <span className="text-indigo-700/70 dark:text-indigo-300/70"> · {pct != null ? `${pct} %` : mb(progress.received)}</span></>
           ) : phase === 'done' ? (
             <><span className="font-semibold">Booking {update.latest}</span> {t("is in Downloads")}
-              <span className="text-indigo-700/70 dark:text-indigo-300/70"> {t("· open it and drag Booking into Applications")}</span></>
+              <span className="text-indigo-700/70 dark:text-indigo-300/70"> {t('· Booking closes, then drag the new Booking into Applications in the window that opens')}</span></>
           ) : phase === 'failed' ? (
             <span className="text-red-700 dark:text-red-300">{t("Download failed:")} {result?.error}</span>
           ) : (
@@ -57,7 +64,7 @@ export default function UpdateBanner({ update, onDismiss }) {
           {phase === 'downloading' && <button onClick={() => api.cancelUpdateDownload()} className={link}>{t("Cancel")}</button>}
           {phase === 'done' && (
             <>
-              <button onClick={() => api.openUpdate()} className={link}>{t("Open")}</button>
+              <button onClick={installAndQuit} className={link}>{t('Quit and install')}</button>
               <button onClick={() => api.revealUpdate()} className={link}>{t("Show in Finder")}</button>
             </>
           )}

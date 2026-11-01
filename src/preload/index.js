@@ -78,6 +78,7 @@ const api = {
   cancelUpdateDownload: () => ipcRenderer.invoke('updates:cancel'),
   openUpdate: () => ipcRenderer.invoke('updates:open'),
   revealUpdate: () => ipcRenderer.invoke('updates:reveal'),
+  installUpdateAndQuit: () => ipcRenderer.invoke('updates:installAndQuit'),
   onUpdateProgress: cb => {
     const handler = (_e, p) => cb(p)
     ipcRenderer.on('updates:progress', handler)

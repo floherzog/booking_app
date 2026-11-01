@@ -218,4 +218,13 @@ export function registerUpdatesIpc() {
   ipcMain.handle('updates:cancel', () => { running?.controller.abort() })
   ipcMain.handle('updates:open', async () => (downloaded ? shell.openPath(downloaded) : 'Nothing downloaded yet.'))
   ipcMain.handle('updates:reveal', () => { if (downloaded) shell.showItemInFolder(downloaded) })
+  // Nothing installs itself: open the .dmg so its window is there to drag from,
+  // then quit, so the running copy isn't in the way of replacing it.
+  ipcMain.handle('updates:installAndQuit', async () => {
+    if (!downloaded) return 'Nothing downloaded yet.'
+    const err = await shell.openPath(downloaded)
+    if (err) return err
+    setTimeout(() => app.quit(), 400)
+    return ''
+  })
 }

@@ -3,6 +3,7 @@ import { ADVANCED_COLUMNS, STATUS_META, HEALTH_OPTIONS } from '@core/constants'
 import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS, KEYWORD_FIELDS } from '@core/filterRows'
 import { ORDERED_STATUSES, StatusPill, ShortcutChip, CustomChip, columnLabel } from './StatsBar'
 import ColorDot from './ColorDot'
+import { CheckIcon } from './icons'
 import { t, useT } from '../i18n'
 
 // What a shortcut chip and a custom chip look like before any colour is chosen.
@@ -279,7 +280,7 @@ function ToggleChip({ on, label, onToggle, children }) {
       <span className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full text-[9px] leading-none flex items-center justify-center pointer-events-none
         peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400
         ${on ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-        {on ? '✓' : ''}
+        {on ? <CheckIcon className="w-3 h-3" /> : null}
       </span>
     </label>
   )

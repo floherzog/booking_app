@@ -15,7 +15,7 @@ import { isSharedField } from '@core/multiBand'
 import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { useClassifyCtx } from '../lib/rulesContext'
-import { MailIcon } from './icons'
+import { MailIcon, ExternalIcon, WarningIcon } from './icons'
 import { contactGenderOf, overrideContactGender, useContactGenders } from '../lib/genders'
 import { greetingFor, contactOptionsFor } from '@core/templates'
 import { t, useT } from '../i18n'
@@ -62,7 +62,7 @@ function MiniMap({ city, country, status, onOpenMap }) {
         onClick={onOpenMap}
       >
         <span className="text-xs text-white font-medium bg-black/40 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-          {t("Open in map ↗")}
+          <span className="inline-flex items-center gap-1">{t('Open in map')} <ExternalIcon className="w-3 h-3" /></span>
         </span>
       </div>
     </div>
@@ -470,7 +470,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
 
         {missing.length > 0 && (
           <div className="mx-6 mt-4 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md px-3 py-2 shrink-0">
-            <span className="text-orange-500 text-sm">⚠</span>
+            <WarningIcon className="w-4 h-4 text-orange-500 shrink-0" />
             <span className="text-xs text-orange-700 dark:text-orange-400">
               {t("Missing:")} <span className="font-medium">{describeMissing(missing, t)}</span>
             </span>
@@ -481,7 +481,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
           <div className="mx-6 mt-2 flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-md px-3 py-2 shrink-0 text-xs text-cyan-800 dark:text-cyan-300">
             <span>{t("Only takes enquiries through an online form, so it is never drafted.")}</span>
             {formUrl && (
-              <a href={formUrl} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:no-underline whitespace-nowrap">{t("Open form ↗")}</a>
+              <a href={formUrl} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:no-underline whitespace-nowrap"><span className="inline-flex items-center gap-1">{t('Open form')} <ExternalIcon className="w-3 h-3" /></span></a>
             )}
           </div>
         )}

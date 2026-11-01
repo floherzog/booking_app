@@ -13,3 +13,11 @@ describe('formatText', () => {
     expect(formatText('a|b')).toBe('a|b')
   })
 })
+
+describe('context keys', () => {
+  it('drops a trailing #context from the English text', () => {
+    expect(formatText('Duplicate#verb')).toBe('Duplicate')
+    expect(formatText('Save {n} change|Save {n} changes#button', { n: 2 })).toBe('Save 2 changes')
+    expect(formatText('Issue #12')).toBe('Issue #12')
+  })
+})
