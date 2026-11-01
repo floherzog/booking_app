@@ -1,6 +1,6 @@
 import { ipcMain, app } from 'electron'
 import { readSettings, writeSettings } from '../settingsStore.js'
-import { getSecret, setSecret, deleteSecret } from '../secrets.js'
+import { getSecret, hasSecret, setSecret, deleteSecret } from '../secrets.js'
 import { mergeSynced, stampAll } from '../../core/settingsSync.js'
 
 // Settings ▸ General ▸ Sync with your web app. The web app is your own deploy of
@@ -9,6 +9,11 @@ import { mergeSynced, stampAll } from '../../core/settingsSync.js'
 // keeps only the cookie it hands out, in the keychain. A sync then reads the web
 // app's settings, merges them section by section (src/core/settingsSync.js) and
 // writes back whichever side is behind.
+//
+// With "Also use the web app's CSV" a sync also takes the web app's GitHub
+// token (token.php, the one its bundle carries) into the keychain — unless you
+// entered a token of your own, which is never overwritten. `tokenFromWeb` in
+// webSync records which it is; disconnecting removes a token that came this way.
 //
 // Node's fetch, not net.fetch: Chromium's fetch hides Set-Cookie, and a
 // redirect must stay visible (a 302 to login.php means "signed out").
@@ -59,6 +64,29 @@ export function createWebSync({ fetch = globalThis.fetch, secrets, store, allowL
     return {}
   }
 
+  // The web app's GitHub token, or '' (none, or a deploy from before token.php).
+  async function remoteToken(base, cookie) {
+    try {
+      const res = await fetch(`${base}token.php`, { headers: { Cookie: `${COOKIE}=${cookie}` }, redirect: 'manual', cache: 'no-store' })
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) return ''
+      const body = await res.json()
+      return typeof body?.token === 'string' ? body.token.trim() : ''
+    } catch {
+      return ''
+    }
+  }
+
+  // Take the web app's token when this Mac uses its CSV and has none of its
+  // own; keep it current when it came from there. → whether it is in use now.
+  async function adoptToken(base, cookie, webSync) {
+    const own = secrets.has('githubToken') && !webSync.tokenFromWeb
+    if (own) return false
+    const token = await remoteToken(base, cookie)
+    if (!token) return !!webSync.tokenFromWeb
+    if (secrets.get('githubToken') !== token) secrets.set('githubToken', token)
+    return true
+  }
+
   // → { ok, url, remoteHasSettings } | { error }
   async function connect(url, code) {
     const base = normalizeUrl(url, { allowLocalHttp })
@@ -107,7 +135,9 @@ export function createWebSync({ fetch = globalThis.fetch, secrets, store, allowL
         const put = await remotePut(base, cookie, m.remote)
         if (put.signin) return { error: 'signin' }
       }
-      const settings = store.write({ ...m.local, webSync: { ...local.webSync, lastSyncedAt: now } }, { stamp: false })
+      const usesWebCsv = adoptCsv && m.local.storage?.adapter === 'github'
+      const tokenFromWeb = usesWebCsv ? await adoptToken(base, cookie, local.webSync) : !!local.webSync.tokenFromWeb
+      const settings = store.write({ ...m.local, webSync: { ...local.webSync, lastSyncedAt: now, tokenFromWeb } }, { stamp: false })
       const storageChanged = JSON.stringify(settings.storage) !== JSON.stringify(local.storage)
       return { settings, changedLocal: m.changedLocal, storageChanged }
     } catch (e) {
@@ -118,7 +148,8 @@ export function createWebSync({ fetch = globalThis.fetch, secrets, store, allowL
   function disconnect() {
     secrets.remove('webSyncCookie')
     const s = store.read()
-    return store.write({ ...s, webSync: { ...s.webSync, url: '', lastSyncedAt: '' } }, { stamp: false })
+    if (s.webSync?.tokenFromWeb) secrets.remove('githubToken')
+    return store.write({ ...s, webSync: { ...s.webSync, url: '', lastSyncedAt: '', tokenFromWeb: false } }, { stamp: false })
   }
 
   return { connect, sync, disconnect }
@@ -126,7 +157,7 @@ export function createWebSync({ fetch = globalThis.fetch, secrets, store, allowL
 
 export function registerWebSyncIpc() {
   const ws = createWebSync({
-    secrets: { get: k => getSecret(k), set: (k, v) => setSecret(k, v), remove: k => deleteSecret(k) },
+    secrets: { get: k => getSecret(k), has: k => hasSecret(k), set: (k, v) => setSecret(k, v), remove: k => deleteSecret(k) },
     store: { read: readSettings, write: writeSettings },
     allowLocalHttp: !app.isPackaged,
   })

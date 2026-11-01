@@ -62,7 +62,8 @@ export const DEFAULT_SETTINGS = {
   filterChips: { hidden: [], colors: {}, custom: [] },
   // Mac only, never synced: the web app this Mac syncs its settings with
   // (src/main/ipc/webSync.js), and whether it also uses that web app's CSV.
-  webSync: { url: '', useCsv: true, lastSyncedAt: '' },
+  // tokenFromWeb: the GitHub token in the keychain came from that web app.
+  webSync: { url: '', useCsv: true, lastSyncedAt: '', tokenFromWeb: false },
   // When each synced section last changed (src/core/settingsSync.js).
   syncStamps: {},
 }

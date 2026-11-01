@@ -75,6 +75,7 @@ jobs:
           SFTP_WEBROOT: ${{ secrets.SFTP_WEBROOT }}
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
           APP_COOKIE_SECRET: ${{ secrets.APP_COOKIE_SECRET }}
+          VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
         run: |
           case "$WEB_BASE" in /*/) ;; *) echo "WEB_BASE must look like /folder/"; exit 1 ;; esac
           DEPLOY_PATH="${SFTP_WEBROOT%/}${WEB_BASE%/}"
@@ -90,3 +91,7 @@ jobs:
           printf '<?php\n$AUTH_PASSWORD = base64_decode("%s");\n$COOKIE_SECRET = base64_decode("%s");\n' \
             "$PW_B64" "$SECRET_B64" | \
             $SSH "cat > $DEPLOY_PATH/auth_secret.php && chmod 644 $DEPLOY_PATH/auth_secret.php"
+          # The same token the bundle carries, for token.php (a syncing Mac).
+          TOKEN_B64=$(printf '%s' "$VITE_GITHUB_TOKEN" | base64 | tr -d '\n')
+          printf '<?php\n$GITHUB_TOKEN = base64_decode("%s");\n' "$TOKEN_B64" | \
+            $SSH "cat > $DEPLOY_PATH/github_token.php && chmod 644 $DEPLOY_PATH/github_token.php"

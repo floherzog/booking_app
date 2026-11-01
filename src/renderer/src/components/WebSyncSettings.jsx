@@ -80,7 +80,7 @@ export default function WebSyncSettings({ webSync = {}, multiBandOn, error, busy
               <span className="block text-gray-400 dark:text-gray-500">
                 {multiBandOn
                   ? t('Not in multi-band mode — band files are local.')
-                  : t('This Mac then reads and saves the same GitHub CSV as the web app. It needs a GitHub token of its own, under Data & storage.')}
+                  : t('This Mac then reads and saves the same GitHub CSV as the web app, with the web app’s GitHub token — unless you entered your own under Data & storage.')}
               </span>
             </span>
           </label>

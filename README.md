@@ -100,7 +100,8 @@ inside the app bundle, so nothing is lost:
 - **Settings sync with your own web app.** *Settings ▸ General ▸ Sync with your
   web app* takes the address of a Booking web app you run yourself and its
   access code. Rules, bands, venue types, chips, dismissed duplicates, mail
-  languages, template options — and, if you like, which CSV to use — then stay
+  languages, template options — and, if you like, which CSV to use, with the
+  web app's GitHub token — then stay
   the same on this Mac, in the browser and on any other Mac connected to it.
   Each section comes from whichever side changed it last. Mail accounts,
   passwords and local file paths never leave the Mac. Nothing syncs until you

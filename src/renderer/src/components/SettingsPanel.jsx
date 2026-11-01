@@ -995,7 +995,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         />
                         <div className="mt-1 flex items-center justify-between gap-3">
                           <p className="text-xs text-gray-400 dark:text-gray-500">
-                            {caps.localFiles ? t('Kept in your macOS keychain, never in the settings file.') : t('Kept in this browser, never in the settings.')}
+                            {config.webSync?.tokenFromWeb && hasGithubToken
+                              ? t('Your web app’s token, which comes with the settings sync. Type one here to use your own instead.')
+                              : caps.localFiles ? t('Kept in your macOS keychain, never in the settings file.') : t('Kept in this browser, never in the settings.')}
                           </p>
                           {hasGithubToken && (
                             <button type="button" onClick={forgetToken} className="shrink-0 text-xs text-gray-400 hover:text-red-600 dark:hover:text-red-400 underline">

@@ -53,8 +53,11 @@ app's address and `APP_PASSWORD` as the access code. The Mac signs in once and
 keeps only the login cookie, in its keychain. After that the rules, bands, venue
 types, chips, dismissed duplicates, mail languages and template options stay the
 same on both sides (and on any other Mac connected to the same web app). With
-*Also use the web app's CSV*, the Mac switches to the same GitHub CSV; it needs
-its own GitHub token for that, under Data & storage. Mail accounts, passwords
+*Also use the web app's CSV*, the Mac switches to the same GitHub CSV and takes
+the web app's GitHub token along (from `token.php`, behind the same login), so
+there is nothing to type and a rotated token reaches the Mac at its next sync. A
+token you enter yourself under Data & storage is never replaced, and
+disconnecting removes one that came from the web app. Mail accounts, passwords
 and local file paths stay on the Mac.
 
 How it decides: every save stamps the sections it changed (`syncStamps`, see
@@ -86,7 +89,7 @@ that touches the shared code. It stays off until the repository variable
 
 | Secret | What it is |
 |---|---|
-| `VITE_GITHUB_TOKEN` | PAT with read/write access to the CSV repository (and read access to the OpenClaw repository, for the drift warning). Baked into the bundle, which is only served behind the login. |
+| `VITE_GITHUB_TOKEN` | PAT with read/write access to the CSV repository (and read access to the OpenClaw repository, for the drift warning). Baked into the bundle, which is only served behind the login, and handed to Macs that sync with the web app (`token.php`). |
 | `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`, `SFTP_PASSWORD` | SSH access to the webspace |
 | `SFTP_WEBROOT` | The webspace's document root on the server, without a trailing slash; the app goes into `$SFTP_WEBROOT$WEB_BASE` |
 | `APP_PASSWORD` | The login password |
@@ -114,7 +117,10 @@ Beside the built app, in the same folder and behind the same login:
 - `geo_cache_live.json` — cities geocoded since the last deploy.
 - `dismissed_dupes.json` — left by the old web app; read once, when its
   settings are migrated.
-- `auth_secret.php` — written by every deploy.
+- `auth_secret.php` — the login password and cookie secret, written by every
+  deploy.
+- `github_token.php` — the GitHub token (the same one the bundle carries), for
+  `token.php`; written by every deploy.
 
 A deploy unpacks over the folder and never deletes these.
 
