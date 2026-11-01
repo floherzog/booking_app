@@ -79,3 +79,25 @@ describe('findReply', () => {
     expect(findReply(msgs, '')).toBe(null)
   })
 })
+
+describe('MailHistory', () => {
+  it('writes dates as DD.MM.YY and says which way each mail went', async () => {
+    const { MailContext } = await import('../../lib/mailHistory.js')
+    const { default: MailHistory } = await import('../MailHistory.jsx')
+    api.listMailHistory.mockResolvedValueOnce({ messages: [
+      { accountId: 'a', mailbox: 'Sent', uid: 1, direction: 'out', date: '2026-11-01T10:00:00Z', subject: 'Releasetour' },
+      { accountId: 'a', mailbox: 'INBOX', uid: 2, direction: 'in', date: '2026-10-02T10:00:00Z', subject: 'Re: Releasetour' },
+    ] })
+    const ctx = { ready: true, openMessage: vi.fn(), openReply: async () => false }
+    const { el, root } = mount(h(MailContext.Provider, { value: ctx }, h(MailHistory, { email: 'dates@venue.de' })))
+    await wait(10)
+    ;[...el.querySelectorAll('button')].find(b => b.textContent.includes('Emails (2)')).click()
+    await wait(10)
+    const rows = [...el.querySelectorAll('li')].map(li => li.textContent)
+    expect(rows[0]).toContain('↗ Sent')
+    expect(rows[0]).toContain('01.11.26')
+    expect(rows[1]).toContain('↙ Received')
+    expect(rows[1]).toContain('02.10.26')
+    act(() => root.unmount())
+  })
+})

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { MailContext, getHistory } from '../lib/mailHistory'
+import { formatDateDDMMYY } from '@core/parseDate'
 
 // Under the map in a venue's details: every email from and to its address,
 // newest first, folded away until opened. Not there at all without a mailbox
@@ -19,7 +20,9 @@ export default function MailHistory({ email }) {
   }, [mail.ready, email])
 
   if (!mail.ready || !messages?.length) return null
-  const day = d => (d ? new Date(d).toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' }) : '')
+  // The app's own DD.MM.YY, like every other date in it — not the Mac's region
+  // format, which could print 1 November as 11/01/26.
+  const day = d => (d ? formatDateDDMMYY(new Date(d)) : '')
   return (
     <section>
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
@@ -32,8 +35,8 @@ export default function MailHistory({ email }) {
           {messages.map(m => (
             <li key={`${m.accountId}|${m.mailbox}|${m.uid}`}>
               <button type="button" onClick={() => mail.openMessage(m)} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-baseline gap-3 text-sm">
-                <span className={`shrink-0 w-4 ${m.direction === 'in' ? 'text-emerald-600' : 'text-indigo-500'}`} title={m.direction === 'in' ? t('Received') : t('Sent#mail')}>
-                  {m.direction === 'in' ? '↙' : '↗'}
+                <span className={`shrink-0 w-[5.5rem] text-xs font-medium whitespace-nowrap ${m.direction === 'in' ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-500 dark:text-indigo-400'}`}>
+                  {m.direction === 'in' ? `↙ ${t('Received')}` : `↗ ${t('Sent#mail')}`}
                 </span>
                 <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 tabular-nums">{day(m.date)}</span>
                 <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">{m.subject || t('(no subject)')}</span>
