@@ -19,6 +19,7 @@ import { MailIcon, ExternalIcon, WarningIcon } from './icons'
 import { contactGenderOf, overrideContactGender, useContactGenders } from '../lib/genders'
 import { greetingFor, contactOptionsFor } from '@core/templates'
 import { t, useT } from '../i18n'
+import MailHistory from './MailHistory'
 
 function MiniMap({ city, country, status, onOpenMap }) {
   const t = useT()
@@ -503,6 +504,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
               onOpenMap={onOpenMap}
             />
           )}
+          {caps.mail && <MailHistory email={effective['Email']} />}
           {SECTIONS.map(section => {
             // In multi-band mode the band is chosen with the tabs above, and the
             // section heading says whose data this is: the venue's (every band)

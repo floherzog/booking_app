@@ -66,6 +66,9 @@ export const DEFAULT_SETTINGS = {
   webSync: { url: '', useCsv: true, lastSyncedAt: '', tokenFromWeb: false },
   // When each synced section last changed (src/core/settingsSync.js).
   syncStamps: {},
+  // Suggestions from the CSV (src/core/csvSuggestions.js) whose banner was
+  // dismissed; a name not in here still gets one.
+  dismissedSuggestions: { bands: [], venueTypes: [], countries: [] },
 }
 
 function isPlainObject(v) {
@@ -133,5 +136,8 @@ export function normalizeSettings(stored) {
     filterChips: normalizeFilterChips(s.filterChips),
     webSync: { ...DEFAULT_SETTINGS.webSync, ...(isPlainObject(s.webSync) ? s.webSync : {}) },
     syncStamps: isPlainObject(s.syncStamps) ? s.syncStamps : {},
+    dismissedSuggestions: Object.fromEntries(['bands', 'venueTypes', 'countries'].map(k => [
+      k, Array.isArray(s.dismissedSuggestions?.[k]) ? s.dismissedSuggestions[k].filter(v => typeof v === 'string') : [],
+    ])),
   }
 }

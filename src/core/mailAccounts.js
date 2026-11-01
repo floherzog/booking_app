@@ -159,3 +159,11 @@ export function defaultSmtpHost(imapHost) {
   if (/mail\.me\.com$/i.test(h)) return 'smtp.mail.me.com'
   return h.replace(/^imap\./i, 'smtp.')
 }
+
+// Can the app talk to a mailbox at all? True when an account has an IMAP host,
+// a user name and a stored password (`hasPassword`: account id → boolean, from
+// the keychain). Gates the mail sync, the reply-date click and a venue's
+// email history.
+export function mailReady(settings, hasPassword = {}) {
+  return normalizeAccounts(settings?.mail).some(a => a.host?.trim() && a.user?.trim() && hasPassword[a.id])
+}

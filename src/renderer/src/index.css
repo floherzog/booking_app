@@ -100,8 +100,20 @@ html.window-chrome {
   --chrome-top: 28px;
 }
 
-html.window-chrome body {
-  padding-top: var(--chrome-top);
+/* The Mac window scrolls #root rather than the page, so the scrollbar starts
+   below the drag strip (lib/windowChrome.js scroller()). In fullscreen
+   --chrome-top drops to 0 and #root fills the window. */
+html.mac-window {
+  overflow: hidden;
+}
+
+html.mac-window #root {
+  position: fixed;
+  top: var(--chrome-top, 0px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
 }
 
 .window-drag-strip {
@@ -134,4 +146,11 @@ html.window-chrome body:has(.fixed.inset-0) .window-drag-strip {
 
 html.window-chrome .fixed.inset-0 {
   border-top: var(--chrome-top) solid transparent;
+}
+
+/* Banner slots (components/BannerSlot.jsx) appear and leave without motion. */
+@media (prefers-reduced-motion: reduce) {
+  .banner-slot {
+    transition: none;
+  }
 }

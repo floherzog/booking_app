@@ -35,6 +35,11 @@ import ErrorBoundary from './components/ErrorBoundary'
 import UpdateBanner from './components/UpdateBanner'
 import BandDatesBanner from './components/BandDatesBanner'
 import NoticeBanner from './components/NoticeBanner'
+import BannerSlot from './components/BannerSlot'
+import MailReader from './components/MailReader'
+import { MailContext, getHistory, findReply, forgetHistory } from './lib/mailHistory'
+import { csvSuggestions } from '@core/csvSuggestions'
+import { mailReady, normalizeAccounts, secretKeyFor } from '@core/mailAccounts'
 import { GlobeIcon, SettingsIcon, ListIcon, InfoIcon, RefreshIcon } from './components/icons'
 import { usePinToolbar, usePinItems } from './lib/uiPrefs'
 import { setChipColors } from './lib/palette'
@@ -149,6 +154,7 @@ export default function App() {
   // it closes. A sync that changed something while Settings is open (Connect,
   // Sync now) reopens the panel on fresh settings.
   const [webSyncNote, setWebSyncNote] = useState(null) // { text, tone, autoHide, signin }
+  const dismissWebSyncNote = useCallback(() => setWebSyncNote(null), [])
   const [webSyncError, setWebSyncError] = useState(null) // { code, message }
   const [webSyncBusy, setWebSyncBusy] = useState(false)
   const [settingsEpoch, setSettingsEpoch] = useState(0)
@@ -354,16 +360,50 @@ export default function App() {
   const rowsRef = useRef(rows)
   rowsRef.current = rows
 
+  // Which mail accounts have a password in the keychain (id → boolean), for
+  // mailReady: is there a mailbox to ask at all?
+  // `key` says which accounts `has` was looked up for: until it matches, the
+  // answer isn't known yet and nothing should claim there's no mailbox.
+  const [mailPasswords, setMailPasswords] = useState({ key: null, has: {} })
+  const mailAccountIds = caps.mail && settings ? normalizeAccounts(settings.mail).map(a => a.id).join(',') : null
+  useEffect(() => {
+    if (mailAccountIds == null) return
+    let alive = true
+    const ids = mailAccountIds ? mailAccountIds.split(',') : []
+    Promise.all(ids.map(id => api.hasSecret(secretKeyFor(id)).then(has => [id, has]).catch(() => [id, false])))
+      .then(pairs => { if (alive) setMailPasswords({ key: mailAccountIds, has: Object.fromEntries(pairs) }) })
+    return () => { alive = false }
+  }, [mailAccountIds, showSettings])
+  const mailKnown = mailAccountIds != null && mailPasswords.key === mailAccountIds
+  const mailIsReady = caps.mail && mailReady(settings, mailPasswords.has)
+  const [reading, setReading] = useState(null) // the message open in MailReader
+  const mailCtx = useMemo(() => ({
+    ready: mailIsReady,
+    openMessage: setReading,
+    // The message a Last reply date stands for → true, or false (edit instead).
+    openReply: async (email, dateStr) => {
+      const m = findReply(await getHistory(email), dateStr)
+      if (m) setReading(m)
+      return !!m
+    },
+  }), [mailIsReady])
+
   // Ask the mail account what it knows about these venues and stage the result.
   //
   // Staged, not written: the edits land in the same `edits` map a hand edit uses,
   // so they show as pending changes and go to the CSV only when Save is pressed.
   const runMailSync = useCallback(async ({ silent = false } = {}) => {
     if (!caps.mail || !mailSyncEnabled(settings)) return
+    // Nothing to ask: say so, rather than "found nothing new".
+    if (!mailIsReady) {
+      setSyncNote({ text: t('Mail sync is on, but no mail account is set up yet.'), tone: 'warning', action: 'mail' })
+      return
+    }
     setSyncing(true)
     if (!silent) setSyncNote(null)
     try {
       const result = await syncFromMail(rowsRef.current, settings)
+      forgetHistory() // the mailbox has moved on: venue email lists load afresh
       if (result?.error) { setSyncNote({ text: result.error, tone: 'error' }); return }
       const found = result?.edits || []
       found.forEach(e => handleEdit(e._idx, e.field, e.value))
@@ -378,7 +418,7 @@ export default function App() {
     // handleEdit is stable enough for this; rows are read through a ref so a long
     // scan never stages against a stale snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings])
+  }, [settings, mailIsReady])
 
   // The ↻ button: reload the CSV, then (when configured) ask the mail account.
   // Order matters — load() clears staged edits, so syncing first would wipe them.
@@ -390,11 +430,11 @@ export default function App() {
   // Once after the first load, if the user asked for it.
   const syncedOnOpen = useRef(false)
   useEffect(() => {
-    if (syncedOnOpen.current || loading || rows.length === 0) return
+    if (syncedOnOpen.current || loading || rows.length === 0 || !mailKnown) return
     if (!caps.mail || !settings?.mail?.sync?.onOpen || !mailSyncEnabled(settings)) return
     syncedOnOpen.current = true
     runMailSync({ silent: true })
-  }, [loading, rows.length, settings, runMailSync])
+  }, [loading, rows.length, settings, runMailSync, mailKnown])
 
   const refreshTemplates = useCallback(() => {
     if (!caps.mail) return
@@ -987,6 +1027,34 @@ export default function App() {
 
   const isDuplicate = useCallback(r => duplicateSet.has(venueRep.get(r._venueId)), [duplicateSet, venueRep])
   const liveRows = useMemo(() => rows.filter(r => !deletions.has(r._idx)), [rows, deletions])
+
+  // Bands, venue types and countries the CSV uses that Settings doesn't list —
+  // one banner each, minus what a banner's × already hid. Countries only matter
+  // where there is mail (their language picks the template).
+  const suggestions = useMemo(
+    () => (settings && !loading && liveRows.length ? csvSuggestions(liveRows, settings, { dismissed: settings.dismissedSuggestions }) : null),
+    [liveRows, settings, loading],
+  )
+  async function addSuggested(kind, names) {
+    const cur = await getSettings()
+    if (kind === 'bands') await persist({ ...cur, bands: [...normalizeBands(cur.bands), ...names.map(name => ({ name, tourDates: '', mailAccountId: '' }))] })
+    if (kind === 'venueTypes') await persist({ ...cur, venueTypes: [...(cur.venueTypes || []), ...names] })
+    if (kind === 'countries') {
+      const lang = cur.languages?.default || 'en'
+      await persist({ ...cur, languages: { ...cur.languages, map: { ...cur.languages?.map, ...Object.fromEntries(names.map(n => [n, lang])) } } })
+    }
+  }
+  async function dismissSuggested(kind, names) {
+    const cur = await getSettings()
+    const d = cur.dismissedSuggestions || {}
+    await persist({ ...cur, dismissedSuggestions: { ...d, [kind]: [...(d[kind] || []), ...names] } })
+  }
+  const SUGGESTION_KINDS = [
+    { kind: 'bands', section: 'bands', text: (n, names) => t('The CSV has {n} band Settings doesn’t list: {names}|The CSV has {n} bands Settings doesn’t list: {names}', { n, names }) },
+    { kind: 'venueTypes', section: 'venueTypes', text: (n, names) => t('The CSV has {n} venue type Settings doesn’t list: {names}|The CSV has {n} venue types Settings doesn’t list: {names}', { n, names }) },
+    ...(caps.mail ? [{ kind: 'countries', section: 'languages', text: (n, names) => t('{n} country in the CSV has no mail language yet: {names}|{n} countries in the CSV have no mail language yet: {names}', { n, names }) }] : []),
+  ]
+  const listNames = list => (list.length > 5 ? `${list.slice(0, 5).map(x => x.name).join(', ')} …` : list.map(x => x.name).join(', '))
   const filteredRows = useMemo(
     () => liveRows.filter(r => matchesFilters(r, filters, { isDuplicate, classify: classifyCtx })),
     [liveRows, filters, isDuplicate, classifyCtx],
@@ -1136,12 +1204,16 @@ export default function App() {
   return (
     <RulesProvider rules={rules}>
     <ClassifyProvider value={classifyCtx}>
+    <MailContext.Provider value={mailCtx}>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {promptNode}
       {confirmNode}
-      <div style={{ top: 'calc(var(--chrome-top, 0px) + 0.75rem)' }} className="fixed left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl space-y-2">
-        <UpdateBanner update={update} onDismiss={dismissUpdate} beforeQuit={confirmQuitForUpdate} />
-        {!loading && dateGapsKey !== dismissedDateGaps && (
+      {/* The banner stack: each banner in a BannerSlot, which slides it in and out. */}
+      <div style={{ top: 'calc(var(--chrome-top, 0px) + 0.75rem)' }} className="fixed left-1/2 -translate-x-1/2 z-[1400] w-[calc(100%-2rem)] max-w-xl flex flex-col">
+        <BannerSlot show={!!update?.newer}>
+          <UpdateBanner update={update} onDismiss={dismissUpdate} beforeQuit={confirmQuitForUpdate} />
+        </BannerSlot>
+        <BannerSlot show={!loading && dateGapsKey !== dismissedDateGaps && (dateGaps.missing.length + dateGaps.mismatch.length) > 0}>
           <BandDatesBanner
             gaps={dateGaps}
             onApply={gaps => applyEdits(gaps.map(g => [g.idx, 'Dates', g.want]))}
@@ -1149,31 +1221,54 @@ export default function App() {
             onKeep={keepVenueDates}
             onDismiss={dismissDateGaps}
           />
-        )}
-        {webSyncNote && (
-          <NoticeBanner tone={webSyncNote.tone} onDismiss={() => setWebSyncNote(null)} autoHide={webSyncNote.autoHide ? 8000 : 0}>
-            {webSyncNote.text}
-            {webSyncNote.signin && (
-              <button onClick={() => { setWebSyncNote(null); setSettingsSection('general'); setShowSettings(true) }} className="ml-2 font-medium underline hover:no-underline">{t('Sign in again')}</button>
-            )}
-          </NoticeBanner>
-        )}
-        {syncNote && (
-          <NoticeBanner tone={syncNote.tone} onDismiss={dismissSyncNote} autoHide={syncNote.autoHide ? 8000 : 0}>
-            {syncNote.text}
-          </NoticeBanner>
-        )}
-        {showMailSetup && mailSetupGaps(settings, templates).length > 0 && (
+        </BannerSlot>
+        <BannerSlot show={!!webSyncNote}>
+          {webSyncNote && (
+            <NoticeBanner tone={webSyncNote.tone} onDismiss={dismissWebSyncNote} autoHide={webSyncNote.autoHide ? 8000 : 0}>
+              {webSyncNote.text}
+              {webSyncNote.signin && (
+                <button onClick={() => { setWebSyncNote(null); setSettingsSection('general'); setShowSettings(true) }} className="ml-2 font-medium underline hover:no-underline">{t('Sign in again')}</button>
+              )}
+            </NoticeBanner>
+          )}
+        </BannerSlot>
+        <BannerSlot show={!!syncNote}>
+          {syncNote && (
+            <NoticeBanner tone={syncNote.tone} onDismiss={dismissSyncNote} autoHide={syncNote.autoHide ? 8000 : 0}>
+              {syncNote.text}
+              {syncNote.action === 'mail' && (
+                <button onClick={() => { setSyncNote(null); openSettings('mail') }} className="ml-2 font-medium underline hover:no-underline">{t('Mail settings')}</button>
+              )}
+            </NoticeBanner>
+          )}
+        </BannerSlot>
+        {SUGGESTION_KINDS.map(({ kind, section, text }) => {
+          const found = suggestions?.[kind] || []
+          return (
+            <BannerSlot key={kind} show={found.length > 0}>
+              {found.length > 0 && (
+                <NoticeBanner tone="info" onDismiss={() => dismissSuggested(kind, found.map(x => x.name))}>
+                  {text(found.length, listNames(found))}
+                  <span className="ml-2 inline-flex gap-3">
+                    <button onClick={() => addSuggested(kind, found.map(x => x.name))} className="font-medium underline hover:no-underline">{t('Add#suggestion')}</button>
+                    <button onClick={() => openSettings(section)} className="font-medium underline hover:no-underline">{t('Open settings')}</button>
+                  </span>
+                </NoticeBanner>
+              )}
+            </BannerSlot>
+          )
+        })}
+        <BannerSlot show={showMailSetup && mailSetupGaps(settings, templates).length > 0}>
           <NoticeBanner tone="warning" onDismiss={() => setShowMailSetup(false)}>
             <MailSetupNotice settings={settings} templates={templates} bare onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} />
           </NoticeBanner>
-        )}
-        {policyDrift.length > 0 && (
+        </BannerSlot>
+        <BannerSlot show={policyDrift.length > 0}>
           <NoticeBanner tone="warning" onDismiss={() => setPolicyDrift([])}>
             <p className="font-medium">{t('OpenClaw’s hold logic differs from the Rules — update them in Logic')}</p>
             {policyDrift.map((d, i) => <p key={i} className="text-xs mt-0.5 opacity-80">{d}</p>)}
           </NoticeBanner>
-        )}
+        </BannerSlot>
       </div>
       <div className="max-w-[1700px] mx-auto px-4 py-6 space-y-5">
 
@@ -1474,7 +1569,9 @@ export default function App() {
         />
         </ErrorBoundary>
       )}
+      {reading && <MailReader message={reading} onClose={() => setReading(null)} />}
     </div>
+    </MailContext.Provider>
     </ClassifyProvider>
     </RulesProvider>
   )

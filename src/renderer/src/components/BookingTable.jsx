@@ -6,8 +6,8 @@ import {
   flexRender,
   createColumnHelper,
 } from '@tanstack/react-table'
-import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useWindowVirtualizer, useVirtualizer } from '@tanstack/react-virtual'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useContext } from 'react'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import StatusBadge from './StatusBadge'
 import EditableCell from './EditableCell'
@@ -19,12 +19,20 @@ import { parseDate, displayDateText, normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
 import { parseReplyStatus, composeReplyStatus, replyHealth } from '@core/replyStatus'
 import { healthMeta, HEALTH_META } from '../lib/health'
-import { chromeTop } from '../lib/windowChrome'
+import { chromeTop, onScroll as onPageScroll, scroller } from '../lib/windowChrome'
+import { caps } from '../platform'
+
+// The Mac window scrolls #root, the web the window (lib/windowChrome.js). caps
+// never changes while the app runs, so this picks one hook for good.
+const useListVirtualizer = caps.windowChrome
+  ? opts => useVirtualizer({ ...opts, getScrollElement: () => document.getElementById('root') })
+  : useWindowVirtualizer
 import { prepareDraft } from '../lib/drafts'
 import { useClassifyCtx } from '../lib/rulesContext'
 import { useDragSelect } from '../lib/useDragSelect'
 import { usePinToolbar, usePinItems } from '../lib/uiPrefs'
-import { MailIcon, ReplyIcon, AutoReplyIcon, CheckIcon, XIcon } from './icons'
+import { MailIcon, ReplyIcon, AutoReplyIcon, CheckIcon, XIcon, PencilIcon } from './icons'
+import { MailContext } from '../lib/mailHistory'
 import { isSharedField } from '@core/multiBand'
 import { t, useT } from '../i18n'
 
@@ -303,7 +311,7 @@ const COLUMNS = [
     header: () => t('Reply Status'),
     cell: i => {
       const { edits, onEdit } = i.table.options.meta
-      return <ReplyStatusCell rowIndex={i.row.original._idx} value={i.row.original['Status'] || ''} edits={edits} onEdit={onEdit} />
+      return <ReplyStatusCell rowIndex={i.row.original._idx} value={i.row.original['Status'] || ''} email={i.row.original['Email'] || ''} edits={edits} onEdit={onEdit} />
     },
     sortingFn: (a, b) => {
       const da = parseReplyStatus(a.original['Status']).date
@@ -473,8 +481,13 @@ function buildExtraColumnDef(field) {
 
 // Last-reply editor: the reply date (typed or picked) with its countdown on top, the
 // reply kind (dropdown) underneath. Both recompose the single `Status` CSV field.
-function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
+// With a mailbox to ask (MailContext.ready), clicking the date opens the email
+// it stands for and the pencil beside it edits; a date no email matches (typed
+// by hand, say) is edited on click as before.
+function ReplyStatusCell({ rowIndex, value, email, edits, onEdit }) {
   const t = useT()
+  const mail = useContext(MailContext)
+  const [opening, setOpening] = useState(false)
   const raw = edits[rowIndex]?.['Status'] ?? value ?? ''
   const { kind, dateStr } = parseReplyStatus(raw)
   const isEdited = edits[rowIndex]?.['Status'] !== undefined
@@ -508,18 +521,34 @@ function ReplyStatusCell({ rowIndex, value, edits, onEdit }) {
           className="w-24 rounded border border-indigo-400 dark:border-indigo-600 bg-white dark:bg-gray-700 dark:text-gray-100 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
       ) : (
-        <div
-          onClick={e => { e.stopPropagation(); setEditingDate(true) }}
-          className="cursor-text hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 -mx-1"
-          title={t("Click to set the reply date")}
-        >
-          {dateStr ? (
-            <div className="leading-tight">
-              <span className="text-xs text-gray-600 dark:text-gray-300">{displayDateText(dateStr)}</span>
-              <div><RelDate raw={dateStr} colorFn={colorFn} /></div>
-            </div>
-          ) : (
-            <span className="text-gray-300 dark:text-gray-600 text-xs">{t("— set date —")}</span>
+        <div className="group/reply flex items-start gap-1">
+          <div
+            onClick={async e => {
+              e.stopPropagation()
+              if (!(mail.ready && dateStr && email.trim()) || opening) { setEditingDate(true); return }
+              setOpening(true)
+              const opened = await mail.openReply(email, dateStr).catch(() => false)
+              setOpening(false)
+              if (!opened) setEditingDate(true)
+            }}
+            className={`${mail.ready && dateStr ? 'cursor-pointer' : 'cursor-text'} hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 -mx-1`}
+            title={mail.ready && dateStr ? t('Click to read this reply') : t("Click to set the reply date")}
+          >
+            {dateStr ? (
+              <div className="leading-tight">
+                <span className="text-xs text-gray-600 dark:text-gray-300">{opening ? t('Opening…') : displayDateText(dateStr)}</span>
+                <div><RelDate raw={dateStr} colorFn={colorFn} /></div>
+              </div>
+            ) : (
+              <span className="text-gray-300 dark:text-gray-600 text-xs">{t("— set date —")}</span>
+            )}
+          </div>
+          {mail.ready && dateStr && (
+            <button type="button" onClick={e => { e.stopPropagation(); setEditingDate(true) }}
+              title={t('Edit date')} aria-label={t('Edit date')}
+              className="shrink-0 mt-0.5 p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover/reply:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100">
+              <PencilIcon className="w-3 h-3" />
+            </button>
           )}
         </div>
       )}
@@ -603,7 +632,7 @@ function MobileSelectable({ row, selectMode, selected, onSetSelected, onStartSel
   function cancelPress() {
     if (press.current) {
       clearTimeout(press.current.timer)
-      window.removeEventListener('scroll', press.current.onScroll)
+      scroller().removeEventListener('scroll', press.current.onScroll)
     }
     press.current = null
   }
@@ -611,7 +640,7 @@ function MobileSelectable({ row, selectMode, selected, onSetSelected, onStartSel
     const p = press.current
     if (!p || p.fired) return
     clearTimeout(p.timer)
-    window.removeEventListener('scroll', p.onScroll)
+    scroller().removeEventListener('scroll', p.onScroll)
     p.fired = true
     navigator.vibrate?.(10)
     onStartSelect(ids)
@@ -623,7 +652,7 @@ function MobileSelectable({ row, selectMode, selected, onSetSelected, onStartSel
     if (selectMode || !onStartSelect || e.pointerType === 'mouse') return
     // A press that turns into scrolling is no long press.
     const onScroll = () => { if (!press.current?.fired) cancelPress() }
-    window.addEventListener('scroll', onScroll, { passive: true })
+    scroller().addEventListener('scroll', onScroll, { passive: true })
     press.current = { x: e.clientX, y: e.clientY, fired: false, onScroll, timer: setTimeout(fire, LONG_PRESS_MS) }
   }
   function onPointerMove(e) {
@@ -904,11 +933,11 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     }
     const onScroll = () => { if (!frame) frame = requestAnimationFrame(place) }
     place()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    const offScroll = onPageScroll(onScroll)
     window.addEventListener('resize', onScroll)
     return () => {
       cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', onScroll)
+      offScroll()
       window.removeEventListener('resize', onScroll)
       cells().forEach(th => { th.style.transform = '' })
     }
@@ -923,7 +952,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     setFrozen({ key: layoutKey, widths: [...ths].map(th => th.getBoundingClientRect().width) })
   })
 
-  const virtualizer = useWindowVirtualizer({
+  const virtualizer = useListVirtualizer({
     count: sortedRows.length,
     // Measured sizes are remembered per venue, not per position: after a filter
     // chip reorders the list, position 5 is a different venue, and reusing its
@@ -994,7 +1023,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
               {hg.headers.map((h, i) => (
                 <th
                   key={h.id}
-                  style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'calc(var(--chrome-top, 0px) + var(--pin-top, 0px))' } : {}) }}
+                  style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'var(--pin-top, 0px)' } : {}) }}
                   className={`px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide select-none
                     ${pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50 dark:bg-gray-800 shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]` : ''}
                     ${h.column.getCanSort() ? 'cursor-pointer hover:text-gray-800 dark:hover:text-gray-200' : ''}`}

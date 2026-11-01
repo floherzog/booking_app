@@ -14,7 +14,7 @@ import { isMultiBand } from '../../core/multiBand.js'
 
 // Headers that mark a machine-generated reply. RFC 3834 defines Auto-Submitted;
 // the rest are what mail servers actually send.
-const AUTO_HEADERS = ['auto-submitted', 'x-autoreply', 'x-autorespond', 'precedence', 'x-auto-response-suppress']
+export const AUTO_HEADERS = ['auto-submitted', 'x-autoreply', 'x-autorespond', 'precedence', 'x-auto-response-suppress']
 
 const AUTO_SUBJECT = /^\s*(re:\s*)?(auto(matic)?[-\s]?(reply|response)|out of office|abwesenheit|automatische\s+antwort|autoreply)/i
 

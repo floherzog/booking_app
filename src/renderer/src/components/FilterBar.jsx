@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import AdvancedPanel from './AdvancedPanel'
 import { EMPTY_FILTERS, isEmptyFilters } from '@core/filterRows'
 import { FilterIcon, SelectIcon, MailIcon } from './icons'
-import { chromeTop } from '../lib/windowChrome'
+import { chromeTop, scrollY, scrollToY } from '../lib/windowChrome'
 import { t, useT } from '../i18n'
 
 const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
@@ -160,8 +160,8 @@ export default function FilterBar({
   // The panel isn't pinned: from the bar, Filter / Chips goes back up to it.
   function openPanelInPlace() {
     setAdvancedOpen(true)
-    const top = barRef.current.getBoundingClientRect().top + window.scrollY - 16 - chromeTop()
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    const top = barRef.current.getBoundingClientRect().top + scrollY() - 16 - chromeTop()
+    scrollToY(Math.max(0, top), 'smooth')
   }
 
   const barRow = pinItems.search || (pinItems.select && select) || (pinItems.email && email) || pinItems.filter || pinItems.newVenue || (pinItems.save && save)

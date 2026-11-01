@@ -82,6 +82,8 @@ const api = {
   connectWebSync: (url, code) => ipcRenderer.invoke('webSync:connect', url, code),
   syncSettingsNow: opts => ipcRenderer.invoke('webSync:sync', opts),
   disconnectWebSync: () => ipcRenderer.invoke('webSync:disconnect'),
+  listMailHistory: email => ipcRenderer.invoke('mailHistory:list', email),
+  readMail: ref => ipcRenderer.invoke('mailHistory:read', ref),
   onUpdateProgress: cb => {
     const handler = (_e, p) => cb(p)
     ipcRenderer.on('updates:progress', handler)

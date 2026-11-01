@@ -10,7 +10,7 @@
 // OpenClaw's script, webSync itself — stays where it is.
 export const SYNCED = [
   'rules', 'bands', 'venueTypes', 'venueTypeRules', 'venueTypesVersion',
-  'filterChips', 'dismissedDupes', 'keptVenueDates', 'languages', 'templates',
+  'filterChips', 'dismissedDupes', 'keptVenueDates', 'dismissedSuggestions', 'languages', 'templates',
   'csvLocation',
 ]
 

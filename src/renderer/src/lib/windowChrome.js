@@ -5,11 +5,22 @@ import { caps } from '../platform'
 // the window draggable — above every modal too, which a plain hidden title bar
 // can't manage — and --chrome-top (28px, 0 in fullscreen) keeps the page's own
 // controls out from under it. index.css does the rest.
+//
+// There the page also scrolls inside #root, which starts below the strip, so
+// the scrollbar does too (html.mac-window). Anything that scrolls the page or
+// listens to it goes through scroller()/onScroll()/scrollY()/scrollToY().
 export const CHROME_HEIGHT = 28
 
 export function initWindowChrome() {
   if (!caps.windowChrome) return
   const root = document.documentElement
+  root.classList.add('mac-window')
+  const page = document.getElementById('root')
+  if (page) {
+    page.tabIndex = -1 // so Page Up/Down and space scroll it
+    page.style.outline = 'none'
+    requestAnimationFrame(() => { if (document.activeElement === document.body) page.focus({ preventScroll: true }) })
+  }
   const strip = document.createElement('div')
   strip.className = 'window-drag-strip'
   strip.setAttribute('aria-hidden', 'true')
@@ -22,3 +33,17 @@ export function initWindowChrome() {
 
 // The strip's height right now, in px (0 on the web and in fullscreen).
 export const chromeTop = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-top')) || 0
+
+// What the page scrolls in: #root in the Mac window, the window on the web.
+export function scroller() {
+  return (caps.windowChrome && document.getElementById('root')) || window
+}
+export const scrollY = () => { const el = scroller(); return el === window ? window.scrollY : el.scrollTop }
+export const scrollToY = (top, behavior = 'auto') => scroller().scrollTo({ top, behavior })
+export const scrollByY = dy => scroller().scrollBy(0, dy)
+// → unsubscribe
+export function onScroll(fn) {
+  const el = scroller()
+  el.addEventListener('scroll', fn, { passive: true })
+  return () => el.removeEventListener('scroll', fn)
+}

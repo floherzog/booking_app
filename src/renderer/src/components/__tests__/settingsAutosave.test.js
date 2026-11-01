@@ -74,6 +74,28 @@ describe('SettingsPanel autosave', () => {
     await act(async () => root.unmount())
   })
 
+  it('offers bands the CSV uses, and names the ones no venue uses', async () => {
+    const rows = [{ Band: 'Trillmann' }, { Band: 'Foo' }, { Band: 'foo ' }]
+    const { el, root, onSave } = await open({ ...config, bands: [{ name: 'Trillmann' }, { name: 'Old' }] }, { rows })
+    expect(el.textContent).toContain('Found in the CSV:')
+    expect(el.textContent).toContain('Not used by any venue: Old')
+    await act(async () => button(el, '+ Foo').click())
+    await wait(700)
+    expect(onSave.mock.calls.at(-1)[0].bands.map(b => b.name)).toEqual(['Foo', 'Old', 'Trillmann'])
+    expect(button(el, '+ Foo')).toBeUndefined()
+    await act(async () => root.unmount())
+  })
+
+  it('keeps the pinned-bar choices behind Customize', async () => {
+    const { el, root } = await open(config, { initialSection: 'general' })
+    expect(el.textContent).not.toContain('Column headings')
+    await act(async () => button(el, 'Customize…').click())
+    expect(el.textContent).toContain('Column headings')
+    await act(async () => button(el, 'Hide choices').click())
+    expect(el.textContent).not.toContain('Column headings')
+    await act(async () => root.unmount())
+  })
+
   it('hands a newer version from Check for updates to the banner', async () => {
     caps.updates = true
     const onUpdateFound = vi.fn()

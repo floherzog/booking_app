@@ -195,9 +195,10 @@ function createWindow() {
   }
 
   // Anything that wants a new window (target=_blank, window.open) opens in the
-  // user's browser instead.
+  // user's browser instead — web and mailto links only, since links in an email
+  // shown in MailReader come through here too.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    if (/^(https?|mailto):/i.test(url)) shell.openExternal(url)
     return { action: 'deny' }
   })
 

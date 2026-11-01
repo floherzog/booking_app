@@ -171,3 +171,14 @@ describe('mailProvider', () => {
     expect(mailProvider(null)).toBe(null)
   })
 })
+
+describe('mailReady', async () => {
+  const { mailReady } = await import('../mailAccounts.js')
+  it('needs a host, a user and a stored password', () => {
+    const mail = { accounts: [{ id: 'a', host: 'imap.mail.me.com', user: '' }, { id: 'b', host: 'imap.gmail.com', user: 'me@gmail.com' }] }
+    expect(mailReady({ mail }, {})).toBe(false)
+    expect(mailReady({ mail }, { a: true })).toBe(false)
+    expect(mailReady({ mail }, { b: true })).toBe(true)
+    expect(mailReady({}, {})).toBe(false)
+  })
+})

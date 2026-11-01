@@ -63,6 +63,8 @@ export const UNSUPPORTED = {
   openUpdate: 'updates',
   revealUpdate: 'updates',
   installUpdateAndQuit: 'updates',
+  listMailHistory: 'mail',
+  readMail: 'mail',
   connectWebSync: 'settingsSync',
   syncSettingsNow: 'settingsSync',
   disconnectWebSync: 'settingsSync',

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { scrollByY } from './windowChrome'
 
 // Select mode in the table: press on a row and drag across others to select
 // (or, starting on a selected row, deselect) all of them; shift-click selects
@@ -90,7 +91,7 @@ export function useDragSelect({ enabled, count, idsAt, selected, setSelected }) 
       const top = pinnedBottom()
       const dy = d.y < top + EDGE ? -(top + EDGE - d.y) : d.y > window.innerHeight - EDGE ? d.y - (window.innerHeight - EDGE) : 0
       if (dy) {
-        window.scrollBy(0, Math.round((Math.min(EDGE, Math.abs(dy)) / EDGE) * SPEED) * Math.sign(dy))
+        scrollByY(Math.round((Math.min(EDGE, Math.abs(dy)) / EDGE) * SPEED) * Math.sign(dy))
         follow()
       }
       d.frame = requestAnimationFrame(tick)

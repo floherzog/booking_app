@@ -22,6 +22,7 @@ import { api, caps } from '../platform'
 import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
 import { token } from '../lib/placeholders'
 import WebSyncSettings from './WebSyncSettings'
+import { csvSuggestions } from '@core/csvSuggestions'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -371,6 +372,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   const multiBandOn = !!config.storage?.multiBand?.enabled
+  // What the CSV uses that these pages don't list, and the reverse (FoundInCsv).
+  const found = csvSuggestions(rows, form)
+  const [pinCustomize, setPinCustomize] = useState(false)
   // Web build: a token baked in by the deploy needs no field to type one into.
   const builtInToken = !!api.githubTokenBuiltIn?.()
   // Why the switch can't be flipped right now, if it can't.
@@ -540,8 +544,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setForm(f => ({ ...f, bands: next }))
   }
 
-  function addBand() {
-    const name = newBand.trim()
+  // `named`: a suggestion from the CSV; otherwise what was typed.
+  function addBand(named) {
+    const name = (typeof named === 'string' ? named : newBand).trim()
     if (!name || bands.some(b => b.name === name)) { setNewBand(''); return }
     setBands([...bands, { name, tourDates: '' }]
       .sort((a, c) => a.name.localeCompare(c.name)))
@@ -587,8 +592,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setTypeDelete(null)
   }
 
-  function addVenueType() {
-    const name = newType.trim()
+  function addVenueType(named) {
+    const name = (typeof named === 'string' ? named : newType).trim()
     if (!name || venueTypes.some(tx => tx.toLowerCase() === name.toLowerCase())) { setNewType(''); return }
     setVenueTypes([...venueTypes, name])
     setNewType('')
@@ -704,6 +709,12 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       </span>
                     </label>
                     {pinToolbar && (
+                      <button type="button" onClick={() => setPinCustomize(o => !o)} aria-expanded={pinCustomize}
+                        className="mt-1.5 ml-6 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                        {pinCustomize ? t('Hide choices') : t('Customize…')}
+                      </button>
+                    )}
+                    {pinToolbar && pinCustomize && (
                       <div className="mt-2 ml-6 flex flex-wrap gap-x-4 gap-y-1.5">
                         {PIN_ITEMS.filter(i => !i.needs || caps[i.needs]).map(i => (
                           <label key={i.key} className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -936,6 +947,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     />
                     <button type="button" onClick={addVenueType} className={outlineBtn}>{t("Add")}</button>
                   </div>
+                  <FoundInCsv found={found.venueTypes} unused={found.unusedTypes} onAdd={addVenueType} />
 
                   <p className="text-xs text-gray-400 dark:text-gray-500">
                     {t("Removing a type here never changes a venue — rows keep what they say, and their value stays selectable in the dropdown. They just stop being treated specially.")}
@@ -1218,7 +1230,14 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
               )}
 
               {section === 'languages' && (
-                <LanguagesEditor languages={form.languages} onChange={languages => setForm(f => ({ ...f, languages }))} />
+                <>
+                  <LanguagesEditor languages={form.languages} onChange={languages => setForm(f => ({ ...f, languages }))} />
+                  <FoundInCsv
+                    found={found.countries}
+                    onAdd={name => setForm(f => ({ ...f, languages: { ...f.languages, map: { ...f.languages?.map, [name]: f.languages?.default || 'en' } } }))}
+                    hint={t('Added with the default language; change it above.')}
+                  />
+                </>
               )}
 
               {section === 'bands' && (
@@ -1304,6 +1323,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         {t("Add")}
                       </button>
                     </div>
+                    <FoundInCsv found={found.bands} unused={found.unusedBands} onAdd={addBand} />
                   </div>
                   <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                     {t('A band’s Dates fill in the Dates of its venues that have none — when you leave this page you’re asked whether to write a change onto them. A venue with no Dates whose band has none either can’t be emailed, and shows as Missing info. Renaming only changes this list — it doesn’t rewrite existing venues.')}
@@ -1851,5 +1871,31 @@ function ProviderHint({ provider }) {
         {provider === 'icloud' ? t('Create one at appleid.apple.com') : t('Create one at myaccount.google.com')}
       </button>
     </p>
+  )
+}
+
+// Under the Bands, Venue types and Languages lists: names the CSV uses that the
+// list lacks, one click each to add, and — quietly — entries no venue uses.
+function FoundInCsv({ found = [], unused = [], onAdd, hint }) {
+  const t = useT()
+  if (!found.length && !unused.length) return null
+  return (
+    <div className="mt-3 space-y-1.5 text-xs">
+      {found.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-gray-500 dark:text-gray-400">{t('Found in the CSV:')}</span>
+          {found.map(f => (
+            <button key={f.name} type="button" onClick={() => onAdd(f.name)} title={t('{n} venue|{n} venues', { n: f.count })}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-indigo-300 dark:border-indigo-700 px-2 py-0.5 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950">
+              + {f.name}
+            </button>
+          ))}
+          {hint && <span className="text-gray-400 dark:text-gray-500">{hint}</span>}
+        </div>
+      )}
+      {unused.length > 0 && (
+        <p className="text-gray-400 dark:text-gray-500">{t('Not used by any venue: {names}', { names: unused.join(', ') })}</p>
+      )}
+    </div>
   )
 }

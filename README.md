@@ -93,8 +93,15 @@ inside the app bundle, so nothing is lost:
   Settings, and a new place for the list applies with **Use this**, because it
   reloads the list. (Venue edits in the table still wait for **Save**.)
 - **Notices at the top.** Mail sync results, problems with band files and the
-  like appear as banners next to the update banner; "nothing new" fades on its
-  own.
+  like appear as banners next to the update banner, sliding in and out; "nothing
+  new" fades on its own. With mail sync on but no mail account set up, the
+  banner says so and links to Mail settings.
+- **Suggestions from the CSV.** A band, venue type or (on the Mac) country the
+  CSV uses that Settings doesn't list gets a banner: **Add** puts them all into
+  Settings (countries with the default mail language), **Open settings** goes to
+  the page, × hides those names until a new one turns up. The Bands, Venue types
+  and Languages pages show the same names as one-click chips, and note bands and
+  types no venue uses.
 - **No title bar.** The Mac window keeps its traffic lights over the page; the
   strip across the top drags the window, even with a dialog open.
 - **Settings sync with your own web app.** *Settings ▸ General ▸ Sync with your
@@ -122,6 +129,10 @@ inside the app bundle, so nothing is lost:
   hold a venue) and write to them.
 - **Keeps `Last emailed` and the reply status honest** by reading the mail
   account itself, and always as edits you approve.
+- **A venue's emails, in its details** (Mac). Under the map, *Emails* lists what
+  came from the venue's address and what went to it, in every mail account;
+  click one to read it. Clicking a **Last reply** date opens that reply — the
+  pencil beside it edits the date. See *Keeping the date columns honest*.
 - **Map view** of your venues, with offline-seeded coordinates.
 - **In English or German.** Settings ▸ General ▸ Language: *Automatic*
   follows your system (German if it's German, English otherwise), or pick one.
@@ -515,6 +526,17 @@ moved forward, never back, so a hand-typed date is never lost to a short scan
 window. Only envelopes are fetched — never message bodies. It runs from the ↻
 button, and optionally once when the app opens.
 
+**Reading the mail itself.** A venue's details have a folded *Emails* section
+under the map (only when a mail account with a password is set up and there is
+something to show): Inbox messages from the venue's address and Sent messages
+to it, newest first, up to 100. Opening one fetches just that message's text or
+HTML part, without marking it read. HTML is shown in a sandbox that runs no
+scripts and loads nothing from the internet — no remote images, no tracking
+pixels — so reading a message tells its sender nothing; links open in your
+browser, and **Open in Mail** jumps to it in Mail.app. In the table, clicking a
+Last reply date opens the reply from that day; a date with no matching message
+(typed by hand, say) is edited instead, and the pencil always edits.
+
 **Every account is scanned and the results merged.** A band's mail goes out from
 its own mailbox and a venue replies to whichever address wrote to it, so looking
 at only one account would miss both halves. An account that cannot be reached is
@@ -731,6 +753,10 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   language through `token()` in `src/renderer/src/lib/placeholders.js`.
 - The Mac window has no title bar: `lib/windowChrome.js` adds the drag strip and
   `--chrome-top`, which anything fixed to the top of the window must start below.
+  There the page scrolls inside `#root` (so the scrollbar starts below the
+  strip), not the window: anything that scrolls the page or listens to its
+  scrolling goes through `scroller()`, `onScroll()`, `scrollY()` and
+  `scrollToY()` from the same file. The web build still scrolls the window.
 - `BOOKING_USER_DATA=/some/dir npm run dev` points a development run at a
   scratch copy of its settings and templates instead of the real ones.
 - Only `date-fns`, `papaparse`, `imapflow` and `nodemailer` are runtime
