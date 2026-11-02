@@ -17,6 +17,7 @@ import LanguagesEditor from './LanguagesEditor'
 import { mergeRows } from '@core/multiBand'
 import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBandFiles, planRelocate } from '../lib/multiBandSwitch'
 import { useEscape } from '../lib/useEscape'
+import { useBackdropClose } from '../lib/useBackdropClose'
 import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
 import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
@@ -231,6 +232,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   // Closing loses nothing: whatever is still waiting is written first.
+  const backdrop = useBackdropClose(() => close())
   async function close() {
     try {
       await saveNow()
@@ -620,11 +622,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const outlineBtn = 'py-1.5 px-3 rounded-md text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500 disabled:opacity-40 transition-colors'
 
   return (
-    // No backdrop click-to-close: settings hold unsaved edits, and losing them to
-    // a stray click outside the panel is not a recoverable mistake.
+    // A click outside closes it like Done: changes save themselves, and close()
+    // writes whatever is still waiting first.
     // Above the venue view (1100) — the menu can open Settings while a venue is
     // open — and below the pages Settings itself opens (Templates, Import).
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1150] p-4">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1150] p-4" {...backdrop}>
       {/* One size for every section — sized to its content, the window jumped
           on every click in the rail. Long sections scroll inside it. */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[90vh] sm:h-[min(90vh,48rem)] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -733,7 +735,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {t("Keep the toolbar visible while scrolling")}
                         <span className="block text-xs text-gray-400 dark:text-gray-500">
-                          {t("Once the toolbar has scrolled away, a bar at the top of the window holds what you tick here.")}
+                          {caps.windowChrome
+                            ? t('Only the list scrolls: what you tick here stays at the top with the header, the rest scrolls away above the list.')
+                            : t("Once the toolbar has scrolled away, a bar at the top of the window holds what you tick here.")}
                         </span>
                       </span>
                     </label>
@@ -745,7 +749,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     )}
                     {pinToolbar && pinCustomize && (
                       <div className="mt-2 ml-6 flex flex-wrap gap-x-4 gap-y-1.5">
-                        {PIN_ITEMS.filter(i => !i.needs || caps[i.needs]).map(i => (
+                        {PIN_ITEMS.filter(i => (!i.needs || caps[i.needs]) && !(caps.windowChrome && i.key === 'save')).map(i => (
                           <label key={i.key} className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                             <input
                               type="checkbox"

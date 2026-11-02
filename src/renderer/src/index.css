@@ -148,6 +148,15 @@ html.window-chrome .fixed.inset-0 {
   border-top: var(--chrome-top) solid transparent;
 }
 
+/* A side panel (the venue view) runs the full height of the window; only its
+   header keeps clear of the drag strip and the traffic lights. */
+html.window-chrome .fixed.inset-0.side-panel {
+  border-top-width: 0;
+}
+html.window-chrome .side-panel-head {
+  padding-top: calc(var(--chrome-top) + 0.5rem);
+}
+
 /* Banner slots (components/BannerSlot.jsx) appear and leave without motion. */
 @media (prefers-reduced-motion: reduce) {
   .banner-slot {

@@ -67,6 +67,9 @@ export function SpinnerIcon({ className = 'w-3.5 h-3.5' }) {
     </svg>
   )
 }
+export const TrashIcon = icon('TrashIcon', <><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5" /><path d="M10 11v5.5M14 11v5.5" /></>)
+export const SendIcon = icon('SendIcon', <><path d="M21 3L10 14" /><path d="M21 3l-6.5 18-4.5-7-7-4.5z" /></>)
+export const ArrowUpIcon = icon('ArrowUpIcon', <path d="M12 19.5V5M5.5 11.5L12 5l6.5 6.5" />)
 export const PencilIcon = icon('PencilIcon', <><path d="M15.5 4.5l4 4L8 20H4v-4z" /><path d="M13 7l4 4" /></>)
 // Template editor toolbar.
 export const BoldIcon = icon('BoldIcon', <path d="M7 4.5h6a3.75 3.75 0 0 1 0 7.5H7zM7 12h7a3.75 3.75 0 0 1 0 7.5H7z" />)

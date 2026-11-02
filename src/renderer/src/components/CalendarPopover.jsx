@@ -54,6 +54,9 @@ export default function CalendarPopover({ anchor, selected, onPick, onClose }) {
   const first = (month.getDay() + 7 - (sundayFirst ? 0 : 1)) % 7 // blank cells before the 1st
   const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
   const cells = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => new Date(month.getFullYear(), month.getMonth(), i + 1))]
+  // Always six weeks: a month that needs only five (or four) would make the
+  // calendar shorter, and the arrows jump under the pointer.
+  while (cells.length < 42) cells.push(null)
   // Weekday initials in the UI language, starting where the week does.
   const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, (sundayFirst ? 7 : 1) + i)
     .toLocaleDateString(lang, { weekday: 'short' }).slice(0, 2))
@@ -97,7 +100,7 @@ export default function CalendarPopover({ anchor, selected, onPick, onClose }) {
           >
             {d.getDate()}
           </button>
-        ) : <span key={i} />)}
+        ) : <span key={i} className="h-8" />)}
       </div>
       <div className="mt-1 flex justify-end">
         <button type="button" tabIndex={-1} onClick={() => onPick(new Date())}

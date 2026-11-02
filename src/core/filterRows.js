@@ -34,11 +34,25 @@ export function ruleTerms(rule) {
   const terms = KEYWORD_FIELDS.has(rule?.field) ? v.split(',') : [v]
   return terms.map(t => t.trim()).filter(Boolean)
 }
-// A column filter: `op` 'none' keeps the rows that contain none of the terms;
-// anything else (and old rules without `op`) keeps the rows with one of them.
+// 'empty' / 'filled' need no value: they ask whether the cell holds anything.
+// Status and reply health (fields starting with _) always have a value.
+export const PRESENCE_OPS = new Set(['empty', 'filled'])
+export const isPresenceRule = rule => PRESENCE_OPS.has(rule?.op) && !!rule.field && !rule.field.startsWith('_')
+// Whether a rule does anything yet: a field, and terms unless it asks for
+// (non-)empty cells.
+export function ruleActive(rule) {
+  return !!rule?.field && (isPresenceRule(rule) || ruleTerms(rule).length > 0)
+}
+// A column filter: `op` 'none' keeps the rows that contain none of the terms,
+// 'empty' the rows where the column is blank, 'filled' the others; anything
+// else (and old rules without `op`) keeps the rows with one of the terms.
 function matchesRule(r, rule) {
   if (rule.field === '_status') return r._status === rule.value
   if (rule.field === '_health') return replyHealth(r) === rule.value
+  if (isPresenceRule(rule)) {
+    const blank = !String(r[rule.field] ?? '').trim()
+    return rule.op === 'empty' ? blank : !blank
+  }
   const cell = String(r[rule.field] || '').toLowerCase()
   const hit = ruleTerms(rule).some(t => cell.includes(t))
   return rule.op === 'none' ? !hit : hit
@@ -71,7 +85,7 @@ export function matchesFilters(r, filters, ctx = {}) {
   if (f.type && r['Type'] !== f.type) return false
   if (q && !SEARCH_FIELDS.some(k => (r[k] || '').toLowerCase().includes(q))) return false
   for (const rule of f.advanced || []) {
-    if (!rule.field || !ruleTerms(rule).length) continue
+    if (!ruleActive(rule)) continue
     if (!matchesRule(r, rule)) return false
   }
   return true
@@ -85,7 +99,7 @@ function canonical(filters) {
     f.band, f.country, f.type, f.status,
     ...SHORTCUTS.map(s => !!f[s.key]),
     (f.search || '').trim(),
-    (f.advanced || []).filter(r => r.field && ruleTerms(r).length).map(r => [r.field, r.op === 'none' ? 'none' : 'any', ruleTerms(r)]),
+    (f.advanced || []).filter(ruleActive).map(r => (isPresenceRule(r) ? [r.field, r.op] : [r.field, r.op === 'none' ? 'none' : 'any', ruleTerms(r)])),
     f.sort?.field ? [f.sort.field, f.sort.dir || 'asc'] : null,
   ])
 }
@@ -110,7 +124,8 @@ export function describeFilters(filters, columnLabel = k => k, t = plainT) {
   if (f.type) parts.push(`${t('Type')}: ${f.type}`)
   if ((f.search || '').trim()) parts.push(`${t('Search')}: “${f.search.trim()}”`)
   for (const r of f.advanced || []) {
-    if (!r.field || !ruleTerms(r).length) continue
+    if (!ruleActive(r)) continue
+    if (isPresenceRule(r)) { parts.push(`${col(r.field)}: ${r.op === 'empty' ? t('is empty') : t('isn’t empty')}`); continue }
     const value = r.field === '_status' ? t(STATUS_META[r.value]?.label || r.value)
       : r.field === '_health' ? r.value
       : ruleTerms(r).map(term => `“${term}”`).join(r.op === 'none' ? ` ${t('or')} ` : ' / ')

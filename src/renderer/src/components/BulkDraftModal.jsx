@@ -14,13 +14,14 @@ import { CheckIcon, XIcon } from './icons'
 import { t, useT, getLanguage } from '../i18n'
 import { token } from '../lib/placeholders'
 import Busy from './Busy'
+import DraftsPanel from './DraftsPanel'
 
 function whenLabel(iso) {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(getLanguage(), { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
+export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, mailReady = false, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
   const t = useT()
   const backdrop = useBackdropClose(onClose)
   // Opened from Select mode with venues picked: those are what it drafts.
@@ -186,19 +187,20 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" {...(phase === 'running' ? {} : backdrop)}>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      {/* Two sides: making new mail on the left, the drafts already waiting in
+          Mail on the right (stacked on a narrow window). */}
+      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col md:flex-row overflow-hidden" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} disabled={phase === 'running'} aria-label={t('Close')} className="absolute top-4 right-5 z-10 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none disabled:opacity-30">&times;</button>
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {mode === 'draft' ? t('Create drafts in Mail') : mode === 'send' ? t('Send emails') : t('Send or draft')}
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('Create / send email')}</h2>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {mode === 'draft'
                 ? t('Drafts land in your Drafts mailbox. Nothing is sent, and “Last emailed” is left untouched.')
                 : t('Sent mail is recorded as an unsaved “Last emailed” edit — press Save when the run is finished.')}
             </p>
           </div>
-          <button onClick={onClose} disabled={phase === 'running'} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none disabled:opacity-30">&times;</button>
         </div>
 
         {phase === 'preflight' && setupGaps.length > 0 && (
@@ -416,6 +418,10 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
             </div>
           </div>
         </div>
+      </div>
+      <div className="md:w-[26rem] shrink-0 h-[40%] md:h-auto min-h-0 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700">
+        <DraftsPanel rows={rows} settings={settings} mailReady={mailReady} onSent={onSent} onOpenSettings={onOpenSettings} />
+      </div>
       </div>
     </div>
   )

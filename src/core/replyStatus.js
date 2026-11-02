@@ -26,12 +26,14 @@ export function composeReplyStatus(kind, dateStr) {
 //   auto-reply → only an auto-responder fired                        [yellow]
 //   silent     → emailed at least once, no response at all           [red]
 //   none       → not yet contacted                                   [neutral]
+// "Emailed" is a count above 0 or a Last emailed date: a date typed in by hand
+// (the counters stayed 0) still means the venue has been written to.
 export function replyHealth(row) {
   const played = parseDate(row['Last played'])
   if (played && played > new Date()) return 'gig'
   const { kind } = parseReplyStatus(row['Status'])
   if (kind === 'reply') return 'reply'
   if (kind === 'auto-reply') return 'auto-reply'
-  if ((Number(row['Total emails']) || 0) > 0) return 'silent'
+  if ((Number(row['Total emails']) || 0) > 0 || parseDate(row['Last emailed'])) return 'silent'
   return 'none'
 }

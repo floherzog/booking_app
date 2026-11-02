@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ADVANCED_COLUMNS, STATUS_META, HEALTH_OPTIONS } from '@core/constants'
-import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS, KEYWORD_FIELDS } from '@core/filterRows'
+import { SHORTCUTS, describeFilters, isEmptyFilters, EMPTY_FILTERS, KEYWORD_FIELDS, PRESENCE_OPS, isPresenceRule } from '@core/filterRows'
 import { ORDERED_STATUSES, StatusPill, ShortcutChip, CustomChip, columnLabel } from './StatsBar'
 import ColorDot from './ColorDot'
 import { CheckIcon } from './icons'
@@ -101,15 +101,19 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
             {rule.field !== '_status' && rule.field !== '_health' && (
               <select
                 className={`${sel} w-36 shrink-0`}
-                value={rule.op === 'none' ? 'none' : 'any'}
+                value={PRESENCE_OPS.has(rule.op) || rule.op === 'none' ? rule.op : 'any'}
                 onChange={e => updateRule(i, { op: e.target.value })}
-                aria-label={t("Contains or doesn’t contain")}
+                aria-label={t("How the column is matched")}
               >
                 <option value="any">{t("contains")}</option>
                 <option value="none">{t("doesn’t contain")}</option>
+                <option value="empty">{t("is empty")}</option>
+                <option value="filled">{t("isn’t empty")}</option>
               </select>
             )}
-            <ValueInput rule={rule} distinct={distinct} onValue={v => updateRule(i, { value: v })} />
+            {isPresenceRule(rule)
+              ? <span className="flex-1 min-w-0" />
+              : <ValueInput rule={rule} distinct={distinct} onValue={v => updateRule(i, { value: v })} />}
             <button
               onClick={() => removeRule(i)}
               className="shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 text-lg leading-none px-1"

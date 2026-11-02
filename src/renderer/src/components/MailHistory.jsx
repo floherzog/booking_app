@@ -35,6 +35,8 @@ export default function MailHistory({ email, lastEmailed = '', lastReply = '' })
   }
   if (!messages.length) return null
   const newer = newerThanCsv(messages, { lastEmailed, lastReply })
+  const sent = messages.filter(m => m.direction === 'out').length
+  const received = messages.length - sent
   // The app's own date order (Settings ▸ General), like every other date in
   // it — not the Mac's region format.
   const day = d => (d ? formatDay(new Date(d)) : '')
@@ -43,7 +45,10 @@ export default function MailHistory({ email, lastEmailed = '', lastReply = '' })
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
         className="w-full flex items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
         <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
-        {t('Emails ({n})', { n: messages.length })}
+        {t('Emails')}
+        {/* Sent and received apart, in the colours of the list below. */}
+        <span className="normal-case tracking-normal font-medium text-indigo-500 dark:text-indigo-400" title={t('{n} sent', { n: sent })}>↗ {sent}</span>
+        <span className="normal-case tracking-normal font-medium text-emerald-600 dark:text-emerald-400" title={t('{n} received', { n: received })}>↙ {received}</span>
         {newer.size > 0 && (
           <span className="normal-case tracking-normal font-medium text-amber-700 dark:text-amber-400">· {t('{n} newer than the CSV', { n: newer.size })}</span>
         )}

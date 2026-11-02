@@ -5,6 +5,8 @@ import { readFileText } from '../lib/csvFile'
 import { guessMapping, applyMapping, mappedCount } from '@core/importMap'
 import { api } from '../platform'
 import { t, useT } from '../i18n'
+import { useBackdropClose } from '../lib/useBackdropClose'
+import { useConfirm } from './InlinePrompt'
 
 const NONE = '' // sentinel: "don't import this app column"
 const REQUIRED = ['Venue', 'Band', 'Email']
@@ -80,13 +82,19 @@ export default function ImportWizard({ rows = [], onImport, onBack, onClose, pre
     onClose()
   }
 
+  const [confirmNode, confirm] = useConfirm()
+  // A click outside closes it — after asking, once a file has been read in.
+  const backdrop = useBackdropClose(async () => {
+    if (parsed && !(await confirm({ title: t('Stop this import?'), choices: [{ value: true, label: t('Stop import') }] }))) return
+    onClose()
+  })
+
   const preview = parsed?.rows?.[0] || {}
   const nMapped = mappedCount(mapping)
 
   return (
-    // No backdrop click-to-close, same as Settings: this page holds work in
-    // progress, and a stray click outside it must not throw that away.
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" {...backdrop}>
+      {confirmNode}
       <div
         className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}

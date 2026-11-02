@@ -291,7 +291,8 @@ The chips above the list are the quick way: round ones are statuses, square ones
 are lists that cut across them (Next batch, Incomplete details, Online form…),
 and your own saved filters sit after them. **Filter / Chips** holds the rest:
 column filters, sorting, and which chips to show. A column filter *contains* or
-*doesn't contain* a value; on the free-text columns — Note, Outreach Text and
+*doesn't contain* a value, or asks whether the column *is empty* or *isn't
+empty* — venues without a band, an email or a note; on the free-text columns — Note, Outreach Text and
 Reply Status — it takes comma-separated keywords and matches any of them, so
 `Note` · contains · `formular, web form` finds both. Save any combination as a
 chip of your own.
@@ -312,6 +313,14 @@ Filter / Chips, + New Venue, Save (while there are unsaved changes) and the
 column headings; the chips and the Band / Country / Type dropdowns can join
 them. The choice is remembered per device. Filter / Chips in that bar goes back
 up to the panel.
+
+In the Mac app nothing slides in: the top of the window stays where it is and
+only the list scrolls, with its scrollbar starting at the list. The same
+choice decides what stays up there with the header (Save is always there); the
+rest scrolls away above the list. Tick the chips and Band / Country / Type too
+and the scrollbar starts right at the column headings. Once the list has
+scrolled some way, **↑ Top** in its top right corner goes back to the first
+venue (and, on the web, to the toolbar).
 
 ## Rules
 
@@ -383,7 +392,8 @@ red → orange → yellow → green.
 Two things worth knowing:
 
 - **It is not a measure of time or volume.** One unanswered email is already red;
-  there is no "overdue" threshold. It keys off `Total emails`, not `Last emailed`.
+  there is no "overdue" threshold. It keys off `Total emails` — or, when the
+  count was never kept, a `Last emailed` date.
 - **A booked gig overrides everything**, so a date agreed by phone does not sit
   there looking ignored.
 
@@ -529,6 +539,12 @@ read them from there. **Settings ▸ Mail settings**:
   from an out-of-office auto-responder (`Auto-Submitted`, `Precedence`, and the
   usual subject lines).
 
+**`Total emails`** and **`Recent emails`** (since the last reply) follow these
+dates: a later `Last emailed` than the CSV has — typed in, stamped by a send,
+or found by mail sync — stages one more email in both, and a new real reply
+starts `Recent emails` again. They appear in the save dialog next to the date,
+so you confirm them with it; a counter you edited yourself is left alone.
+
 A sync **never writes to your CSV**. It stages the dates as pending edits, just
 like typing them in, and you press Save. Dates already in the CSV are only ever
 moved forward, never back, so a hand-typed date is never lost to a short scan
@@ -580,6 +596,20 @@ exactly what your filters are showing, or the venues you picked with **Select**)
 review the preflight list, and let it work through them one at a time.
 
 Drafts can take a few seconds to sync into Mail.app.
+
+**Current drafts**, on the right of the Email window, lists what is waiting in
+the Drafts mailbox of every account for venues in the CSV (drafts to anyone
+else are left out). Click a subject to read it, ✎ to open it in Mail to edit,
+send it as it is, or delete it — deleting is for good, it does not go to Trash.
+Tick several to send or delete them together; both ask once more first. A
+sent draft goes out unchanged (only Mail's draft headers are dropped and the
+date is now), is filed in Sent, leaves Drafts, and is recorded on its venue
+like any other send.
+
+The ✉ button in a venue's Outreach cell gets a ✓ while a draft for it is
+waiting in Drafts, and loses it once that draft is sent or deleted — here or in
+Mail. The app looks again on ↻, after drafting, when the Email window opens,
+and when you come back to it from another app.
 
 ### Sending, and scheduling a run
 
@@ -762,10 +792,14 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   language through `token()` in `src/renderer/src/lib/placeholders.js`.
 - The Mac window has no title bar: `lib/windowChrome.js` adds the drag strip and
   `--chrome-top`, which anything fixed to the top of the window must start below.
-  There the page scrolls inside `#root` (so the scrollbar starts below the
-  strip), not the window: anything that scrolls the page or listens to its
-  scrolling goes through `scroller()`, `onScroll()`, `scrollY()` and
-  `scrollToY()` from the same file. The web build still scrolls the window.
+  There only the list scrolls, inside `#list-scroller`
+  (`components/ListScroller.jsx`); the header and the pinned toolbar items sit
+  above it (App draws `FilterBar` twice, `part="top"` and `part="scroll"`).
+  Before the list exists `#root` scrolls. Anything that scrolls the page or
+  listens to its scrolling goes through `scroller()`, `onScroll()`, `scrollY()`,
+  `scrollToY()` and `stickyTop()` from the same file; don't use a `smooth`
+  scroll there, the virtualizer's corrections stop it. The web build still
+  scrolls the window.
 - `BOOKING_USER_DATA=/some/dir npm run dev` points a development run at a
   scratch copy of its settings and templates instead of the real ones.
 - Only `date-fns`, `papaparse`, `imapflow` and `nodemailer` are runtime

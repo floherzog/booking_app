@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import AdvancedPanel from './AdvancedPanel'
-import { EMPTY_FILTERS, isEmptyFilters } from '@core/filterRows'
+import { EMPTY_FILTERS, isEmptyFilters, ruleActive } from '@core/filterRows'
 import { FilterIcon, SelectIcon, MailIcon, XIcon } from './icons'
 import { chromeTop, scrollY, scrollToY } from '../lib/windowChrome'
 import { t, useT } from '../i18n'
@@ -19,10 +19,15 @@ const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shad
 // never moves the page. Its height goes into --pin-top, where the table's
 // column headings stick beneath it; both start below --chrome-top (the Mac
 // window's drag strip, lib/windowChrome.js).
+//
+// The Mac window works differently (`part`): its top never scrolls, only the
+// list does, and the items chosen in Settings ▸ General are what stays up
+// there. App draws this twice — `part="top"` with those items, `part="scroll"`
+// above the list with the rest — and there is no sliding bar.
 export default function FilterBar({
   rows, filters, onChange, onNewVenue, bandOptions, typeOptions, chips, onChipsChange,
   canSelect = false, selectMode = false, selectedCount = 0, onToggleSelect, onEmail,
-  pinned = false, pinItems = {}, pinnedChips = null, editCount = 0, onSave,
+  pinned = false, pinItems = {}, pinnedChips = null, editCount = 0, onSave, part,
 }) {
   const t = useT()
   const [, startTransition] = useTransition()
@@ -32,20 +37,21 @@ export default function FilterBar({
   const [scrolledPast, setScrolledPast] = useState(false)
 
   // Whether the first row has gone off the top of the window.
+  const slidingBar = pinned && !part
   useEffect(() => {
     const el = barRef.current
-    if (!pinned || !el) { setScrolledPast(false); return }
+    if (!slidingBar || !el) { setScrolledPast(false); return }
     // "Off the top" means under the Mac drag strip, where there is one.
     const top = chromeTop()
     const io = new IntersectionObserver(([e]) => setScrolledPast(!e.isIntersecting && e.boundingClientRect.top < top), { rootMargin: `-${top}px 0px 0px 0px` })
     io.observe(el)
     return () => io.disconnect()
-  }, [pinned])
+  }, [slidingBar])
 
   const showSave = editCount > 0 && onSave
   const barHasItems = pinItems.chips || pinItems.search || (pinItems.select && canSelect) || (pinItems.email && onEmail)
     || pinItems.filter || pinItems.newVenue || pinItems.dropdowns || (pinItems.save && showSave)
-  const showBar = pinned && scrolledPast && barHasItems
+  const showBar = slidingBar && scrolledPast && barHasItems
 
   useEffect(() => {
     const root = document.documentElement
@@ -65,7 +71,7 @@ export default function FilterBar({
   const rowTypes  = useMemo(() => [...new Set(rows.map(r => r['Type']).filter(Boolean))].sort(), [rows])
   const types     = typeOptions ?? rowTypes
 
-  const advCount = (filters.advanced || []).filter(r => r.field && r.value).length + (filters.sort?.field ? 1 : 0)
+  const advCount = (filters.advanced || []).filter(ruleActive).length + (filters.sort?.field ? 1 : 0)
   const hasFilters = !isEmptyFilters(filters)
   const clear = () => onChange(EMPTY_FILTERS)
 
@@ -166,35 +172,51 @@ export default function FilterBar({
 
   const barRow = pinItems.search || (pinItems.select && select) || (pinItems.email && email) || pinItems.filter || pinItems.newVenue || (pinItems.save && save)
 
+  // Which items this copy draws (all of them without `part`).
+  const available = { search: true, select: !!select, email: !!email, filter: true, newVenue: true, dropdowns: true }
+  const onTop = key => pinned && !!pinItems[key] && available[key]
+  const here = key => available[key] && (!part || (part === 'top') === onTop(key))
+  const row1 = ['search', 'select', 'email', 'filter', 'newVenue'].some(here)
+  // Clear filters goes with the top when anything is up there.
+  const anyTop = Object.keys(available).some(onTop)
+  const clearHere = hasFilters && (!part || (part === 'top') === anyTop)
+  const clearButton = (
+    <button onClick={clear} title={t('Show all venues again')}
+      className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors">
+      <XIcon className="w-3.5 h-3.5" />
+      {t('Clear filters')}
+    </button>
+  )
+  const row2 = here('dropdowns') || (clearHere && !row1)
+
   return (
     <>
       {/* Row 1: search + the list's actions */}
-      <div ref={barRef} className="flex gap-2">
-        {search}
-        {select}
-        {email}
-        {filterButton(() => setAdvancedOpen(o => !o))}
-        {newVenue}
-      </div>
+      {row1 && (
+        <div ref={barRef} className="flex gap-2">
+          {here('search') ? search : <span className="flex-1" />}
+          {here('select') && select}
+          {here('email') && email}
+          {here('filter') && filterButton(() => setAdvancedOpen(o => !o))}
+          {here('newVenue') && newVenue}
+          {clearHere && !row2 && clearButton}
+        </div>
+      )}
 
-      {/* Advanced filter & sort panel */}
-      {advancedOpen && (
-        <div className="!mt-2">
+      {/* Advanced filter & sort panel, with the button that opens it */}
+      {advancedOpen && here('filter') && (
+        <div className={row1 ? '!mt-2' : ''}>
           <AdvancedPanel rows={rows} filters={filters} onChange={onChange} chips={chips} onChipsChange={onChipsChange} />
         </div>
       )}
 
       {/* Row 2: dropdowns + clear */}
-      <div className="flex flex-wrap gap-2 items-center !mt-2">
-        {dropdowns}
-        {hasFilters && (
-          <button onClick={clear} title={t('Show all venues again')}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors">
-            <XIcon className="w-3.5 h-3.5" />
-            {t('Clear filters')}
-          </button>
-        )}
-      </div>
+      {row2 && (
+        <div className={`flex flex-wrap gap-2 items-center ${row1 ? '!mt-2' : ''}`}>
+          {here('dropdowns') ? dropdowns : <span className="flex-1" />}
+          {clearHere && clearButton}
+        </div>
+      )}
 
       {showBar && (
         <div

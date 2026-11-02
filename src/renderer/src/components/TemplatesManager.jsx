@@ -4,6 +4,8 @@ import { listTemplates, saveTemplate, deleteTemplate } from '../lib/templates'
 import TemplateEditor from './TemplateEditor'
 import { t, useT } from '../i18n'
 import Busy from './Busy'
+import { useBackdropClose } from '../lib/useBackdropClose'
+import { useConfirm } from './InlinePrompt'
 
 function emptyTemplate(band, language) {
   return {
@@ -23,6 +25,13 @@ export default function TemplatesManager({ settings, rows = [], onBack, onClose 
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [confirmNode, confirm] = useConfirm()
+  // A click outside closes it; with a template open that may hold unsaved
+  // changes, only after asking.
+  const backdrop = useBackdropClose(async () => {
+    if (editing && !(await confirm({ title: t('Close without saving this template?'), choices: [{ value: true, label: t('Close') }] }))) return
+    onClose()
+  })
 
   const languages = settings?.languages || { default: 'en', map: {} }
   // The union of managed bands and bands already present in the CSV, so a
@@ -81,9 +90,8 @@ export default function TemplatesManager({ settings, rows = [], onBack, onClose 
   const outlineBtn = 'text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 transition-colors'
 
   return (
-    // No backdrop click-to-close, same as Settings: this page holds work in
-    // progress, and a stray click outside it must not throw that away.
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1200] p-4">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1200] p-4" {...backdrop}>
+      {confirmNode}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div>

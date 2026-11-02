@@ -13,6 +13,7 @@ import { registerMailAppleScriptIpc } from './mailAppleScript.js'
 import { registerUpdatesIpc } from './updates.js'
 import { registerWebSyncIpc } from './webSync.js'
 import { registerMailHistoryIpc } from './mailHistory.js'
+import { registerMailDraftsIpc } from './mailDrafts.js'
 import { registerScheduleIpc } from '../scheduler.js'
 
 // Every renderer→main call goes through ipcMain.handle. The preload re-exposes
@@ -51,6 +52,7 @@ export function registerIpc() {
   registerUpdatesIpc()
   registerWebSyncIpc()
   registerMailHistoryIpc()
+  registerMailDraftsIpc()
   registerScheduleIpc()
 
   ipcMain.handle('app:version', () => app.getVersion())

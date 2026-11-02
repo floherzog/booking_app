@@ -91,7 +91,11 @@ describe('MailHistory', () => {
     const ctx = { ready: true, openMessage: vi.fn(), openReply: async () => false }
     const { el, root } = mount(h(MailContext.Provider, { value: ctx }, h(MailHistory, { email: 'dates@venue.de' })))
     await wait(10)
-    ;[...el.querySelectorAll('button')].find(b => b.textContent.includes('Emails (2)')).click()
+    const heading = [...el.querySelectorAll('button')].find(b => b.textContent.includes('Emails'))
+    // Sent and received counted apart.
+    expect(heading.textContent).toContain('↗ 1')
+    expect(heading.textContent).toContain('↙ 1')
+    heading.click()
     await wait(10)
     const rows = [...el.querySelectorAll('li')].map(li => li.textContent)
     expect(rows[0]).toContain('↗ Sent')

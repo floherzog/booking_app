@@ -403,20 +403,23 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
   // The row tint in the table is this colour; here it gets a name, because a
   // colour on its own is only meaningful to whoever wrote the legend.
   const health = healthMeta(effective)
-  const totalEmails = Number(row['Total emails']) || 0
-  const recentEmails = Number(row['Recent emails']) || 0
+  // With staged edits: a new Last emailed date stages one more email.
+  const totalEmails = Number(effective['Total emails']) || 0
+  const recentEmails = Number(effective['Recent emails']) || 0
 
   function handleChange(field, value) {
     onEdit(rowIndex, field, value)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" {...backdrop}>
+    // A side panel the full height of the window, from the very top: its header
+    // starts below the Mac's drag strip instead (index.css, .side-panel).
+    <div className="side-panel fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" {...backdrop}>
       <div
         className="bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between shrink-0">
+        <div className="side-panel-head px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between shrink-0">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{effective['Venue'] || t('Venue')}</h2>

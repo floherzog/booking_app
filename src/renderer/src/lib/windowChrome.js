@@ -6,8 +6,10 @@ import { caps } from '../platform'
 // can't manage — and --chrome-top (28px, 0 in fullscreen) keeps the page's own
 // controls out from under it. index.css does the rest.
 //
-// There the page also scrolls inside #root, which starts below the strip, so
-// the scrollbar does too (html.mac-window). Anything that scrolls the page or
+// There the window's top part stays put and only the list scrolls, inside
+// #list-scroller (components/ListScroller.jsx), so the scrollbar starts at the
+// list; before the list exists (first run) #root, which starts below the
+// strip, scrolls instead (html.mac-window). Anything that scrolls the page or
 // listens to it goes through scroller()/onScroll()/scrollY()/scrollToY().
 export const CHROME_HEIGHT = 28
 
@@ -34,9 +36,19 @@ export function initWindowChrome() {
 // The strip's height right now, in px (0 on the web and in fullscreen).
 export const chromeTop = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-top')) || 0
 
-// What the page scrolls in: #root in the Mac window, the window on the web.
+// What the page scrolls in: the list scroller (or #root) in the Mac window,
+// the window on the web.
 export function scroller() {
-  return (caps.windowChrome && document.getElementById('root')) || window
+  if (!caps.windowChrome) return window
+  return document.getElementById('list-scroller') || document.getElementById('root') || window
+}
+// Where, in the window, something sticking to the top of the scroller sits:
+// the scroller's own top on the Mac, below the drag strip and the sliding
+// toolbar (--pin-top) on the web.
+export function stickyTop() {
+  const el = scroller()
+  if (el !== window) return el.getBoundingClientRect().top
+  return chromeTop() + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-top')) || 0)
 }
 export const scrollY = () => { const el = scroller(); return el === window ? window.scrollY : el.scrollTop }
 export const scrollToY = (top, behavior = 'auto') => scroller().scrollTo({ top, behavior })

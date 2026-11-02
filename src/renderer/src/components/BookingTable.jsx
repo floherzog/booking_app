@@ -19,13 +19,14 @@ import { parseDate, displayDateText, normalizeDateText } from '@core/parseDate'
 import DateInput from './DateInput'
 import { parseReplyStatus, composeReplyStatus, replyHealth } from '@core/replyStatus'
 import { healthMeta, HEALTH_META } from '../lib/health'
-import { chromeTop, onScroll as onPageScroll, scroller } from '../lib/windowChrome'
+import { stickyTop, onScroll as onPageScroll, scroller } from '../lib/windowChrome'
 import { caps } from '../platform'
 
-// The Mac window scrolls #root, the web the window (lib/windowChrome.js). caps
-// never changes while the app runs, so this picks one hook for good.
+// The Mac window scrolls #list-scroller, the web the window
+// (lib/windowChrome.js). caps never changes while the app runs, so this picks
+// one hook for good.
 const useListVirtualizer = caps.windowChrome
-  ? opts => useVirtualizer({ ...opts, getScrollElement: () => document.getElementById('root') })
+  ? opts => useVirtualizer({ ...opts, getScrollElement: () => document.getElementById('list-scroller') })
   : useWindowVirtualizer
 import { prepareDraft } from '../lib/drafts'
 import { useClassifyCtx } from '../lib/rulesContext'
@@ -353,20 +354,27 @@ const COLUMNS = [
 // checkbox selects/clears every currently-shown (filtered) row.
 // One-click draft straight from the row. Disabled (with the reason on hover)
 // when the venue has no email or no template for its band and language.
+// The ✓ means a draft for this venue is waiting in the Drafts mailbox
+// (draftsWaiting, from lib/mailDrafts.js): it goes when the draft is sent or
+// deleted, here or in Mail. Until Mail has been asked, the ✓ of a draft just
+// made here stands in.
 function DraftAction({ row, meta }) {
   const t = useT()
-  const { templates, languages, settings, onQuickDraft, draftingIdx, draftResults } = meta
+  const { templates, languages, settings, onQuickDraft, draftingIdx, draftResults, draftsWaiting } = meta
   if (!onQuickDraft) return null
 
   const prepared = prepareDraft(row, templates || [], languages, settings)
   const busy = draftingIdx === row._idx
-  const result = draftResults?.[row._idx]
+  const made = draftResults?.[row._idx]
+  const waiting = draftsWaiting?.get(row._idx) || 0
+  const result = waiting > 0 || made?.ok ? { ok: true } : made
+  const title = prepared.ok ? t('Create a draft in Mail ({language})', { language: prepared.language }) : prepared.reason
 
   return (
     <button
       onClick={e => { e.stopPropagation(); onQuickDraft(row) }}
       disabled={!prepared.ok || busy}
-      title={prepared.ok ? t('Create a draft in Mail ({language})', { language: prepared.language }) : prepared.reason}
+      title={waiting > 0 ? `${t('A draft is waiting in Mail.|{n} drafts are waiting in Mail.', { n: waiting })} ${title}` : title}
       className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[11px] leading-none transition-colors disabled:opacity-30 ${
         result?.ok
           ? 'border-green-400 text-green-600 dark:text-green-400'
@@ -825,7 +833,7 @@ function MobileCard({ row, edits, onVenueClick, onEdit }) {
 
 const missingTitle = missing => t('Missing: {what}', { what: describeMissing(missing, t) })
 
-export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onStartSelect, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults }) {
+export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueClick, sortBy, extraField, bandOptions, typeOptions, onAddType, selectMode = false, selected, onSetSelected, onStartSelect, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults, draftsWaiting = null }) {
   const t = useT()
   useChipColors() // rows redraw in a newly chosen colour
   const [sorting, setSorting] = useState(sortBy || [{ id: '_status', desc: false }])
@@ -856,7 +864,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    meta: { edits, classify, onEdit, onVenueClick, bandOptions, typeOptions, onAddType, selected, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults },
+    meta: { edits, classify, onEdit, onVenueClick, bandOptions, typeOptions, onAddType, selected, onToggleAll, templates, languages, settings, onQuickDraft, draftingIdx, draftResults, draftsWaiting },
   })
 
   const sortedRows = table.getRowModel().rows
@@ -928,7 +936,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     const cells = () => head.querySelectorAll('th')
     const place = () => {
       frame = 0
-      const pinTop = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-top')) || 0) + chromeTop()
+      const pinTop = stickyTop()
       const r = head.getBoundingClientRect() // its own place: moving the cells doesn't move it
       const room = (tableRef.current?.getBoundingClientRect().bottom ?? r.bottom) - r.bottom
       const shift = Math.max(0, Math.min(pinTop - r.top, room))

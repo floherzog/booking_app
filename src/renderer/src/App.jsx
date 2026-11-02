@@ -19,8 +19,12 @@ import { listTemplates } from './lib/templates'
 import { draftKey, draftedAt, createDraft, prepareDraft, deliverPrepared, resolveForDraft } from './lib/drafts'
 import { selectRows, deliveryForRow } from '@core/delivery'
 import { formatDateDDMMYY } from '@core/parseDate'
+import { withEmailCounters } from '@core/emailCounters'
+import { matchDrafts, draftCounts } from '@core/draftMatch'
+import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
 import StatsBar, { columnLabel as statsColumnLabel } from './components/StatsBar'
 import FilterBar from './components/FilterBar'
+import ListScroller from './components/ListScroller'
 import BookingTable from './components/BookingTable'
 import MapView from './components/MapView'
 import SettingsPanel from './components/SettingsPanel'
@@ -395,6 +399,18 @@ export default function App() {
     },
   }), [mailIsReady])
 
+  // The drafts waiting in Mail (lib/mailDrafts.js): looked up once there is a
+  // mailbox, and again on coming back to the window — a draft may have been
+  // sent or deleted in Mail meanwhile.
+  const { drafts: mailDrafts } = useDrafts()
+  useEffect(() => {
+    if (!mailIsReady) return undefined
+    refreshDrafts()
+    const onFocus = () => refreshDraftsSoon()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [mailIsReady])
+
   // Ask the mail account what it knows about these venues and stage the result.
   //
   // Staged, not written: the edits land in the same `edits` map a hand edit uses,
@@ -431,9 +447,10 @@ export default function App() {
   // Order matters — load() clears staged edits, so syncing first would wipe them.
   const refreshAll = useCallback(async () => {
     checkUpdatesQuietly(settings)
+    if (mailIsReady) refreshDrafts()
     await load()
     await runMailSync({ silent: true })
-  }, [load, runMailSync, checkUpdatesQuietly, settings])
+  }, [load, runMailSync, checkUpdatesQuietly, settings, mailIsReady])
 
   // Once after the first load, if the user asked for it.
   const syncedOnOpen = useRef(false)
@@ -682,6 +699,7 @@ export default function App() {
   // is not a sent email, so "Last emailed" must stay exactly as it was.
   const recordDraft = useCallback(async row => {
     const at = new Date().toISOString()
+    refreshDraftsLater() // the ✓ on its mail button comes from the Drafts mailbox
     setSettings(prev => (prev ? { ...prev, draftLog: { ...prev.draftLog, [draftKey(row)]: at } } : prev))
     try {
       const current = await getSettings()
@@ -709,6 +727,8 @@ export default function App() {
       await createDraft(row, templates, settings.languages, settings)
       setDraftResults(prev => ({ ...prev, [row._idx]: { ok: true } }))
       await recordDraft(row)
+      // From now on the Drafts mailbox says whether the ✓ stays.
+      refreshDrafts().then(() => setDraftResults(prev => { const next = { ...prev }; delete next[row._idx]; return next }))
     } catch (e) {
       setDraftResults(prev => ({ ...prev, [row._idx]: { ok: false, error: e.message } }))
       setError(e.message)
@@ -762,9 +782,13 @@ export default function App() {
     setEdits(prev => {
       const next = { ...prev }
       for (const [idx, f, v] of changes) {
-        const rowEdits = { ...(next[idx] || {}) }
+        const before = next[idx] || {}
+        let rowEdits = { ...before }
         if (v === (byIdx.get(idx)?.[f] ?? '')) delete rowEdits[f]
         else rowEdits[f] = v
+        // A new Last emailed date or reply also stages the email counters
+        // (core/emailCounters.js), so the save dialog shows them too.
+        if (f === 'Last emailed' || f === 'Status') rowEdits = withEmailCounters(byIdx.get(idx), rowEdits, before)
         if (Object.keys(rowEdits).length) next[idx] = rowEdits
         else delete next[idx]
       }
@@ -1035,6 +1059,11 @@ export default function App() {
 
   const isDuplicate = useCallback(r => duplicateSet.has(venueRep.get(r._venueId)), [duplicateSet, venueRep])
   const liveRows = useMemo(() => rows.filter(r => !deletions.has(r._idx)), [rows, deletions])
+  // _idx → drafts waiting in Mail for that venue; null until Mail was asked.
+  const draftsWaiting = useMemo(
+    () => (caps.mail && mailDrafts ? draftCounts(matchDrafts(mailDrafts, liveRows, settings)) : null),
+    [mailDrafts, liveRows, settings],
+  )
 
   // Bands, venue types and countries the CSV uses that Settings doesn't list —
   // one banner each, minus what a banner's × already hid. Countries only matter
@@ -1209,11 +1238,80 @@ export default function App() {
     </div>
   )
 
+  // The Mac window (lib/windowChrome.js): the top stays where it is and only
+  // the list scrolls, in #list-scroller. What else stays up there with the
+  // header is chosen in Settings ▸ General (Keep the toolbar visible); the rest
+  // scrolls away above the list. The web keeps the page scrolling, with the
+  // toolbar sliding in once it has gone.
+  const macLayout = caps.windowChrome
+  const chipsOnTop = macLayout && pinToolbar && pinItems.chips
+  const hasList = rows.length > 0 || (lastFetched && !loading)
+  const chipsBlock = (
+    <>
+    {/* Mobile: chips + vertical controls sidebar */}
+    <div className="sm:hidden flex gap-2 items-start">
+      <div className="flex-1 min-w-0">
+        <StatsBar
+          rows={liveRows}
+          filters={filters}
+          onChange={setFilters}
+          duplicateCount={duplicateSet.size}
+          isDuplicate={isDuplicate}
+          chips={filterChips}
+          batchWhyEmpty={batchWhyEmpty?.reason}
+        />
+      </div>
+      <div className="shrink-0 pt-0.5">{mobileControls}</div>
+    </div>
+
+    {/* Desktop: StatsBar full width */}
+    <div className="hidden sm:block">
+      <StatsBar
+        rows={liveRows}
+        filters={filters}
+        onChange={setFilters}
+        duplicateCount={duplicateSet.size}
+        isDuplicate={isDuplicate}
+        chips={filterChips}
+        batchWhyEmpty={batchWhyEmpty?.reason}
+      />
+    </div>
+    </>
+  )
+  const filterBar = part => (
+    <FilterBar
+      part={part}
+      rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue}
+      bandOptions={bandOptions} typeOptions={typeOptions} chips={filterChips} onChipsChange={handleChipsChange}
+      canSelect={view === 'list' && rows.length > 0}
+      selectMode={selectMode}
+      selectedCount={selected.size}
+      onToggleSelect={() => (selectMode ? exitSelect() : setSelectMode(true))}
+      onEmail={caps.mail && rows.length > 0 ? () => setShowBulkDraft(true) : null}
+      pinned={pinToolbar}
+      pinItems={pinItems}
+      pinnedChips={pinItems.chips && (
+        <StatsBar
+          strip
+          rows={liveRows}
+          filters={filters}
+          onChange={setFilters}
+          duplicateCount={duplicateSet.size}
+          isDuplicate={isDuplicate}
+          chips={filterChips}
+          batchWhyEmpty={batchWhyEmpty?.reason}
+        />
+      )}
+      editCount={editCount}
+      onSave={() => setShowSave(true)}
+    />
+  )
+
   return (
     <RulesProvider rules={rules}>
     <ClassifyProvider value={classifyCtx}>
     <MailContext.Provider value={mailCtx}>
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className={`${macLayout ? 'h-full flex flex-col' : 'min-h-screen'} bg-gray-50 dark:bg-gray-900 transition-colors`}>
       {promptNode}
       {confirmNode}
       {/* The banner stack: each banner in a BannerSlot, which slides it in and out. */}
@@ -1278,7 +1376,8 @@ export default function App() {
           </NoticeBanner>
         </BannerSlot>
       </div>
-      <div className="max-w-[1700px] mx-auto px-4 py-6 space-y-5">
+      <div className={macLayout ? 'shrink-0 max-h-[70vh] overflow-y-auto' : ''}>
+      <div className={`max-w-[1700px] mx-auto px-4 pt-6 space-y-5 ${macLayout ? 'pb-4' : ''}`}>
 
         {/* Desktop header — original layout */}
         <div className="hidden sm:flex items-start justify-between">
@@ -1330,64 +1429,23 @@ export default function App() {
           <div className="sm:hidden flex justify-end">{mobileControls}</div>
         )}
 
+        {hasList && macLayout && (
+          <>
+            {chipsOnTop && chipsBlock}
+            {filterBar('top')}
+          </>
+        )}
+      </div>
+      </div>
+
+      <ListScroller on={macLayout}>
+      <div className={`max-w-[1700px] mx-auto px-4 pb-6 space-y-5 ${macLayout ? 'pt-1' : 'mt-5'}`}>
         {/* An empty CSV is a perfectly good list — it needs the toolbar most of
             all, since "+ New Venue" lives there. */}
-        {(rows.length > 0 || (lastFetched && !loading)) && (
+        {hasList && (
           <>
-            {/* Mobile: chips + vertical controls sidebar */}
-            <div className="sm:hidden flex gap-2 items-start">
-              <div className="flex-1 min-w-0">
-                <StatsBar
-                  rows={liveRows}
-                  filters={filters}
-                  onChange={setFilters}
-                  duplicateCount={duplicateSet.size}
-                  isDuplicate={isDuplicate}
-                  chips={filterChips}
-                  batchWhyEmpty={batchWhyEmpty?.reason}
-                />
-              </div>
-              <div className="shrink-0 pt-0.5">{mobileControls}</div>
-            </div>
-
-            {/* Desktop: StatsBar full width */}
-            <div className="hidden sm:block">
-              <StatsBar
-                rows={liveRows}
-                filters={filters}
-                onChange={setFilters}
-                duplicateCount={duplicateSet.size}
-                isDuplicate={isDuplicate}
-                chips={filterChips}
-                batchWhyEmpty={batchWhyEmpty?.reason}
-              />
-            </div>
-
-            <FilterBar
-              rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue}
-              bandOptions={bandOptions} typeOptions={typeOptions} chips={filterChips} onChipsChange={handleChipsChange}
-              canSelect={view === 'list' && rows.length > 0}
-              selectMode={selectMode}
-              selectedCount={selected.size}
-              onToggleSelect={() => (selectMode ? exitSelect() : setSelectMode(true))}
-              onEmail={caps.mail && rows.length > 0 ? () => setShowBulkDraft(true) : null}
-              pinned={pinToolbar}
-              pinItems={pinItems}
-              pinnedChips={pinItems.chips && (
-                <StatsBar
-                  strip
-                  rows={liveRows}
-                  filters={filters}
-                  onChange={setFilters}
-                  duplicateCount={duplicateSet.size}
-                  isDuplicate={isDuplicate}
-                  chips={filterChips}
-                  batchWhyEmpty={batchWhyEmpty?.reason}
-                />
-              )}
-              editCount={editCount}
-              onSave={() => setShowSave(true)}
-            />
+            {!chipsOnTop && chipsBlock}
+            {filterBar(macLayout ? 'scroll' : undefined)}
             {view === 'list' && (
               <>
                 {rows.length === 0 ? (
@@ -1417,6 +1475,7 @@ export default function App() {
                   onQuickDraft={caps.mail ? handleQuickDraft : null}
                   draftingIdx={draftingIdx}
                   draftResults={draftResults}
+                  draftsWaiting={draftsWaiting}
                 />
                 )}
               </>
@@ -1431,7 +1490,7 @@ export default function App() {
           </>
         )}
       </div>
-
+      </ListScroller>
       {selectMode && view === 'list' && (
         <BulkEditBar
           selectedCount={selected.size}
@@ -1492,6 +1551,7 @@ export default function App() {
           templates={templates}
           languages={settings.languages}
           settings={settings}
+          mailReady={mailIsReady}
           onDraftCreated={recordDraft}
           onSent={recordSend}
           onClearDraftFlags={clearDraftFlags}
@@ -1531,8 +1591,8 @@ export default function App() {
         <ErrorBoundary
           key={venueDetail}
           fallback={({ error }) => (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" onClick={() => setVenueDetail(null)}>
-              <div className="bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="side-panel fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" onClick={() => setVenueDetail(null)}>
+              <div className="side-panel-head bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
                 <p className="font-semibold text-red-700 dark:text-red-400">{t("This venue view ran into an error.")}</p>
                 <p className="font-mono text-xs break-words bg-red-50 dark:bg-red-900/20 rounded p-2 text-red-700 dark:text-red-300">{String(error?.message || error)}</p>
                 <p className="text-sm text-gray-600 dark:text-gray-300">{t("Your unsaved edits are still there — close this and Save as usual.")}</p>

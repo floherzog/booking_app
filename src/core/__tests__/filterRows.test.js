@@ -102,3 +102,16 @@ describe('normalizeFilterChips', () => {
     expect(chips.custom.map(c => c.color)).toEqual(['rose', undefined])
   })
 })
+
+describe('is empty / isn’t empty', () => {
+  const rows = [{ Band: 'A', Email: 'a@x.de' }, { Band: '', Email: '  ' }, { Band: 'B' }]
+  const keep = rule => rows.filter(r => matchesFilters(r, { advanced: [rule] }))
+  it('keeps the rows whose column is blank, or the others, without a value', () => {
+    expect(keep({ field: 'Email', op: 'empty', value: '' })).toEqual([rows[1], rows[2]])
+    expect(keep({ field: 'Band', op: 'filled', value: '' })).toEqual([rows[0], rows[2]])
+  })
+  it('counts as a filter and says so', () => {
+    expect(isEmptyFilters({ advanced: [{ field: 'Email', op: 'empty', value: '' }] })).toBe(false)
+    expect(describeFilters({ advanced: [{ field: 'Email', op: 'empty', value: '' }] })).toBe('Email: is empty')
+  })
+})

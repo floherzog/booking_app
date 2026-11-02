@@ -42,6 +42,13 @@ describe('DateInput calendar', () => {
     expect(onCommit).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(input)
     expect(calendar().textContent).toContain('December 2026')
+    // Always six weeks, so the calendar keeps its size from month to month.
+    const cells = () => calendar().querySelector('.grid.gap-0\\.5').children.length
+    expect(cells()).toBe(42)
+    act(() => { press(calButton('Previous month')); press(calButton('Previous month')); press(calButton('Previous month')) })
+    expect(calendar().textContent).toContain('September 2026')
+    expect(cells()).toBe(42)
+    act(() => { press(calButton('Next month')); press(calButton('Next month')); press(calButton('Next month')) })
     act(() => { press(calButton('24')) })
     expect(onCommit).toHaveBeenCalledWith('24.12.26')
     expect(calendar()).toBe(null)

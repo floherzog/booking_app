@@ -84,6 +84,9 @@ const api = {
   disconnectWebSync: () => ipcRenderer.invoke('webSync:disconnect'),
   listMailHistory: email => ipcRenderer.invoke('mailHistory:list', email),
   readMail: ref => ipcRenderer.invoke('mailHistory:read', ref),
+  listDrafts: () => ipcRenderer.invoke('mailDrafts:list'),
+  deleteDraft: ref => ipcRenderer.invoke('mailDrafts:delete', ref),
+  sendDraft: ref => ipcRenderer.invoke('mailDrafts:send', ref),
   onUpdateProgress: cb => {
     const handler = (_e, p) => cb(p)
     ipcRenderer.on('updates:progress', handler)
