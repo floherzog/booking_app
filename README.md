@@ -314,13 +314,12 @@ column headings; the chips and the Band / Country / Type dropdowns can join
 them. The choice is remembered per device. Filter / Chips in that bar goes back
 up to the panel.
 
-In the Mac app nothing slides in: the top of the window stays where it is and
-only the list scrolls, with its scrollbar starting at the list. The same
-choice decides what stays up there with the header (Save is always there); the
-rest scrolls away above the list. Tick the chips and Band / Country / Type too
-and the scrollbar starts right at the column headings. Once the list has
-scrolled some way, **↑ Top** in its top right corner goes back to the first
-venue (and, on the web, to the toolbar).
+The Mac app scrolls the same way, with the Mac's momentum and bounce, but draws
+its own scrollbar: it starts where the chips begin, not beside the header and
+under the window's buttons, and like other Mac scrollbars it shows while you
+scroll, widens under the pointer and can be dragged. Once the list has scrolled
+some way, **↑ Top** at the top right goes back to the first venue and the
+toolbar.
 
 ## Rules
 
@@ -792,14 +791,13 @@ Nominatim requires a `User-Agent` header the renderer is not allowed to set.
   language through `token()` in `src/renderer/src/lib/placeholders.js`.
 - The Mac window has no title bar: `lib/windowChrome.js` adds the drag strip and
   `--chrome-top`, which anything fixed to the top of the window must start below.
-  There only the list scrolls, inside `#list-scroller`
-  (`components/ListScroller.jsx`); the header and the pinned toolbar items sit
-  above it (App draws `FilterBar` twice, `part="top"` and `part="scroll"`).
-  Before the list exists `#root` scrolls. Anything that scrolls the page or
-  listens to its scrolling goes through `scroller()`, `onScroll()`, `scrollY()`,
-  `scrollToY()` and `stickyTop()` from the same file; don't use a `smooth`
-  scroll there, the virtualizer's corrections stop it. The web build still
-  scrolls the window.
+  The page scrolls as a whole, as on the web; the window's own scrollbar is
+  hidden and `components/PageScrollbar.jsx` draws one that starts at the list
+  (an inner scroll container would lose the Mac's bounce, and the toolbar
+  sliding in). Anything that scrolls the page or listens to its scrolling goes
+  through `scroller()`, `onScroll()`, `scrollY()`, `scrollToY()` and
+  `stickyTop()` from the same file; don't use a `smooth` scroll there, the
+  virtualizer's corrections stop it.
 - `BOOKING_USER_DATA=/some/dir npm run dev` points a development run at a
   scratch copy of its settings and templates instead of the real ones.
 - Only `date-fns`, `papaparse`, `imapflow` and `nodemailer` are runtime

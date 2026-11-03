@@ -6,23 +6,16 @@ import { caps } from '../platform'
 // can't manage — and --chrome-top (28px, 0 in fullscreen) keeps the page's own
 // controls out from under it. index.css does the rest.
 //
-// There the window's top part stays put and only the list scrolls, inside
-// #list-scroller (components/ListScroller.jsx), so the scrollbar starts at the
-// list; before the list exists (first run) #root, which starts below the
-// strip, scrolls instead (html.mac-window). Anything that scrolls the page or
-// listens to it goes through scroller()/onScroll()/scrollY()/scrollToY().
+// The page scrolls as a whole, as on the web; components/PageScrollbar.jsx
+// draws the Mac window's scrollbar, which starts at the list. Anything that
+// scrolls the page or listens to it goes through
+// scroller()/onScroll()/scrollY()/scrollToY().
 export const CHROME_HEIGHT = 28
 
 export function initWindowChrome() {
   if (!caps.windowChrome) return
   const root = document.documentElement
   root.classList.add('mac-window')
-  const page = document.getElementById('root')
-  if (page) {
-    page.tabIndex = -1 // so Page Up/Down and space scroll it
-    page.style.outline = 'none'
-    requestAnimationFrame(() => { if (document.activeElement === document.body) page.focus({ preventScroll: true }) })
-  }
   const strip = document.createElement('div')
   strip.className = 'window-drag-strip'
   strip.setAttribute('aria-hidden', 'true')
@@ -36,18 +29,11 @@ export function initWindowChrome() {
 // The strip's height right now, in px (0 on the web and in fullscreen).
 export const chromeTop = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chrome-top')) || 0
 
-// What the page scrolls in: the list scroller (or #root) in the Mac window,
-// the window on the web.
-export function scroller() {
-  if (!caps.windowChrome) return window
-  return document.getElementById('list-scroller') || document.getElementById('root') || window
-}
-// Where, in the window, something sticking to the top of the scroller sits:
-// the scroller's own top on the Mac, below the drag strip and the sliding
-// toolbar (--pin-top) on the web.
+// What the page scrolls in: the window, on the Mac too.
+export const scroller = () => window
+// Where, in the window, something sticking to the top of the page sits: below
+// the drag strip and the sliding toolbar (--pin-top).
 export function stickyTop() {
-  const el = scroller()
-  if (el !== window) return el.getBoundingClientRect().top
   return chromeTop() + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-top')) || 0)
 }
 export const scrollY = () => { const el = scroller(); return el === window ? window.scrollY : el.scrollTop }

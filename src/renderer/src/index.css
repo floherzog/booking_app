@@ -94,26 +94,77 @@
   }
 }
 
+/* What shows when the page bounces past either end: the page's own colour
+   (index.html sets the light one inline, for the first frame). */
+html.dark body {
+  background: rgb(17 24 39) !important; /* gray-900 */
+}
+
 /* --- Mac window without a title bar (lib/windowChrome.js) ----------------- */
 
 html.window-chrome {
   --chrome-top: 28px;
 }
 
-/* The Mac window scrolls #root rather than the page, so the scrollbar starts
-   below the drag strip (lib/windowChrome.js scroller()). In fullscreen
-   --chrome-top drops to 0 and #root fills the window. */
-html.mac-window {
-  overflow: hidden;
+html.window-chrome body {
+  padding-top: var(--chrome-top);
 }
 
-html.mac-window #root {
+/* The page scrolls as a whole, as on the web, which keeps the Mac's momentum
+   and bounce. Its own scrollbar would run up beside the header and under the
+   traffic lights, so it is hidden, and components/PageScrollbar.jsx draws one
+   that starts at the list. */
+html.mac-window {
+  scrollbar-width: none;
+}
+html.mac-window::-webkit-scrollbar {
+  display: none;
+}
+
+/* components/PageScrollbar.jsx: a macOS-style overlay scrollbar. */
+.page-scrollbar {
   position: fixed;
-  top: var(--chrome-top, 0px);
-  left: 0;
   right: 0;
-  bottom: 0;
-  overflow-y: auto;
+  width: 14px;
+  z-index: 950; /* over the sliding toolbar (900), under every dialog */
+  opacity: 0;
+  transition: opacity 0.4s ease, background-color 0.15s ease;
+  border-left: 1px solid transparent;
+}
+.page-scrollbar[data-visible] {
+  opacity: 1;
+  transition: opacity 0.1s ease, background-color 0.15s ease;
+}
+.page-scrollbar[data-hover],
+.page-scrollbar[data-drag] {
+  background: rgb(0 0 0 / 0.04);
+  border-left-color: rgb(0 0 0 / 0.08);
+}
+.page-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 7px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  transition: width 0.15s ease;
+}
+.page-scrollbar[data-hover] .page-scrollbar-thumb,
+.page-scrollbar[data-drag] .page-scrollbar-thumb {
+  width: 9px;
+  background: rgb(0 0 0 / 0.55);
+}
+.dark .page-scrollbar[data-hover],
+.dark .page-scrollbar[data-drag] {
+  background: rgb(255 255 255 / 0.05);
+  border-left-color: rgb(255 255 255 / 0.1);
+}
+.dark .page-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.4);
+}
+.dark .page-scrollbar[data-hover] .page-scrollbar-thumb,
+.dark .page-scrollbar[data-drag] .page-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.55);
 }
 
 .window-drag-strip {
@@ -159,7 +210,9 @@ html.window-chrome .side-panel-head {
 
 /* Banner slots (components/BannerSlot.jsx) appear and leave without motion. */
 @media (prefers-reduced-motion: reduce) {
-  .banner-slot {
+  .banner-slot,
+  .page-scrollbar,
+  .page-scrollbar-thumb {
     transition: none;
   }
   /* A loading spinner still shows that something is happening, just slowly. */

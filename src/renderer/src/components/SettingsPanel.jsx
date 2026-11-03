@@ -735,9 +735,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {t("Keep the toolbar visible while scrolling")}
                         <span className="block text-xs text-gray-400 dark:text-gray-500">
-                          {caps.windowChrome
-                            ? t('Only the list scrolls: what you tick here stays at the top with the header, the rest scrolls away above the list.')
-                            : t("Once the toolbar has scrolled away, a bar at the top of the window holds what you tick here.")}
+                          {t("Once the toolbar has scrolled away, a bar at the top of the window holds what you tick here.")}
                         </span>
                       </span>
                     </label>
@@ -749,7 +747,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     )}
                     {pinToolbar && pinCustomize && (
                       <div className="mt-2 ml-6 flex flex-wrap gap-x-4 gap-y-1.5">
-                        {PIN_ITEMS.filter(i => (!i.needs || caps[i.needs]) && !(caps.windowChrome && i.key === 'save')).map(i => (
+                        {PIN_ITEMS.filter(i => !i.needs || caps[i.needs]).map(i => (
                           <label key={i.key} className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                             <input
                               type="checkbox"

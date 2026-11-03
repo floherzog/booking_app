@@ -68,6 +68,18 @@ app merges the same way when it saves, so a browser tab left open doesn't
 overwrite what a Mac changed in the meantime. Changing `APP_COOKIE_SECRET` signs
 every Mac out as well; they ask for the access code again.
 
+### OpenClaw's hold words
+
+OpenClaw decides for itself which venues to hold back, from the hold words in
+`policy_decision()` of its batch script (`hard_stop` and `wait_markers`) and
+`hold_override_days`. The app's Rules (*Logic*) have their own list, used for
+the On hold status. With the script set under *Settings ▸ Data & storage ▸
+OpenClaw script*, the web app reads it once per page load and, where the two
+differ, a banner says what that means — a word only the app knows still gets
+drafted to by OpenClaw; a word only the script knows leaves the venue showing as
+due here — and offers to change the Rules to match. It never changes the
+script: a word you want in both goes into the script by hand.
+
 ## Running it locally
 
 ```sh

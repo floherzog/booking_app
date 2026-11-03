@@ -6,7 +6,7 @@ import {
   flexRender,
   createColumnHelper,
 } from '@tanstack/react-table'
-import { useWindowVirtualizer, useVirtualizer } from '@tanstack/react-virtual'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useContext } from 'react'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import StatusBadge from './StatusBadge'
@@ -20,14 +20,7 @@ import DateInput from './DateInput'
 import { parseReplyStatus, composeReplyStatus, replyHealth } from '@core/replyStatus'
 import { healthMeta, HEALTH_META } from '../lib/health'
 import { stickyTop, onScroll as onPageScroll, scroller } from '../lib/windowChrome'
-import { caps } from '../platform'
 
-// The Mac window scrolls #list-scroller, the web the window
-// (lib/windowChrome.js). caps never changes while the app runs, so this picks
-// one hook for good.
-const useListVirtualizer = caps.windowChrome
-  ? opts => useVirtualizer({ ...opts, getScrollElement: () => document.getElementById('list-scroller') })
-  : useWindowVirtualizer
 import { prepareDraft } from '../lib/drafts'
 import { useClassifyCtx } from '../lib/rulesContext'
 import { useDragSelect } from '../lib/useDragSelect'
@@ -963,7 +956,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     setFrozen({ key: layoutKey, widths: [...ths].map(th => th.getBoundingClientRect().width) })
   })
 
-  const virtualizer = useListVirtualizer({
+  const virtualizer = useWindowVirtualizer({
     count: sortedRows.length,
     // Measured sizes are remembered per venue, not per position: after a filter
     // chip reorders the list, position 5 is a different venue, and reusing its

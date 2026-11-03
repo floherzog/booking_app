@@ -24,7 +24,9 @@ import { matchDrafts, draftCounts } from '@core/draftMatch'
 import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
 import StatsBar, { columnLabel as statsColumnLabel } from './components/StatsBar'
 import FilterBar from './components/FilterBar'
-import ListScroller from './components/ListScroller'
+import BackToTop from './components/BackToTop'
+import PageScrollbar from './components/PageScrollbar'
+import PolicyDriftNotice from './components/PolicyDriftNotice'
 import BookingTable from './components/BookingTable'
 import MapView from './components/MapView'
 import SettingsPanel from './components/SettingsPanel'
@@ -76,7 +78,7 @@ export default function App() {
   // first-run screen, which asks for one.
   const [needsToken, setNeedsToken] = useState(false)
   // Web build: how OpenClaw's hold logic differs from the Rules, if it does.
-  const [policyDrift, setPolicyDrift] = useState([])
+  const [policyDrift, setPolicyDrift] = useState(null)
   const dismissSyncNote = useCallback(() => setSyncNote(null), [])
   const [lastFetched, setLastFetched] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -484,8 +486,8 @@ export default function App() {
     })
   }, [rules, today, classifyCtx])
 
-  // Web build: compare the Rules with OpenClaw's script (read once per session),
-  // again whenever the Rules change.
+  // Web build: compare the Rules with OpenClaw's script (read once per page
+  // load), again whenever the Rules change.
   const openclawKey = JSON.stringify(settings?.openclaw || null)
   useEffect(() => {
     if (!caps.openclawPolicy || openclawKey === 'null') return
@@ -1158,6 +1160,9 @@ export default function App() {
       ? [{ id: '_missingSeverity', desc: true }]
       : [{ id: '_status', desc: false }]
 
+  // Where the Mac window's scrollbar starts (components/PageScrollbar.jsx).
+  const listTopRef = useRef(null)
+
   // Settings haven't arrived yet — nothing sensible to draw.
   if (!settings) return <div className="min-h-screen bg-gray-50 dark:bg-gray-900" />
 
@@ -1186,6 +1191,7 @@ export default function App() {
             onClose={() => setImportSeed(null)}
           />
         )}
+        {caps.windowChrome && <PageScrollbar anchorRef={listTopRef} />}
       </>
     )
   }
@@ -1238,13 +1244,6 @@ export default function App() {
     </div>
   )
 
-  // The Mac window (lib/windowChrome.js): the top stays where it is and only
-  // the list scrolls, in #list-scroller. What else stays up there with the
-  // header is chosen in Settings ▸ General (Keep the toolbar visible); the rest
-  // scrolls away above the list. The web keeps the page scrolling, with the
-  // toolbar sliding in once it has gone.
-  const macLayout = caps.windowChrome
-  const chipsOnTop = macLayout && pinToolbar && pinItems.chips
   const hasList = rows.length > 0 || (lastFetched && !loading)
   const chipsBlock = (
     <>
@@ -1278,9 +1277,8 @@ export default function App() {
     </div>
     </>
   )
-  const filterBar = part => (
+  const filterBar = (
     <FilterBar
-      part={part}
       rows={rows} filters={filters} onChange={setFilters} onNewVenue={handleNewVenue}
       bandOptions={bandOptions} typeOptions={typeOptions} chips={filterChips} onChipsChange={handleChipsChange}
       canSelect={view === 'list' && rows.length > 0}
@@ -1311,7 +1309,7 @@ export default function App() {
     <RulesProvider rules={rules}>
     <ClassifyProvider value={classifyCtx}>
     <MailContext.Provider value={mailCtx}>
-    <div className={`${macLayout ? 'h-full flex flex-col' : 'min-h-screen'} bg-gray-50 dark:bg-gray-900 transition-colors`}>
+    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors`}>
       {promptNode}
       {confirmNode}
       {/* The banner stack: each banner in a BannerSlot, which slides it in and out. */}
@@ -1369,15 +1367,14 @@ export default function App() {
             <MailSetupNotice settings={settings} templates={templates} bare onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} />
           </NoticeBanner>
         </BannerSlot>
-        <BannerSlot show={policyDrift.length > 0}>
-          <NoticeBanner tone="warning" onDismiss={() => setPolicyDrift([])}>
-            <p className="font-medium">{t('OpenClaw’s hold logic differs from the Rules — update them in Logic')}</p>
-            {policyDrift.map((d, i) => <p key={i} className="text-xs mt-0.5 opacity-80">{d}</p>)}
+        <BannerSlot show={!!policyDrift}>
+          <NoticeBanner tone="warning" onDismiss={() => setPolicyDrift(null)}>
+            <PolicyDriftNotice drift={policyDrift} rules={rules} scriptPath={settings.openclaw?.path}
+              onSaveRules={handleRulesSave} onOpenLogic={() => setShowLogic(true)} />
           </NoticeBanner>
         </BannerSlot>
       </div>
-      <div className={macLayout ? 'shrink-0 max-h-[70vh] overflow-y-auto' : ''}>
-      <div className={`max-w-[1700px] mx-auto px-4 pt-6 space-y-5 ${macLayout ? 'pb-4' : ''}`}>
+      <div className="max-w-[1700px] mx-auto px-4 pt-6 space-y-5">
 
         {/* Desktop header — original layout */}
         <div className="hidden sm:flex items-start justify-between">
@@ -1428,24 +1425,15 @@ export default function App() {
         {rows.length === 0 && !loading && !lastFetched && (
           <div className="sm:hidden flex justify-end">{mobileControls}</div>
         )}
-
-        {hasList && macLayout && (
-          <>
-            {chipsOnTop && chipsBlock}
-            {filterBar('top')}
-          </>
-        )}
-      </div>
       </div>
 
-      <ListScroller on={macLayout}>
-      <div className={`max-w-[1700px] mx-auto px-4 pb-6 space-y-5 ${macLayout ? 'pt-1' : 'mt-5'}`}>
+      <div ref={listTopRef} className="max-w-[1700px] mx-auto px-4 pb-6 space-y-5 mt-5">
         {/* An empty CSV is a perfectly good list — it needs the toolbar most of
             all, since "+ New Venue" lives there. */}
         {hasList && (
           <>
-            {!chipsOnTop && chipsBlock}
-            {filterBar(macLayout ? 'scroll' : undefined)}
+            {chipsBlock}
+            {filterBar}
             {view === 'list' && (
               <>
                 {rows.length === 0 ? (
@@ -1490,7 +1478,8 @@ export default function App() {
           </>
         )}
       </div>
-      </ListScroller>
+      <BackToTop />
+      {caps.windowChrome && <PageScrollbar anchorRef={listTopRef} />}
       {selectMode && view === 'list' && (
         <BulkEditBar
           selectedCount={selected.size}
