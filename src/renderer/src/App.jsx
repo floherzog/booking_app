@@ -26,7 +26,6 @@ import StatsBar, { columnLabel as statsColumnLabel } from './components/StatsBar
 import FilterBar from './components/FilterBar'
 import BackToTop from './components/BackToTop'
 import PageScrollbar from './components/PageScrollbar'
-import PolicyDriftNotice from './components/PolicyDriftNotice'
 import BookingTable from './components/BookingTable'
 import MapView from './components/MapView'
 import SettingsPanel from './components/SettingsPanel'
@@ -52,7 +51,6 @@ import { usePinToolbar, usePinItems } from './lib/uiPrefs'
 import { setChipColors } from './lib/palette'
 import MailSetupNotice, { mailSetupGaps } from './components/MailSetupNotice'
 import { api, caps } from './platform'
-import { checkOpenclawPolicy } from './lib/policySync'
 import { t, useT, getLanguage, useLanguage } from './i18n'
 import Busy from './components/Busy'
 
@@ -77,8 +75,6 @@ export default function App() {
   // Web build: no GitHub token in the bundle or this browser yet. Shows the
   // first-run screen, which asks for one.
   const [needsToken, setNeedsToken] = useState(false)
-  // Web build: how OpenClaw's hold logic differs from the Rules, if it does.
-  const [policyDrift, setPolicyDrift] = useState(null)
   const dismissSyncNote = useCallback(() => setSyncNote(null), [])
   const [lastFetched, setLastFetched] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -485,14 +481,6 @@ export default function App() {
       return reclassified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) }))
     })
   }, [rules, today, classifyCtx])
-
-  // Web build: compare the Rules with OpenClaw's script (read once per page
-  // load), again whenever the Rules change.
-  const openclawKey = JSON.stringify(settings?.openclaw || null)
-  useEffect(() => {
-    if (!caps.openclawPolicy || openclawKey === 'null') return
-    checkOpenclawPolicy({ openclaw: JSON.parse(openclawKey) }, rules).then(setPolicyDrift).catch(() => {})
-  }, [openclawKey, rules])
 
   // When a band's Dates change in Settings, offer to push them onto that band's
   // venue rows (Dates column). Applied as
@@ -1365,12 +1353,6 @@ export default function App() {
         <BannerSlot show={showMailSetup && mailSetupGaps(settings, templates).length > 0}>
           <NoticeBanner tone="warning" onDismiss={() => setShowMailSetup(false)}>
             <MailSetupNotice settings={settings} templates={templates} bare onOpenSettings={s => { setShowMailSetup(false); openSettings(s) }} />
-          </NoticeBanner>
-        </BannerSlot>
-        <BannerSlot show={!!policyDrift}>
-          <NoticeBanner tone="warning" onDismiss={() => setPolicyDrift(null)}>
-            <PolicyDriftNotice drift={policyDrift} rules={rules} scriptPath={settings.openclaw?.path}
-              onSaveRules={handleRulesSave} onOpenLogic={() => setShowLogic(true)} />
           </NoticeBanner>
         </BannerSlot>
       </div>

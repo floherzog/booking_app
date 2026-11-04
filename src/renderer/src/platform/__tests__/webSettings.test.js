@@ -52,7 +52,7 @@ describe('web settings', () => {
 
     expect(s.storage).toMatchObject({ adapter: 'github', github: { repo: 'me/list', path: 'data/list.csv' } })
     expect(s.storage.multiBand.enabled).toBe(false)
-    expect(s.openclaw).toEqual({ repo: 'me/claw', path: 'scripts/batch.py' })
+    expect(s).not.toHaveProperty('openclaw')
     expect(s.bands.map(b => [b.name, b.tourDates])).toEqual([
       ['Band A', 'May 2027'],
       ['Band B', ''],

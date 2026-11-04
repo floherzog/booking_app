@@ -18,7 +18,6 @@ export const caps = {
   articles: false,
   updates: false,       // a deploy is the update
   storageChoice: false, // GitHub only
-  openclawPolicy: true,
   windowChrome: false,
   settingsSync: false,  // the web app is what a Mac syncs with
 }
@@ -81,8 +80,6 @@ const env = import.meta.env
 const WEB_DEFAULTS = {
   csvRepo: env.VITE_CSV_REPO || '',
   csvPath: env.VITE_CSV_PATH || '',
-  openclawRepo: env.VITE_OPENCLAW_REPO || '',
-  openclawPath: env.VITE_OPENCLAW_PATH || '',
 }
 
 // --- small helpers ------------------------------------------------------------
@@ -128,19 +125,15 @@ let serverStore = false // whether settings.php answered; decides where Save goe
 // The web build always reads one CSV from GitHub; whatever a settings object
 // says about local files or band files does not apply here.
 function forWeb(settings) {
-  const s = normalizeSettings(settings)
+  // openclaw: where an older version read OpenClaw's script from.
+  const { openclaw, ...s } = normalizeSettings(settings)
   const github = {
     repo: s.storage.github.repo || WEB_DEFAULTS.csvRepo,
     path: s.storage.github.path || WEB_DEFAULTS.csvPath,
   }
-  const openclaw = {
-    repo: s.openclaw?.repo ?? WEB_DEFAULTS.openclawRepo,
-    path: s.openclaw?.path ?? WEB_DEFAULTS.openclawPath,
-  }
   return {
     ...s,
     storage: { ...s.storage, adapter: 'github', github, multiBand: { ...s.storage.multiBand, enabled: false } },
-    openclaw,
   }
 }
 
@@ -157,7 +150,6 @@ async function legacySettings() {
   ])]
   return {
     storage: { adapter: 'github', github: { repo: old.csvRepo || '', path: old.csvPath || '' } },
-    openclaw: old.scriptRepo || old.scriptPath ? { repo: old.scriptRepo || '', path: old.scriptPath || '' } : undefined,
     bands: old.bands || [],
     dismissedDupes,
   }
@@ -297,22 +289,6 @@ async function githubPushCsv({ repo, path, text, message, expectedSha }) {
   return { sha: body.content?.sha }
 }
 
-// OpenClaw's batch script, read only to warn when its hold logic drifts from the
-// rules the app classifies with (see lib/policySync.js).
-async function fetchOpenclawScript({ repo, path }) {
-  const token = githubToken()
-  if (!token || !repo || !path) return null
-  try {
-    const res = await fetch(contentsUrl(repo, path), {
-      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3.raw' },
-      cache: 'no-store',
-    })
-    return res.ok ? await res.text() : null
-  } catch {
-    return null
-  }
-}
-
 // --- files ---------------------------------------------------------------------
 
 async function exportCsv(text, defaultName) {
@@ -426,7 +402,6 @@ export const api = {
   onUpdateProgress: noopSubscription,
   onScheduleUpdate: noopSubscription,
   // Web only.
-  fetchOpenclawScript,
   githubTokenBuiltIn: () => !!env.VITE_GITHUB_TOKEN,
   ...Object.fromEntries(Object.keys(UNSUPPORTED).map(name => [name, unsupported(name)])),
 }

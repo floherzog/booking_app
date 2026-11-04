@@ -1127,25 +1127,6 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </div>
                   )}
 
-                  {caps.openclawPolicy && (
-                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
-                      <p className={lbl}>{t("OpenClaw script")}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 -mt-2">
-                        {t("Read to warn when its hold keywords or override window differ from the Rules. Leave empty to skip the check.")}
-                      </p>
-                      <div>
-                        <label className={lbl}>{t("Repository (owner/name)")}</label>
-                        <input className={monoInput} value={form.openclaw?.repo || ''} placeholder={t("you/openclaw-backup")}
-                          onChange={e => setForm(f => ({ ...f, openclaw: { ...f.openclaw, repo: e.target.value } }))} />
-                      </div>
-                      <div>
-                        <label className={lbl}>{t("Script path in the repo")}</label>
-                        <input className={monoInput} value={form.openclaw?.path || ''} placeholder={t("scripts/create_booking_batch.py")}
-                          onChange={e => setForm(f => ({ ...f, openclaw: { ...f.openclaw, path: e.target.value } }))} />
-                      </div>
-                    </div>
-                  )}
-
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>{t("Import and export")}</p>
                     <div className="flex gap-2">

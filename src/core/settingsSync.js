@@ -7,7 +7,7 @@
 // What syncs. `csvLocation` is not a key of its own: it is storage.github
 // ({ repo, path }), the only part of `storage` both builds understand.
 // Everything else — mail accounts, local file paths, general, the draft log,
-// OpenClaw's script, webSync itself — stays where it is.
+// webSync itself — stays where it is.
 export const SYNCED = [
   'rules', 'bands', 'venueTypes', 'venueTypeRules', 'venueTypesVersion',
   'filterChips', 'dismissedDupes', 'keptVenueDates', 'dismissedSuggestions', 'languages', 'templates',

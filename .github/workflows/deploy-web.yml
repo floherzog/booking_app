@@ -60,8 +60,6 @@ jobs:
           VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
           VITE_CSV_REPO: ${{ vars.CSV_REPO }}
           VITE_CSV_PATH: ${{ vars.CSV_PATH }}
-          VITE_OPENCLAW_REPO: ${{ vars.OPENCLAW_REPO }}
-          VITE_OPENCLAW_PATH: ${{ vars.OPENCLAW_PATH }}
 
       - name: Install sshpass
         run: sudo apt-get update && sudo apt-get install -y sshpass

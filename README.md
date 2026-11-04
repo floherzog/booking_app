@@ -821,8 +821,8 @@ underneath differs, and all of it sits behind one seam,
   German articles, the update check. The UI shows or hides those parts by
   checking `caps.x`, so `grep -rn "caps\." src/renderer` lists every difference
   between the two apps. On the web, OpenClaw does the drafting and sending,
-  driven by the Draft/Auto flags; the web app warns when OpenClaw's hold logic
-  drifts from the Rules.
+  driven by the Draft/Auto flags, and it reads its hold words from the web app's
+  Rules (docs/WEB.md).
 
 **Adding a feature** therefore usually means adding it once, and both apps get
 it. If it needs something new from the platform:

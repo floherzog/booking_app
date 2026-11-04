@@ -36,7 +36,7 @@ Step by step:
    (Settings ▸ Secrets and variables ▸ Actions): the token, the SSH details, a
    password of your choosing (`APP_PASSWORD`) and a long random
    `APP_COOKIE_SECRET` (letters and digits, e.g. `openssl rand -hex 24`), plus
-   `CSV_REPO` and `CSV_PATH`. The OpenClaw ones are optional.
+   `CSV_REPO` and `CSV_PATH`.
 5. **Set `WEB_BASE`** to the folder the app should live in, e.g. `/booking/`.
    That turns deploys on.
 6. **Run the workflow** once: Actions ▸ *Deploy web app* ▸ *Run workflow*. From
@@ -70,15 +70,11 @@ every Mac out as well; they ask for the access code again.
 
 ### OpenClaw's hold words
 
-OpenClaw decides for itself which venues to hold back, from the hold words in
-`policy_decision()` of its batch script (`hard_stop` and `wait_markers`) and
-`hold_override_days`. The app's Rules (*Logic*) have their own list, used for
-the On hold status. With the script set under *Settings ▸ Data & storage ▸
-OpenClaw script*, the web app reads it once per page load and, where the two
-differ, a banner says what that means — a word only the app knows still gets
-drafted to by OpenClaw; a word only the script knows leaves the venue showing as
-due here — and offers to change the Rules to match. It never changes the
-script: a word you want in both goes into the script by hand.
+OpenClaw's batch script reads the hold words and *Hold expires after* from the
+Rules (*Logic*) itself: it signs in with the access code and fetches
+`settings.php?key=settings`, keeping its own built-in list for when that fails.
+So the app has nothing to check on its side — edit the hold words under Logic
+and OpenClaw follows.
 
 ## Running it locally
 
@@ -101,7 +97,7 @@ that touches the shared code. It stays off until the repository variable
 
 | Secret | What it is |
 |---|---|
-| `VITE_GITHUB_TOKEN` | PAT with read/write access to the CSV repository (and read access to the OpenClaw repository, for the drift warning). Baked into the bundle, which is only served behind the login, and handed to Macs that sync with the web app (`token.php`). |
+| `VITE_GITHUB_TOKEN` | PAT with read/write access to the CSV repository. Baked into the bundle, which is only served behind the login, and handed to Macs that sync with the web app (`token.php`). |
 | `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`, `SFTP_PASSWORD` | SSH access to the webspace |
 | `SFTP_WEBROOT` | The webspace's document root on the server, without a trailing slash; the app goes into `$SFTP_WEBROOT$WEB_BASE` |
 | `APP_PASSWORD` | The login password |
@@ -113,7 +109,6 @@ that touches the shared code. It stays off until the repository variable
 |---|---|
 | `WEB_BASE` | `/booking_app/` — the folder on the webspace, and the app's URL path. Unset = no deploys. |
 | `CSV_REPO`, `CSV_PATH` | Where a browser with no settings yet looks for the CSV |
-| `OPENCLAW_REPO`, `OPENCLAW_PATH` | OpenClaw's batch script, for the hold-logic drift warning |
 
 The folder and its login cookie belong together (`login.php` scopes the cookie
 to its own folder), so a staging copy at `/booking_app_next/` has a login of its
@@ -139,8 +134,8 @@ A deploy unpacks over the folder and never deletes these.
 ## Moving over from the old web app
 
 The first time the new build opens in a browser that used the old one, it
-builds its settings from what the old one left behind: the CSV and OpenClaw
-locations and the bands (with their Dates and filler flag) from
+builds its settings from what the old one left behind: the CSV location and
+the bands (with their Dates and filler flag) from
 localStorage, and the dismissed duplicate pairs from the server and
 localStorage. From then on the settings live on the server.
 
