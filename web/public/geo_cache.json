@@ -734,5 +734,9 @@
   "Freiburg||Germany": {
     "lat": 47.9960901,
     "lng": 7.8494005
+  },
+  "Daegu||Korea": {
+    "lat": 35.8713,
+    "lng": 128.6018
   }
 }
