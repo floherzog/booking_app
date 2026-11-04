@@ -16,10 +16,9 @@ import {
 } from '@core/mailAccounts'
 import LanguagesEditor from './LanguagesEditor'
 import { mergeRows } from '@core/multiBand'
-import { planSplit, planMerge, planOpenBandFiles, planNewBandSet, planImportBandFiles, planRelocate } from '../lib/multiBandSwitch'
+import { planMerge, planRelocate } from '../lib/multiBandSwitch'
 import { useEscape } from '../lib/useEscape'
 import { useBackdropClose } from '../lib/useBackdropClose'
-import BandFilesPlan from './BandFilesPlan'
 import { api, caps } from '../platform'
 import { t, useT, useLanguage, getLanguageSetting, setLanguageSetting, LANGUAGE_CHOICES } from '../i18n'
 import { useDateOrder, setDateOrderSetting } from '../lib/dateOrder'
@@ -57,7 +56,7 @@ const panelPart = f => Object.fromEntries(PANEL_KEYS.filter(k => f?.[k] !== unde
 // (`onBandsSettled`, when you leave the Bands page or close the panel), and a
 // change of where the list lives, which reloads it (the "Use this" button, or
 // closing the panel).
-export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onSetMultiBand, onOpenBandFiles, onRelocateBandFiles, onForgetBandFiles, onNewBandSet, onImportBandFiles, unsavedEdits = 0, onPersist, onBandsSettled, onUpdateFound, webSync, onClose, initialSection }) {
+export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenTemplates, onSave, onNewCsv, onCombineBandFiles, onRelocateBandFiles, onForgetBandFiles, unsavedEdits = 0, onPersist, onBandsSettled, onUpdateFound, webSync, onClose, initialSection }) {
   const t = useT()
   const [form, setForm] = useState(config)
   const [section, setSection] = useState(() => (SECTIONS.some(s => s.id === initialSection) ? initialSection : 'general'))
@@ -96,9 +95,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const [mbPlan, setMbPlan] = useState(null)
   const [mbBusy, setMbBusy] = useState(false)
   const [mbError, setMbError] = useState('')
-  // Data & storage ▸ Multi-band mode: open / new set / import band files. The
-  // plan being confirmed (see BandFilesPlan), and how it went.
-  const [bfPlan, setBfPlan] = useState(null)
+  // Data & storage ▸ band files (not combined yet): moving or letting go of
+  // them, and how it went.
   const [bfBusy, setBfBusy] = useState(false)
   const [bfError, setBfError] = useState('')
   const [bfDone, setBfDone] = useState('')
@@ -387,9 +385,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // Web build: a token baked in by the deploy needs no field to type one into.
   const builtInToken = !!api.githubTokenBuiltIn?.()
   // Why the switch can't be flipped right now, if it can't.
-  const mbBlocked = config.storage?.adapter === 'github' && !multiBandOn
-    ? t('Only available with a local CSV file — GitHub storage keeps one file.')
-    : storageDirty ? t('Apply the storage change first.')
+  const mbBlocked = storageDirty ? t('Apply the storage change first.')
       : unsavedEdits > 0 ? t('Save or discard your unsaved venue edit first.|Save or discard your {n} unsaved venue edits first.', { n: unsavedEdits })
         : ''
 
@@ -397,59 +393,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setMbError('')
     setMbBusy(true)
     try {
-      setMbPlan(multiBandOn
-        ? { on: false, ...(await planMerge(config, rows)) }
-        : { on: true, ...(await planSplit(config)) })
+      setMbPlan(await planMerge(config, rows))
     } catch (e) {
       setMbError(e.message)
     } finally {
       setMbBusy(false)
-    }
-  }
-
-  // Pick the file(s), then show what would happen. Nothing changes until the
-  // plan is confirmed.
-  async function prepareBandFiles(kind, fromPath = null) {
-    setBfError('')
-    setBfDone('')
-    setBfPlan(null)
-    try {
-      let plan = null
-      if (kind === 'open') {
-        const picked = fromPath || await api.pickCsvOpen()
-        if (picked) plan = await planOpenBandFiles(picked)
-      } else if (kind === 'newset') {
-        const target = await api.pickCsvSave('booking.csv', t('Name and place for the new band files'))
-        if (target) plan = await planNewBandSet(config, target)
-      } else {
-        const paths = await api.pickCsvOpenMany(t('Choose the band files to import'))
-        if (paths.length) plan = await planImportBandFiles(paths)
-      }
-      // Remember the mode as it was when asked: confirming may switch it on, and
-      // the box should keep describing what the user agreed to.
-      setBfPlan(plan && { ...plan, wasOn: multiBandOn })
-    } catch (e) {
-      setBfError(e.message)
-    }
-  }
-
-  async function confirmBandFiles() {
-    setBfError('')
-    setBfBusy(true)
-    try {
-      if (bfPlan.kind === 'import') {
-        const { saved, added } = await onImportBandFiles(bfPlan)
-        setForm(f => ({ ...f, storage: saved.storage }))
-        setBfDone(t('Added {n} venue entry — close Settings and press Save to write it to the band files.|Added {n} venue entries — close Settings and press Save to write them to the band files.', { n: added }))
-      } else {
-        const saved = await (bfPlan.kind === 'open' ? onOpenBandFiles : onNewBandSet)(bfPlan)
-        setForm(f => ({ ...f, storage: saved.storage }))
-        setBfDone(bfPlan.kind === 'open' ? t('Done — the app now uses these band files.') : t('Done — the new, empty band files are in use.'))
-      }
-    } catch (e) {
-      setBfError(e.message)
-    } finally {
-      setBfBusy(false)
     }
   }
 
@@ -509,7 +457,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setMbError('')
     setMbBusy(true)
     try {
-      const saved = await onSetMultiBand?.(mbPlan.on)
+      const saved = await onCombineBandFiles?.()
       // The panel's form still holds the old storage section; a later Save here
       // would otherwise switch the mode straight back.
       if (saved) setForm(f => ({ ...f, storage: saved.storage }))
@@ -771,96 +719,6 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     </p>
                   </div>
 
-                  {caps.multiBand && (
-                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>{t("Multi-band mode")}</p>
-                    <label className={`flex items-start gap-2 ${mbBlocked || mbBusy ? 'opacity-60' : 'cursor-pointer'}`}>
-                      <input
-                        type="checkbox"
-                        checked={multiBandOn}
-                        disabled={!!mbBlocked || mbBusy || !!mbPlan}
-                        // The box shows the stored state; flipping it only asks.
-                        onChange={prepareMultiBand}
-                        className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {t("Book several bands for the same venue")}
-                        <span className="block text-gray-400 dark:text-gray-500">
-                          {t("Keeps one CSV per band (plus one for venues without a band) and shows them as one list. Venue details — name, type, city, country, contact, email, website, time frame — stay the same across bands; everything else is per band. Switching off merges them back into one CSV.")}
-                        </span>
-                        {mbBlocked && <span className="block text-amber-600 dark:text-amber-400 mt-1">{mbBlocked}</span>}
-                      </span>
-                    </label>
-
-                    {mbPlan && (
-                      <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2 text-xs text-amber-800 dark:text-amber-300">
-                        {mbPlan.on ? (
-                          <>
-                            <p className="font-semibold">{t("This adds")} {mbPlan.files.length} {t("files next to your CSV:")}</p>
-                            <p className="font-mono break-all text-amber-700 dark:text-amber-400">{mbPlan.dir}</p>
-                            <ul className="space-y-0.5">
-                              {mbPlan.files.map(f => (
-                                <li key={f.path} className="flex justify-between gap-3">
-                                  <span className="font-mono truncate">{f.name}</span>
-                                  <span className="shrink-0">{t('{n} venue|{n} venues', { n: f.count })}{f.band ? '' : ` ${t('without a band')}`}</span>
-                                </li>
-                              ))}
-                            </ul>
-                            <p>
-                              {t("Your current CSV,")} <span className="font-mono">{mbPlan.source}</span>{t(", is renamed to")}{' '}
-                              <span className="font-mono">{mbPlan.backup}</span> {t("and no longer used.")}{' '}
-                              <span className="font-semibold">{t("The booking scripts and the web app only know the single CSV")}</span> {t("— they won’t see anything you change while this mode is on.")}
-                            </p>
-                            {mbPlan.clashes.length > 0 && (
-                              <div className="space-y-1.5">
-                                <p className="text-red-700 dark:text-red-400 font-medium">
-                                  {t("Band files are already in that folder:")} {mbPlan.clashes.join(', ')}.
-                                </p>
-                                {mbPlan.files.some(f => mbPlan.clashes.includes(f.name)) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const existing = mbPlan.files.find(f => mbPlan.clashes.includes(f.name))
-                                      setMbPlan(null)
-                                      goToSection('storage')
-                                      prepareBandFiles('open', existing.path)
-                                    }}
-                                    className="font-semibold underline hover:no-underline"
-                                  >
-                                    {t("Use the existing band files instead…")}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <p className="font-semibold">{t("Merge the band files back into one CSV?")}</p>
-                            <p>
-                              {t('Writes')} <span className="font-mono">{mbPlan.targetName}</span>{' '}
-                              {t('with {n} line|with {n} lines', { n: mbPlan.lines })}{' '}
-                              {t('for {n} venue — a venue booked for several bands gets one line per band.|for {n} venues — a venue booked for several bands gets one line per band.', { n: mbPlan.venues })}{' '}
-                              {t('The band files move into the folder')} <span className="font-mono">{mbPlan.backupName}</span>.
-                            </p>
-                          </>
-                        )}
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={confirmMultiBand}
-                            disabled={mbBusy || (mbPlan.on && mbPlan.clashes.length > 0)}
-                            className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50"
-                          >
-                            {mbBusy ? t('Working…') : mbPlan.on ? t('Split into band files') : t('Merge into one CSV')}
-                          </button>
-                          <button type="button" onClick={() => setMbPlan(null)} disabled={mbBusy} className={outlineBtn}>{t("Cancel")}</button>
-                        </div>
-                      </div>
-                    )}
-                    {mbError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{mbError}</p>}
-                  </div>
-                  )}
-
                   {caps.settingsSync && webSync && (
                     <WebSyncSettings webSync={config.webSync} multiBandOn={multiBandOn} {...webSync} />
                   )}
@@ -1072,7 +930,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                         </p>
                       ) : (
                         <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                          {t("Multi-band mode is on: one CSV per band in this folder. Choose another folder to move them there.")}
+                          {t("Your list is still in band files, one CSV per band, in this folder. Booking now keeps every band in one CSV — combine them below; the list looks the same afterwards.")}
                         </p>
                       )}
                       {relocPlan && (
@@ -1101,14 +959,34 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             {t("Let go of the band files")}
                           </button>
                         ) : (
-                          <button type="button" disabled={!!mbBlocked || mbBusy}
-                            onClick={() => { goToSection('general'); prepareMultiBand() }} className={outlineBtn}
-                            title={t("Merge the band files back into one CSV (General ▸ Multi-band mode)")}>
-                            {t("Switch back to a single CSV…")}
+                          <button type="button" disabled={!!mbBlocked || mbBusy || !!mbPlan}
+                            onClick={prepareMultiBand} className={outlineBtn}
+                            title={t("One CSV with a line per venue and band — the list looks the same")}>
+                            {t("Combine into one CSV…")}
                           </button>
                         )}
                       </div>
-                      {bfDone && !bfPlan && <p className="mt-2 text-xs text-green-700 dark:text-green-400">{bfDone}</p>}
+                      {mbBlocked && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{mbBlocked}</p>}
+                      {mbPlan && (
+                        <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2 text-xs text-amber-800 dark:text-amber-300">
+                          <p className="font-semibold">{t("Combine the band files into one CSV?")}</p>
+                          <p>
+                            {t('Writes')} <span className="font-mono">{mbPlan.targetName}</span>{' '}
+                            {t('with {n} line|with {n} lines', { n: mbPlan.lines })}{' '}
+                            {t('for {n} venue — a venue booked for several bands gets one line per band.|for {n} venues — a venue booked for several bands gets one line per band.', { n: mbPlan.venues })}{' '}
+                            {t('The band files move into the folder')} <span className="font-mono">{mbPlan.backupName}</span>.
+                          </p>
+                          <div className="flex gap-2 pt-1">
+                            <button type="button" onClick={confirmMultiBand} disabled={mbBusy}
+                              className="bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-amber-700 transition-colors disabled:opacity-50">
+                              {mbBusy ? t('Working…') : t('Combine into one CSV')}
+                            </button>
+                            <button type="button" onClick={() => setMbPlan(null)} disabled={mbBusy} className={outlineBtn}>{t("Cancel")}</button>
+                          </div>
+                        </div>
+                      )}
+                      {mbError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{mbError}</p>}
+                      {bfDone && <p className="mt-2 text-xs text-green-700 dark:text-green-400">{bfDone}</p>}
                     </div>
                     ) : (
                     <div>
@@ -1147,54 +1025,6 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       {t('Import opens a guided wizard — replace the table or add to it, and match your file’s columns to the app’s. Changes stay in the app until you press Save.')}
                     </p>
                   </div>
-
-                  {caps.multiBand && (
-                  <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <p className={lbl}>
-                      {t("Band files")}
-                      <span className="ml-1.5 inline-block rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("Multi-band mode")}</span>
-                    </p>
-                    <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                      {t("One CSV per band, for booking several bands at the same venue.")}{' '}
-                      {multiBandOn
-                        ? t('Multi-band mode is on.')
-                        : <>{t("Multi-band mode is off —")} <span className="font-medium">{t("each of these switches it on")}</span>{t(", after showing you what it will do.")}</>}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => prepareBandFiles('open')} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
-                        title={t("A set of band files that already exists — from another Mac, or a copy someone sent you")}>
-                        {t("Open band files…")}
-                      </button>
-                      <button type="button" onClick={() => prepareBandFiles('import')} disabled={!!bfBlocked || bfBusy || (!multiBandOn && config.storage?.adapter === 'github')} className={outlineBtn}
-                        title={t("Add the venues of several band files to your list")}>
-                        {t("Import band files…")}
-                      </button>
-                      <button type="button" onClick={() => prepareBandFiles('newset')} disabled={!!bfBlocked || bfBusy} className={outlineBtn}
-                        title={t("Empty band files in a folder you choose; the current files stay as they are")}>
-                        {t("New set of band files…")}
-                      </button>
-                    </div>
-                    <ul className="mt-2 space-y-0.5 text-xs text-gray-400 dark:text-gray-500">
-                      <li><span className="font-medium text-gray-500 dark:text-gray-400">{t("Open")}</span> {t("— use a set of band files that already exists, e.g. from your other Mac. Pick any one of them; the rest of the set is found in its folder.")}</li>
-                      <li><span className="font-medium text-gray-500 dark:text-gray-400">{t("Import")}</span> {t("— add the venues of several band files to your list")}{multiBandOn ? '' : ` ${t('(your current CSV is split into band files first)')}`}.</li>
-                      <li><span className="font-medium text-gray-500 dark:text-gray-400">{t("New set")}</span> {t("— start over with empty band files somewhere else. Your current files are not touched.")}</li>
-                    </ul>
-                    {bfBlocked && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{bfBlocked}</p>}
-                    {!multiBandOn && config.storage?.adapter === 'github' && (
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t("Import needs a local CSV to split first — Open and New set work from GitHub storage too.")}</p>
-                    )}
-                    <BandFilesPlan
-                      plan={bfPlan}
-                      multiBandOn={bfPlan?.wasOn ?? multiBandOn}
-                      busy={bfBusy}
-                      done={bfDone}
-                      error={bfError}
-                      onConfirm={confirmBandFiles}
-                      onCancel={() => { setBfPlan(null); setBfError('') }}
-                    />
-                    {!bfPlan && bfError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{bfError}</p>}
-                  </div>
-                  )}
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>{t("Start over")}</p>
@@ -1357,6 +1187,24 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                       {t("One template per band and language. A venue's Country picks the language through the map in the Languages section; anything unlisted falls back to the default. Templates live in the app's own folder, separate from your settings file.")}
                     </p>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <p className={lbl}>{t("Dates —")} <span className="font-mono">{token('dates')}</span></p>
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={templateOpts.fitDates === true}
+                        onChange={e => setForm(f => ({ ...f, templates: { ...f.templates, fitDates: e.target.checked } }))}
+                        className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {t("Fit the dates to each venue’s Time Frame")}
+                        <span className="block text-gray-400 dark:text-gray-500">
+                          {t("Only the band’s dates that suit the venue go into the email: its weekdays (“Wednesdays”, “Mi/Do/Fr”, “no Sundays”) or its own dates (“14.6.”). When the Time Frame names neither, or nothing fits, the Dates go out as written.")}
+                        </span>
+                      </span>
+                    </label>
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">

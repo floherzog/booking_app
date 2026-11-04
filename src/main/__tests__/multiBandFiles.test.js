@@ -8,7 +8,7 @@ import { join } from 'node:path'
 vi.mock('electron', () => ({ ipcMain: { handle: () => {} }, dialog: {}, BrowserWindow: {} }))
 
 const { readCsvFiles, writeCsvFiles, moveFile, listCsvFiles } = await import('../ipc/storage.js')
-const { planSplit, enableMultiBand, disableMultiBand, planOpenBandFiles, openBandFiles, planNewBandSet, createNewBandSet, planImportBandFiles, planRelocate, relocateBandFiles, forgetBandFiles } = await import('../../renderer/src/lib/multiBandSwitch.js')
+const { planSplit, enableMultiBand, disableMultiBand, planOpenBandFiles, openBandFiles, planRelocate, relocateBandFiles, forgetBandFiles } = await import('../../renderer/src/lib/multiBandSwitch.js')
 const { getAdapter } = await import('../../renderer/src/lib/storageAdapters.js')
 const { linkVenues, isMultiBand } = await import('../../core/multiBand.js')
 
@@ -157,40 +157,6 @@ describe('band files on another Mac', () => {
     await enableMultiBand(settings)
     const backup = readdirSync(dir).find(n => n.includes('before-multiband'))
     await expect(planOpenBandFiles(join(dir, backup))).rejects.toThrow(/backup/)
-  })
-})
-
-describe('a new set of band files', () => {
-  it('creates empty files for every band elsewhere and leaves the current CSV alone', async () => {
-    const elsewhere = join(dir, 'tour2027')
-    const { mkdirSync } = await import('node:fs')
-    mkdirSync(elsewhere)
-    const plan = await planNewBandSet(settings, join(elsewhere, 'tour.csv'))
-    expect(plan.files.map(f => f.name).sort()).toEqual(['tour-Alpha.csv', 'tour-Beta.csv', 'tour-Gamma.csv', 'tour-unassigned.csv'])
-    const storage = await createNewBandSet(settings, plan)
-    expect(readFileSync(join(elsewhere, 'tour-Alpha.csv'), 'utf8').trim().split('\n')).toHaveLength(1)
-    expect(readFileSync(join(dir, 'booking.csv'), 'utf8')).toBe(CSV)
-    const { rows } = await loadAll({ ...settings, storage })
-    expect(rows).toHaveLength(0)
-    // A second time into the same place is refused.
-    expect((await planNewBandSet(settings, join(elsewhere, 'tour.csv'))).clashes).toHaveLength(4)
-  })
-})
-
-describe('importing band files', () => {
-  it('reads several files, keeping each venue on its band', async () => {
-    // Band files as the app writes them: at least the six signature columns.
-    const H = 'Venue;Band;City;Country;Email;Last emailed'
-    writeFileSync(join(dir, 'x-Delta.csv'), `${H}\nClub Neu;;Bremen;Germany;n@x.test;\nKulturfabrik;Delta;Berlin;Germany;k@x.test;\n`)
-    writeFileSync(join(dir, 'x-Epsilon.csv'), `${H}\nJazzclub;Epsilon;Köln;Germany;j@x.test;\n`)
-    const plan = await planImportBandFiles([join(dir, 'x-Delta.csv'), join(dir, 'x-Epsilon.csv')])
-    expect(plan.rows.map(r => `${r.Venue}/${r.Band}`)).toEqual(['Club Neu/Delta', 'Kulturfabrik/Delta', 'Jazzclub/Epsilon'])
-    expect(plan.venues).toBe(3)
-  })
-
-  it('sends a file without the app\'s columns to the Import CSV wizard', async () => {
-    writeFileSync(join(dir, 'foreign.csv'), 'Name,Ort\nClub,Bremen\n')
-    await expect(planImportBandFiles([join(dir, 'foreign.csv')])).rejects.toThrow(/Import CSV/)
   })
 })
 

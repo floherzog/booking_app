@@ -64,6 +64,7 @@ export const UNSUPPORTED = {
   installUpdateAndQuit: 'updates',
   listMailHistory: 'mail',
   readMail: 'mail',
+  readMails: 'mail',
   listDrafts: 'mail',
   deleteDraft: 'mail',
   sendDraft: 'mail',

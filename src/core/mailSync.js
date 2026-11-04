@@ -79,9 +79,10 @@ export function buildSyncEdits(rows = [], { sent = new Map(), replies = new Map(
   return edits
 }
 
-// Multi-band mode: one venue, several bands, possibly several mailboxes. An
-// address alone no longer says which band a message belongs to, so:
-//   - an entry only counts messages from its own band's account (`accountId`);
+// A venue booked for several bands: one venue, several bands, possibly several
+// mailboxes. An address alone no longer says which band a message belongs to, so:
+//   - a venue with one line counts every account's messages, as always;
+//   - otherwise an entry only counts messages from its own band's account (`accountId`);
 //   - when more of the venue's bands use that same account, the subject decides
 //     — a message naming exactly one of those bands belongs to that band;
 //   - a message naming none (or several) counts for all of them, because
@@ -104,6 +105,20 @@ export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } =
   }
   const sentBy = index(sent)
   const repliesBy = index(replies)
+  const byAddress = list => {
+    const out = new Map()
+    for (const m of list) {
+      const key = normalizeAddress(m?.address)
+      const bucket = out.get(key)
+      if (bucket) bucket.push(m)
+      else out.set(key, [m])
+    }
+    return out
+  }
+  const sentAny = byAddress(sent)
+  const repliesAny = byAddress(replies)
+  const lines = new Map()
+  for (const r of rows) lines.set(r._venueId, (lines.get(r._venueId) || 0) + 1)
 
   // The bands each venue has on each account — the ones a subject must tell apart.
   const rivals = new Map()
@@ -132,8 +147,11 @@ export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } =
   for (const row of rows) {
     const address = normalizeAddress(row?.['Email'])
     if (!address) continue
+    const single = row._venueId == null || (lines.get(row._venueId) || 0) < 2
     const key = `${row.accountId || ''}|${address}`
-    edits.push(...editsForRow(row, forRow(sentBy.get(key), row), forRow(repliesBy.get(key), row), { lastEmailed, repliesMode }))
+    const s = single ? sentAny.get(address) : sentBy.get(key)
+    const r = single ? repliesAny.get(address) : repliesBy.get(key)
+    edits.push(...editsForRow(row, forRow(s, row), forRow(r, row), { lastEmailed, repliesMode }))
   }
   return edits
 }

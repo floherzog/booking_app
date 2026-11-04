@@ -1,12 +1,16 @@
-import { parseCsvText, parseCsvRaw, serializeCsv } from '@core/csv'
+import { parseCsvText, serializeCsv } from '@core/csv'
 import { emptyManifest, fileForBand, routeRows, linkVenues, mergeRows, inferBandFileSet } from '@core/multiBand'
-import { looksLikeAppCsv } from '@core/importMap'
 import { bandName } from '@core/bands'
 import { api } from '../platform'
 import { t } from '../i18n'
 
-// Turning multi-band mode on (split one CSV into a file per band) and off
-// (merge them back). Both refuse rather than overwrite anything: the split never
+// Band files: the one-CSV-per-band storage of Booking ≤ 0.18. The app no
+// longer splits a list into them — every band lives in one CSV — but a list
+// still in band files is read until it is combined (disableMultiBand), and the
+// set can be opened on another Mac or followed to a new folder first. The
+// split (planSplit / enableMultiBand) stays for the tests, which build band
+// files with it. Turning multi-band mode on (split one CSV into a file per
+// band) and off (merge them back). Both refuse rather than overwrite anything: the split never
 // writes over an existing file, the original CSV is renamed, not deleted, and
 // the band files are moved into a backup folder when merging back.
 
@@ -156,62 +160,6 @@ export async function planOpenBandFiles(pickedPath) {
 export async function openBandFiles(settings, plan) {
   if (plan.missingUnassigned) await api.createCsvFile(plan.manifest.unassigned)
   return storageFor(settings, plan.manifest, plan.sourcePath)
-}
-
-// --- New set of band files: start empty somewhere else -----------------------
-
-// `savePath`: what the save dialog returned, e.g. ".../Tour 2027/booking.csv" —
-// its folder and name become the set's folder and prefix.
-export async function planNewBandSet(settings, savePath) {
-  const { dir, base } = splitPath(savePath)
-  let manifest = emptyManifest(dir, base)
-  for (const b of settings.bands || []) {
-    if (bandName(b).trim()) manifest = fileForBand(manifest, bandName(b)).manifest
-  }
-  const paths = [manifest.unassigned, ...Object.values(manifest.files)]
-  const clashes = []
-  for (const p of paths) if (await api.fileExists(p)) clashes.push(fileName(p))
-  const bandOf = new Map(Object.entries(manifest.files).map(([band, p]) => [p, band]))
-  return {
-    kind: 'newset', dir, base, manifest, clashes, sourcePath: `${dir}/${base}.csv`,
-    files: paths.map(p => ({ path: p, name: fileName(p), band: bandOf.get(p) || '', count: 0 })),
-  }
-}
-
-export async function createNewBandSet(settings, plan) {
-  if (plan.clashes.length) throw new Error(t('Already in that folder: {files}. Pick another name or folder.', { files: plan.clashes.join(', ') }))
-  await api.writeCsvFiles({
-    files: plan.files.map(f => ({ path: f.path, text: serializeCsv([]), expectedMtimeMs: null })),
-  })
-  return storageFor(settings, plan.manifest, plan.sourcePath)
-}
-
-// --- Import band files: add the venues of several files ----------------------
-
-// → { kind: 'import', rows, files: [{ name, band, count }], venues }. Every file
-// has to be a booking CSV already (app columns): mapping foreign columns is what
-// the single-file Import CSV wizard is for. A venue keeps the Band its file says
-// — a row with an empty Band in a file of one band gets that band.
-export async function planImportBandFiles(paths) {
-  if (!paths?.length) return null
-  const read = await api.readCsvFiles(paths)
-  const rows = []
-  const files = []
-  for (const { path, text, missing } of read) {
-    const name = fileName(path)
-    if (missing) throw new Error(t('{name} could not be read.', { name }))
-    const { headers } = await parseCsvRaw(text)
-    if (!looksLikeAppCsv(headers)) {
-      throw new Error(t('{name} doesn’t have the app’s columns. Import it on its own with Import CSV…, which lets you match its columns.', { name }))
-    }
-    const fileRows = await parseCsvText(text)
-    const bands = distinctBands(fileRows)
-    const band = bands.length === 1 ? bands[0] : ''
-    for (const r of fileRows) rows.push(band && !r['Band'] ? { ...r, Band: band } : r)
-    files.push({ name, band: bands.length > 1 ? t('{n} bands', { n: bands.length }) : band, count: fileRows.length })
-  }
-  const venues = new Set(linkVenues(rows).map(r => r._venueId)).size
-  return { kind: 'import', rows, files, venues }
 }
 
 // --- Moving the set: the band files' folder was moved, or should be ----------

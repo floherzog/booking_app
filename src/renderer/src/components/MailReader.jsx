@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../platform'
+import { readMail, cachedMail } from '../lib/mailBodies'
 import { useT } from '../i18n'
 import { useEscape } from '../lib/useEscape'
 import { formatDay } from '@core/parseDate'
@@ -24,13 +25,14 @@ const who = p => (p?.name ? `${p.name} <${p.address}>` : p?.address || '')
 // subject, … }); the body is fetched when it opens.
 export default function MailReader({ message, onClose }) {
   const t = useT()
-  const [mail, setMail] = useState(null)
+  // A body read ahead (lib/mailBodies.js) shows at once.
+  const [mail, setMail] = useState(() => cachedMail(message))
   const [error, setError] = useState('')
   useEscape(onClose)
 
   useEffect(() => {
     let alive = true
-    api.readMail({ accountId: message.accountId, mailbox: message.mailbox, uid: message.uid })
+    readMail(message)
       .then(r => { if (!alive) return; if (r?.error) setError(r.error); else setMail(r) })
       .catch(e => { if (alive) setError(e.message) })
     return () => { alive = false }

@@ -47,8 +47,10 @@ describe('datesForVenue', () => {
     expect(datesForVenue('Juni 2027', 'Fridays').narrowed).toBe(false)
     expect(datesForVenue('16.6.27', 'Wednesdays').narrowed).toBe(false)
   })
-  it('fills {{dates}}', () => {
+  it('fills {{dates}} only when switched on', () => {
     const row = { Dates: TOUR, 'Time Frame': 'dienstags' }
-    expect(substitutePlaceholders('am {{dates}}', row).text).toBe('am 15.6.27 & 4.4.28')
+    expect(substitutePlaceholders('am {{dates}}', row, { fitDates: true }).text).toBe('am 15.6.27 & 4.4.28')
+    // Off (the default): the Dates as written.
+    expect(substitutePlaceholders('am {{dates}}', row).text).toBe(`am ${TOUR}`)
   })
 })

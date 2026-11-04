@@ -2,8 +2,7 @@ import { ipcMain } from 'electron'
 import { readSettings } from '../settingsStore.js'
 import { withImapClient, resolveSentMailbox, friendlyMailError } from './mailImap.js'
 import { normalizeAccounts, accountLabel } from '../../core/mailAccounts.js'
-import { latestByAddress, buildSyncEdits, buildMultiBandSyncEdits, scanSince } from '../../core/mailSync.js'
-import { isMultiBand } from '../../core/multiBand.js'
+import { buildMultiBandSyncEdits, scanSince } from '../../core/mailSync.js'
 
 // Reading the mail account to keep the CSV's date columns honest.
 //
@@ -136,12 +135,9 @@ export async function runMailSync(rows = []) {
     lastEmailed: wantSent ? 'imap' : 'off',
     repliesMode: wantReplies ? 'imap' : 'off',
   }
-  const edits = isMultiBand(settings)
-    ? buildMultiBandSyncEdits(rows, { sent: sentMessages, replies: inboxMessages }, opts)
-    : buildSyncEdits(rows, {
-      sent: latestByAddress(sentMessages),
-      replies: latestByAddress(inboxMessages),
-    }, opts)
+  // A venue's lines are linked by _venueId; one booked for several bands has
+  // its messages told apart by account and subject (core/mailSync.js).
+  const edits = buildMultiBandSyncEdits(rows, { sent: sentMessages, replies: inboxMessages }, opts)
 
   return {
     edits,

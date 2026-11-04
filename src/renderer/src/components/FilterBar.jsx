@@ -71,7 +71,7 @@ export default function FilterBar({
   const hasFilters = !isEmptyFilters(filters)
   const clear = () => onChange(EMPTY_FILTERS)
 
-  const btn = 'shrink-0 flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border transition-colors'
+  const btn = 'shrink-0 flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-1 rounded-md border transition-colors'
   const btnIdle = 'bg-white border-gray-300 text-gray-600 hover:border-gray-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500'
 
   // The pieces, drawn in the toolbar and again in the pinned bar.
@@ -127,7 +127,7 @@ export default function FilterBar({
   const newVenue = (
     <button
       onClick={onNewVenue}
-      className="shrink-0 flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+      className="shrink-0 flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1 rounded-md transition-colors"
     >
       <span className="text-base leading-none">+</span>
       <span className="hidden sm:inline">{t("New Venue")}</span>
@@ -179,16 +179,18 @@ export default function FilterBar({
   return (
     <>
       {/* Narrowing on the left, the actions on their own panel on the right.
-          The left block gets the panel's padding too, so the rows line up. */}
-      <div ref={barRef} className="flex gap-3 items-start">
-        <div className="flex-1 min-w-0 py-1.5 space-y-2">
+          The panel is exactly as tall as the left block — its top level with
+          the search field, its bottom with the dropdowns — and its two rows
+          of buttons share that height. */}
+      <div ref={barRef} className="flex gap-3 items-stretch">
+        <div className="flex-1 min-w-0 space-y-2">
           <div className="flex gap-2">
             {search}
             {clearButton}
           </div>
           <div className="flex gap-2 items-center">{dropdowns}</div>
         </div>
-        <div className="shrink-0 grid grid-cols-2 gap-2 p-1.5 rounded-lg bg-gray-100 border border-gray-200 dark:bg-gray-800/60 dark:border-gray-700/70">
+        <div className="shrink-0 grid grid-cols-2 grid-rows-2 gap-1.5 p-1 rounded-lg bg-gray-100 border border-gray-200 dark:bg-gray-800/60 dark:border-gray-700/70">
           <div className="col-start-1 row-start-1 grid">{select}</div>
           <div className="col-start-2 row-start-1 grid">{filterButton(() => setAdvancedOpen(o => !o))}</div>
           <div className="col-start-1 row-start-2 grid">{email}</div>

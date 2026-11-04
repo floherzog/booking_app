@@ -3,8 +3,7 @@ import { t, useT } from '../i18n'// The confirmation for the multi-band file act
 // band files, starting a new set, importing several band files. It always says
 // that this is multi-band mode, whether the mode gets switched on, and what
 // happens to which files, before anything is touched.
-// `plan` comes from lib/multiBandSwitch (planOpenBandFiles / planNewBandSet /
-// planImportBandFiles).
+// `plan` comes from lib/multiBandSwitch (planOpenBandFiles).
 // `fresh`: shown on the first-run screen, where there is no current CSV to mention.
 export default function BandFilesPlan({ plan, multiBandOn, fresh = false, busy, done, error, onConfirm, onCancel }) {
   const t = useT()

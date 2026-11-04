@@ -9,7 +9,7 @@ import { computeDuplicates, dismissPair } from '@core/duplicates'
 import { bandDateGaps, gapsKey, agreedDates, keepKey } from '@core/bandDates'
 import { EMPTY_FILTERS, matchesFilters, normalizeFilterChips } from '@core/filterRows'
 import { linkVenues, reconcileShared, isMultiBand, isSharedField, SHARED_FIELDS } from '@core/multiBand'
-import { enableMultiBand, disableMultiBand, openBandFiles, createNewBandSet, relocateBandFiles, forgetBandFiles } from './lib/multiBandSwitch'
+import { disableMultiBand, planMerge, relocateBandFiles, forgetBandFiles } from './lib/multiBandSwitch'
 import { mergeRules } from '@core/rules'
 import { RulesProvider, ClassifyProvider } from './lib/rulesContext'
 import { getAdapter, isStorageConfigured } from './lib/storageAdapters'
@@ -22,6 +22,7 @@ import { formatDateDDMMYY } from '@core/parseDate'
 import { withEmailCounters } from '@core/emailCounters'
 import { matchDrafts, draftCounts } from '@core/draftMatch'
 import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
+import { preloadMail } from './lib/mailBodies'
 import StatsBar, { columnLabel as statsColumnLabel } from './components/StatsBar'
 import FilterBar from './components/FilterBar'
 import BackToTop from './components/BackToTop'
@@ -129,7 +130,11 @@ export default function App() {
 
   const today = useMemo(() => new Date(), [])
   const rules = useMemo(() => mergeRules(settings?.rules), [settings])
-  const multiBand = isMultiBand(settings)
+  // A venue booked for several bands has one line per band in the CSV; the
+  // lines are linked into one venue (core/multiBand.js) and share its details.
+  // `bandFiles`: the list is still in the old one-CSV-per-band files, which are
+  // read and written until the user combines them (BandFilesNotice).
+  const bandFiles = isMultiBand(settings)
   // What classifying needs beyond the rules: the venue-type rules, which bands
   // have Dates, and — once the app has templates of its own — which bands have
   // one. A list drafted elsewhere (OpenClaw) has no templates here, so then
@@ -191,14 +196,14 @@ export default function App() {
       setNeedsToken(false)
       const multi = isMultiBand(s)
       const ctx = classifyContext(s, templatesRef.current)
-      const classified = linkVenues(raw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, activeRules, ctx) })), multi)
+      const classified = linkVenues(raw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, activeRules, ctx) })))
       const nextBatchSet = computeNextBatch(classified, today, activeRules)
       const loaded = classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, ctx) }))
       setRows(loaded)
-      // Band files that disagree about a venue's shared data (edited outside the
-      // app, or separate rows before the split) are made to agree — staged, like
-      // a mail sync, so nothing reaches the files before Save.
-      const fixes = multi ? reconcileShared(classified) : []
+      // Lines of one venue that disagree about its shared data (edited outside
+      // the app) are made to agree — staged, like a mail sync, so nothing
+      // reaches the file before Save.
+      const fixes = reconcileShared(classified)
       const staged = {}
       for (const f of fixes) staged[f._idx] = { ...staged[f._idx], [f.field]: f.value }
       setEdits(staged)
@@ -486,10 +491,9 @@ export default function App() {
   // venue rows (Dates column). Applied as
   // normal unsaved edits — they reach the CSV only via the existing Save flow.
   async function propagateBandChanges(oldBands, newBands) {
-    // Multi-band mode: a band renamed in place (same position in the list, the
-    // old name gone) is offered to its venues too, and its file follows it —
-    // otherwise its venues would keep the old name and the old file.
-    if (multiBand && oldBands?.length === newBands.length) {
+    // A band renamed in place (same position in the list, the old name gone)
+    // is offered to its venues too (and, with band files, its file follows it).
+    if (oldBands?.length === newBands.length) {
       const newNames = new Set(newBands.map(b => b.name))
       for (const [i, nb] of newBands.entries()) {
         const from = oldBands[i]?.name
@@ -498,7 +502,9 @@ export default function App() {
         if (!matching.length) continue
         const ok = await confirm({
           title: t('Rename “{from}” to “{to}” on its venues too?', { from, to: nb.name }),
-          message: t('{n} venue still says “{from}”. Its band file keeps its name.|{n} venues still say “{from}”. Its band file keeps its name.', { n: matching.length, from }),
+          message: bandFiles
+            ? t('{n} venue still says “{from}”. Its band file keeps its name.|{n} venues still say “{from}”. Its band file keeps its name.', { n: matching.length, from })
+            : t('{n} venue still says “{from}”.|{n} venues still say “{from}”.', { n: matching.length, from }),
           cancelLabel: t('Not now'),
           choices: [{ value: true, label: t('Rename on {n} venue|Rename on {n} venues', { n: matching.length }) }],
         })
@@ -553,34 +559,24 @@ export default function App() {
     await load()
   }
 
-  // Settings ▸ General ▸ Multi-band mode. Both directions rewrite files and the
-  // storage settings, so they refuse while there are unsaved edits (the panel
-  // says so) and reload from disk afterwards. Returns the stored settings so the
-  // still-open panel can adopt the new storage section.
-  async function handleSetMultiBand(on) {
+  // Band files (the old one-CSV-per-band storage) → one CSV, a line per venue
+  // and band, so the list looks exactly as before. Rewrites files and the
+  // storage settings, so it refuses while there are unsaved edits, and reloads
+  // afterwards. Returns the stored settings for a still-open Settings panel.
+  async function handleCombineBandFiles() {
     if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
-    const storage = on
-      ? await enableMultiBand(settings)
-      : await disableMultiBand(settings, rows)
-    const saved = await persist({ ...settings, storage })
+    const saved = await persist({ ...settings, storage: await disableMultiBand(settings, rows) })
     await load(saved)
     return saved
   }
 
-  // Settings ▸ Data & storage ▸ Multi-band mode, and the first-run screen. Each
-  // rewrites the storage section and reloads, so — like the switch — they wait
-  // for unsaved edits to be saved or discarded. All return the stored settings
-  // for the still-open panel to adopt.
+  // Settings ▸ Data & storage, for band files not combined yet. Each rewrites
+  // the storage section and reloads, so it waits for unsaved edits to be saved
+  // or discarded. Returns the stored settings for the still-open panel.
   async function switchStorage(storage) {
     const saved = await persist({ ...settings, storage })
     await load(saved)
     return saved
-  }
-
-  // Use a set of band files that already exists (found from the one picked).
-  async function handleOpenBandFiles(plan) {
-    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
-    return switchStorage(await openBandFiles(settings, plan))
   }
 
   // The band files' folder moved (or should): see planRelocate.
@@ -593,28 +589,6 @@ export default function App() {
   async function handleForgetBandFiles() {
     if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
     return switchStorage(forgetBandFiles(settings))
-  }
-
-  // Start a new, empty set of band files somewhere else; the current files stay.
-  async function handleNewBandSet(plan) {
-    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
-    return switchStorage(await createNewBandSet(settings, plan))
-  }
-
-  // Add the venues of several band files. With multi-band mode off it is
-  // switched on first (the current CSV is split, as in General), and the
-  // venues are added to the list that produced. Staged: they reach the band
-  // files on Save, like any import. → { saved, added }
-  async function handleImportBandFiles(plan) {
-    if (editCount > 0) throw new Error(t('Save or discard your unsaved changes first.'))
-    let saved = settings
-    let base = rows
-    if (!multiBand) {
-      saved = await persist({ ...settings, storage: await enableMultiBand(settings) })
-      base = (await load(saved)) || []
-    }
-    const added = appendImported(base, plan.rows, true)
-    return { saved, added }
   }
 
   async function runWebSync({ first, force = false } = {}) {
@@ -745,10 +719,10 @@ export default function App() {
     const changes = [[rowIndex, field, value]]
 
     if (field === 'Band' && value) {
-      // Multi-band mode: a venue has each band at most once. Moving this entry
-      // to a band another of its entries already has would merge two files'
-      // worth of history into one line, so it is refused.
-      if (multiBand && originalRow) {
+      // A venue has each band at most once. Moving this entry to a band
+      // another of its entries already has would merge two lines' worth of
+      // history into one, so it is refused.
+      if (originalRow) {
         const clash = rows.some(r => r._venueId === originalRow._venueId && r._idx !== rowIndex
           && !deletions.has(r._idx) && (edits[r._idx]?.['Band'] ?? r['Band']) === value)
         if (clash) { setError(t('{venue} already has {band}.', { venue: originalRow['Venue'] || t('This venue'), band: value })); return }
@@ -761,7 +735,7 @@ export default function App() {
 
     // Raw venue data is the same on every band of a venue, so an edit to it is
     // an edit to all of the venue's entries.
-    if (multiBand && isSharedField(field) && originalRow) {
+    if (isSharedField(field) && originalRow) {
       for (const r of rows) {
         if (r._venueId === originalRow._venueId && r._idx !== rowIndex) changes.push([r._idx, field, value])
       }
@@ -812,17 +786,17 @@ export default function App() {
     // fresh adapter for that path, so the very next Save writes the imported
     // table back to the file it came from.
     // Multi-band mode reads its band files, not one CSV, so there is nothing to adopt.
-    if (adoptPath && !multiBand) {
+    if (adoptPath && !bandFiles) {
       setMissingFile(null)
       const saved = await persist({ ...settings, storage: { ...settings.storage, adapter: 'file', filePath: adoptPath } })
       setAdapter(getAdapter(saved))
     }
     if (mode === 'add') {
-      appendImported(rows, importedRaw, multiBand)
+      appendImported(rows, importedRaw)
       return
     }
     // replace
-    const classified = linkVenues(importedRaw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, rules, classifyCtx) })), multiBand)
+    const classified = linkVenues(importedRaw.map((r, i) => ({ ...r, _idx: i, _status: classifyBooking(r, today, rules, classifyCtx) })))
     const nextBatchSet = computeNextBatch(classified, today, rules)
     setRows(classified.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) })))
     setEdits({})
@@ -833,14 +807,13 @@ export default function App() {
   // The venue, with every band it has.
   // Append imported rows as new venues with fresh _idx past the current max,
   // keeping existing rows and any unsaved edits/deletions. Tracked in
-  // `additions` so they show in — and enable — the Save flow. `baseRows` and
-  // `multi` are explicit because a caller may have just reloaded or switched
-  // multi-band mode on, which this render's state does not know yet.
+  // `additions` so they show in — and enable — the Save flow. An imported line
+  // for a venue already in the list with another band joins that venue.
   // → the number of venues added.
-  function appendImported(baseRows, importedRaw, multi) {
+  function appendImported(baseRows, importedRaw) {
     const nextIdx = baseRows.reduce((max, r) => Math.max(max, r._idx), -1) + 1
     const appended = importedRaw.map((r, i) => ({ ...r, _idx: nextIdx + i }))
-    const merged = linkVenues([...baseRows, ...appended], multi).map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
+    const merged = linkVenues([...baseRows, ...appended]).map(r => ({ ...r, _status: classifyBooking(r, today, rules, classifyCtx) }))
     const nextBatchSet = computeNextBatch(merged, today, rules)
     setRows(merged.map(r => ({ ...r, _nextBatch: nextBatchSet.has(r._idx), _missingSeverity: getMissingSeverity(r, classifyCtx) })))
     setAdditions(prev => new Set([...prev, ...appended.map(r => r._idx)]))
@@ -854,9 +827,9 @@ export default function App() {
     setVenueDetail(null)
   }
 
-  // Multi-band mode: book this venue for another band too. A venue that has no
-  // band yet just gets one; otherwise a new entry starts with the venue's shared
-  // data and nothing else. → the _idx to show.
+  // Book this venue for another band too. A venue that has no band yet just
+  // gets one; otherwise a new line starts with the venue's shared data and
+  // nothing else, right below the venue's other lines. → the _idx to show.
   function handleAddBand(rowIndex, bandName) {
     const row = rows.find(r => r._idx === rowIndex)
     if (!row || !bandName) return rowIndex
@@ -877,14 +850,16 @@ export default function App() {
       _venueId: row._venueId,
     }
     const classifiedEntry = { ...entry, _status: classifyBooking(entry, today, rules, classifyCtx), _nextBatch: false, _missingSeverity: getMissingSeverity(entry, classifyCtx) }
-    setRows(prev => [...prev, classifiedEntry])
+    setRows(prev => {
+      const at = prev.findLastIndex(r => r._venueId === row._venueId)
+      return at < 0 ? [...prev, classifiedEntry] : [...prev.slice(0, at + 1), classifiedEntry, ...prev.slice(at + 1)]
+    })
     setAdditions(prev => new Set([...prev, newIdx]))
     return newIdx
   }
 
-  // Multi-band mode: stop booking this venue for one band. The venue itself
-  // stays — its last band is cleared rather than deleted, which moves it to the
-  // unassigned file. → the _idx to show next.
+  // Stop booking this venue for one band. The venue itself stays — its last
+  // band is cleared rather than deleted. → the _idx to show next.
   function handleRemoveBand(rowIndex) {
     const row = rows.find(r => r._idx === rowIndex)
     const others = rows.filter(r => r._venueId === row?._venueId && r._idx !== rowIndex && !deletions.has(r._idx))
@@ -965,6 +940,38 @@ export default function App() {
 
   const editCount = Object.values(edits).reduce((sum, f) => sum + Object.keys(f).length, 0) + deletions.size + additions.size
 
+  // Band files from before 0.19 (one CSV per band): offered once per launch to
+  // be combined into one CSV. Venues booked for several bands keep a line per
+  // band, so the list looks the same afterwards. "Later" keeps the band files
+  // working; Settings ▸ Data & storage offers it again.
+  const askedCombine = useRef(false)
+  useEffect(() => {
+    if (!bandFiles || loading || askedCombine.current || rows.length === 0) return
+    askedCombine.current = true
+    ;(async () => {
+      try {
+        const plan = await planMerge(settings, rows)
+        const pending = editCount > 0
+        const pick = await confirm({
+          title: t('Combine your band files into one CSV?'),
+          message: [
+            t('Booking now keeps every band in one CSV. A venue booked for several bands gets one line per band and still shows as one venue with all its bands — the list looks exactly as before.'),
+            t('Writes {file}; the band files move into the folder {folder}.', { file: plan.targetName, folder: plan.backupName }),
+            pending ? t('Save or discard your unsaved changes first, then combine in Settings ▸ Data & storage.') : '',
+          ].filter(Boolean).join(' '),
+          cancelLabel: t('Later'),
+          choices: pending ? [] : [{ value: true, label: t('Combine into one CSV') }],
+        })
+        if (!pick) return
+        const saved = await handleCombineBandFiles()
+        setSyncNote({ text: t('Done — your list is now one CSV: {path}', { path: saved.storage.filePath }), tone: 'info' })
+      } catch (e) {
+        setError(e.message)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bandFiles, loading, rows.length])
+
   // Quit and install (update banner): unsaved venue edits would go with the app.
   async function confirmQuitForUpdate() {
     if (!editCount) return true
@@ -1036,7 +1043,7 @@ export default function App() {
     })
     // Multi-band mode: the merged-away venue's other bands come along — same
     // venue data as the one kept, and grouped under it from now on.
-    if (multiBand && deleteRow) {
+    if (deleteRow) {
       const movers = rows.filter(r => r._venueId === deleteRow._venueId && r._idx !== deleteIdx && !deletions.has(r._idx))
       if (movers.length) {
         applyEdits(movers.flatMap(r => SHARED_FIELDS
@@ -1054,10 +1061,15 @@ export default function App() {
   const isDuplicate = useCallback(r => duplicateSet.has(venueRep.get(r._venueId)), [duplicateSet, venueRep])
   const liveRows = useMemo(() => rows.filter(r => !deletions.has(r._idx)), [rows, deletions])
   // _idx → drafts waiting in Mail for that venue; null until Mail was asked.
-  const draftsWaiting = useMemo(
-    () => (caps.mail && mailDrafts ? draftCounts(matchDrafts(mailDrafts, liveRows, settings)) : null),
+  const matchedDrafts = useMemo(
+    () => (caps.mail && mailDrafts ? matchDrafts(mailDrafts, liveRows, settings) : null),
     [mailDrafts, liveRows, settings],
   )
+  const draftsWaiting = useMemo(() => (matchedDrafts ? draftCounts(matchedDrafts) : null), [matchedDrafts])
+  // Their bodies are read ahead, so opening one in the Email window is instant.
+  useEffect(() => {
+    if (matchedDrafts?.length) preloadMail(matchedDrafts.map(m => m.draft))
+  }, [matchedDrafts])
 
   // Bands, venue types and countries the CSV uses that Settings doesn't list —
   // one banner each, minus what a banner's × already hid. Countries only matter
@@ -1490,12 +1502,9 @@ export default function App() {
           onOpenTemplates={() => { setShowSettings(false); setCameFromSettings(true); setShowTemplates(true) }}
           onSave={handleSettingsSave}
           onNewCsv={handleNewCsv}
-          onSetMultiBand={handleSetMultiBand}
-          onOpenBandFiles={handleOpenBandFiles}
+          onCombineBandFiles={handleCombineBandFiles}
           onRelocateBandFiles={handleRelocateBandFiles}
           onForgetBandFiles={handleForgetBandFiles}
-          onNewBandSet={handleNewBandSet}
-          onImportBandFiles={handleImportBandFiles}
           unsavedEdits={editCount}
           onPersist={form => persist({ ...settings, ...form })}
           onBandsSettled={propagateBandChanges}
@@ -1537,7 +1546,7 @@ export default function App() {
       {showImport && (
         <ImportWizard
           rows={rows}
-          multiBand={multiBand}
+          multiBand={bandFiles}
           onImport={handleImport}
           onBack={cameFromSettings ? () => { setShowImport(false); setCameFromSettings(false); setShowSettings(true) } : null}
           onClose={() => { setShowImport(false); setCameFromSettings(false) }}
@@ -1587,7 +1596,7 @@ export default function App() {
           onSave={() => setShowSave(true)}
           editCount={editCount}
           duplicatePartners={duplicatePartners[venueRep.get(rows.find(r => r._idx === venueDetail)?._venueId)] || []}
-          multiBand={multiBand}
+          multiBand
           entries={rows.filter(r => r._venueId === rows.find(x => x._idx === venueDetail)?._venueId && !deletions.has(r._idx))}
           onSelectEntry={setVenueDetail}
           onAddBand={band => setVenueDetail(handleAddBand(venueDetail, band))}

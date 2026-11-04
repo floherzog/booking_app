@@ -76,6 +76,9 @@ export const DEFAULT_TEMPLATE_OPTIONS = {
   // Apple's on-device model supplies. 'off' leaves the placeholder unresolved and
   // flagged; nothing here ever reaches the network.
   germanArticles: 'ondevice',      // 'ondevice' | 'off'
+  // {{dates}} narrowed to what the venue's Time Frame allows (venueDates.js):
+  // its weekdays or its own dates. Off: the Dates go out as written.
+  fitDates: false,
 }
 
 function norm(s) {
@@ -92,6 +95,7 @@ export function contactOptionsFor(row, settings) {
     contactStyle: CONTACT_STYLES.includes(opts.contactStyle) ? opts.contactStyle : 'full',
     language,
     contactFallback: fallbacks[language] ?? fallbacks[norm(settings?.languages?.default) || 'en'] ?? '',
+    fitDates: opts.fitDates === true,
   }
 }
 
@@ -236,9 +240,10 @@ export function substitutePlaceholders(str, row, opts = {}) {
     }
     const field = PLACEHOLDER_FIELDS[name]
     if (!field) return match // not one of ours — leave it alone
-    // {{dates}}: the band's Dates, narrowed to the venue's weekdays or own
-    // dates from its Time Frame (venueDates.js).
-    const value = name === 'dates'
+    // {{dates}}: with `fitDates` (Settings ▸ Mail templates), the band's Dates
+    // narrowed to the venue's weekdays or own dates from its Time Frame
+    // (venueDates.js).
+    const value = name === 'dates' && opts.fitDates
       ? datesForVenue(row?.[field], row?.['Time Frame']).text
       : (row?.[field] ?? '').trim()
 

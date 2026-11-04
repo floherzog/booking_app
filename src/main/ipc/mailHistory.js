@@ -132,6 +132,31 @@ export function registerMailHistoryIpc() {
     }
     return { messages: mergeHistory(lists), failures }
   })
+  // Several messages at once — the drafts' bodies, read ahead so opening one is
+  // instant. One login per account (accounts side by side), the messages one
+  // after another on it. → [{ accountId, mailbox, uid, mail } | { …, error }]
+  ipcMain.handle('mailHistory:readMany', async (_e, refs = []) => {
+    const byAccount = new Map()
+    for (const ref of (Array.isArray(refs) ? refs : []).slice(0, 200)) {
+      const list = byAccount.get(ref.accountId) || []
+      list.push(ref)
+      byAccount.set(ref.accountId, list)
+    }
+    const results = await Promise.all([...byAccount].map(async ([accountId, list]) => {
+      try {
+        return await withImapClient(accountFor(accountId), async client => {
+          const out = []
+          for (const ref of list) {
+            try { out.push({ ...ref, mail: await readWith(client, ref.mailbox, ref.uid) } ) } catch (e) { out.push({ ...ref, error: e.message }) }
+          }
+          return out
+        })
+      } catch (e) {
+        return list.map(ref => ({ ...ref, error: friendlyMailError(e) }))
+      }
+    }))
+    return results.flat()
+  })
   ipcMain.handle('mailHistory:read', async (_e, { accountId, mailbox, uid } = {}) => {
     try {
       return await withImapClient(accountFor(accountId), client => readWith(client, mailbox, uid))

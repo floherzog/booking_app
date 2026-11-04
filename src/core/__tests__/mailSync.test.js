@@ -154,3 +154,20 @@ describe('buildMultiBandSyncEdits', () => {
     expect(edits.every(e => e.field === 'Status')).toBe(true)
   })
 })
+
+describe('linked venues and accounts', async () => {
+  const { buildMultiBandSyncEdits: build } = await import('@core/mailSync')
+  it('a venue with one line counts mail from every account', () => {
+    const rows = [{ _idx: 0, _venueId: 'v0', Email: 'a@club.de', Band: 'Juno', accountId: 'one', 'Last emailed': '' }]
+    const sent = [{ address: 'a@club.de', date: new Date(2026, 9, 1), accountId: 'two', subject: 'Anfrage' }]
+    expect(build(rows, { sent, replies: [] }).map(e => e.value)).toEqual(['01.10.26'])
+  })
+  it('a venue with several bands only counts each band’s own account', () => {
+    const rows = [
+      { _idx: 0, _venueId: 'v0', Email: 'a@club.de', Band: 'Juno', accountId: 'one', 'Last emailed': '' },
+      { _idx: 1, _venueId: 'v0', Email: 'a@club.de', Band: 'Trio', accountId: 'two', 'Last emailed': '' },
+    ]
+    const sent = [{ address: 'a@club.de', date: new Date(2026, 9, 1), accountId: 'two', subject: 'Anfrage' }]
+    expect(build(rows, { sent, replies: [] }).map(e => e._idx)).toEqual([1])
+  })
+})
