@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { statusMeta, chipStyle, customChipStyle, useChipColors, PALETTE } from '../lib/palette'
-import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOnlineForm, describeStatus } from '@core/constants'
+import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOtherChannel, isPhoneOnly, describeStatus } from '@core/constants'
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
 import { useRules, useClassifyCtx } from '../lib/rulesContext'
 import { describeBatchRule } from '@core/logicTree'
@@ -42,6 +42,11 @@ const SHORTCUT_STYLE = {
     on: 'bg-cyan-600 text-white border-cyan-600 dark:bg-cyan-500 dark:border-cyan-500',
     off: 'bg-transparent text-cyan-700 border-cyan-300 hover:border-cyan-400 hover:bg-cyan-50 dark:text-cyan-400 dark:border-cyan-800 dark:hover:border-cyan-600 dark:hover:bg-cyan-900/20',
   },
+  phoneOnly: {
+    badge: PALETTE.violet.badge,
+    on: 'bg-violet-600 text-white border-violet-600 dark:bg-violet-500 dark:border-violet-500',
+    off: 'bg-transparent text-violet-700 border-violet-300 hover:border-violet-400 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:hover:border-violet-600 dark:hover:bg-violet-900/20',
+  },
   autoSend: {
     badge: PALETTE.teal.badge,
     on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
@@ -54,7 +59,8 @@ const SHORTCUT_TITLES = {
   actionOnly: () => t('Every venue to write to now: Send, Follow up and Never contacted together.'),
   nextBatch: rules => `${describeBatchRule(rules, t)} ${t('Venues you flagged Next Batch yourself are included too.')}`,
   missingInfo: () => t('Venues with something missing — everything behind the “Missing info” status, plus a missing contact or location, which don’t stop an email.'),
-  onlineForm: () => t('Venues that only take enquiries through a form on their website. They keep their status but are never drafted.'),
+  onlineForm: () => t('Venues you reach some other way than email: a form on their website, Instagram, WhatsApp and the like. They keep their status but are never drafted.'),
+  phoneOnly: () => t('Venues you can only reach by phone. They keep their status but are never drafted.'),
   duplicate: () => t('Venues in the same city with very similar names — probably one place entered twice. Open one to merge them, or mark them as not a duplicate.'),
   autoSend: () => t('Venues flagged Auto: an email run set to “Auto column decides” sends to them straight away instead of drafting.'),
 }
@@ -144,7 +150,8 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
       // Next batch folds in manually flagged "Draft" venues (see row dots).
       nextBatch: rows.filter(r => r._nextBatch || r['Draft'] === 'TRUE').length,
       missingInfo: rows.filter(r => getMissingFields(r, classify).length > 0).length,
-      onlineForm: rows.filter(isOnlineForm).length,
+      onlineForm: rows.filter(isOtherChannel).length,
+      phoneOnly: rows.filter(isPhoneOnly).length,
       duplicate: duplicateCount,
       autoSend: rows.filter(r => r['Auto'] === 'TRUE').length,
     }

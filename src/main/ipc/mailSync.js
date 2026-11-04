@@ -119,19 +119,18 @@ export async function runMailSync(rows = []) {
   const inboxMessages = []
   const failures = []
 
-  for (const account of accounts) {
-    // An account with no username was never set up; skip it silently rather than
-    // reporting a failure the user did not cause.
-    if (!account.user) continue
-    try {
-      const { sent, inbox } = await scanAccount(account, { since, wantSent, wantReplies })
-      // Tagged so multi-band mode can match each band to its own mailbox.
-      sentMessages.push(...sent.map(m => ({ ...m, accountId: account.id })))
-      inboxMessages.push(...inbox.map(m => ({ ...m, accountId: account.id })))
-    } catch (e) {
-      failures.push(`${accountLabel(account)}: ${e.message}`)
-    }
-  }
+  // An account with no username was never set up; skip it silently rather than
+  // reporting a failure the user did not cause. The others are scanned side by
+  // side: each is its own server login.
+  const live = accounts.filter(a => a.user)
+  const results = await Promise.allSettled(live.map(account => scanAccount(account, { since, wantSent, wantReplies })))
+  results.forEach((r, i) => {
+    const account = live[i]
+    if (r.status === 'rejected') { failures.push(`${accountLabel(account)}: ${r.reason?.message || r.reason}`); return }
+    // Tagged so multi-band mode can match each band to its own mailbox.
+    sentMessages.push(...r.value.sent.map(m => ({ ...m, accountId: account.id })))
+    inboxMessages.push(...r.value.inbox.map(m => ({ ...m, accountId: account.id })))
+  })
 
   const opts = {
     lastEmailed: wantSent ? 'imap' : 'off',

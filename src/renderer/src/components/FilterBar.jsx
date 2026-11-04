@@ -7,9 +7,11 @@ import { t, useT } from '../i18n'
 
 const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
 
-// Search and the list's actions on the first row — picking venues (Select) and
-// writing to them (Email: the bulk dialog; Mac only) next to Filter / Chips
-// and + New Venue — and the Band / Country / Type dropdowns on the second.
+// Two blocks side by side. On the left, what narrows the list: search (with
+// Clear filters beside it while any filter is on) over the Band / Country /
+// Type dropdowns. On the right, on a tinted panel of its own, the list's
+// actions: Select and Filter / Chips over Email (the bulk dialog; Mac only)
+// and + New Venue.
 //
 // With `pinned` (Settings ▸ General), a separate bar slides in at the top of
 // the window once the first row has scrolled out of view, holding the items
@@ -69,7 +71,7 @@ export default function FilterBar({
   const hasFilters = !isEmptyFilters(filters)
   const clear = () => onChange(EMPTY_FILTERS)
 
-  const btn = 'shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border transition-colors'
+  const btn = 'shrink-0 flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border transition-colors'
   const btnIdle = 'bg-white border-gray-300 text-gray-600 hover:border-gray-400 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500'
 
   // The pieces, drawn in the toolbar and again in the pinned bar.
@@ -125,7 +127,7 @@ export default function FilterBar({
   const newVenue = (
     <button
       onClick={onNewVenue}
-      className="shrink-0 flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+      className="shrink-0 flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
     >
       <span className="text-base leading-none">+</span>
       <span className="hidden sm:inline">{t("New Venue")}</span>
@@ -164,17 +166,34 @@ export default function FilterBar({
     scrollToY(Math.max(0, top), 'smooth')
   }
 
+  const clearButton = hasFilters && (
+    <button onClick={clear} title={t('Show all venues again')}
+      className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/60 px-2.5 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60 transition-colors">
+      <XIcon className="w-3.5 h-3.5" />
+      <span className="hidden sm:inline">{t('Clear filters')}</span>
+    </button>
+  )
+
   const barRow = pinItems.search || (pinItems.select && select) || (pinItems.email && email) || pinItems.filter || pinItems.newVenue || (pinItems.save && save)
 
   return (
     <>
-      {/* Row 1: search + the list's actions */}
-      <div ref={barRef} className="flex gap-2">
-        {search}
-        {select}
-        {email}
-        {filterButton(() => setAdvancedOpen(o => !o))}
-        {newVenue}
+      {/* Narrowing on the left, the actions on their own panel on the right.
+          The left block gets the panel's padding too, so the rows line up. */}
+      <div ref={barRef} className="flex gap-3 items-start">
+        <div className="flex-1 min-w-0 py-1.5 space-y-2">
+          <div className="flex gap-2">
+            {search}
+            {clearButton}
+          </div>
+          <div className="flex gap-2 items-center">{dropdowns}</div>
+        </div>
+        <div className="shrink-0 grid grid-cols-2 gap-2 p-1.5 rounded-lg bg-gray-100 border border-gray-200 dark:bg-gray-800/60 dark:border-gray-700/70">
+          <div className="col-start-1 row-start-1 grid">{select}</div>
+          <div className="col-start-2 row-start-1 grid">{filterButton(() => setAdvancedOpen(o => !o))}</div>
+          <div className="col-start-1 row-start-2 grid">{email}</div>
+          <div className="col-start-2 row-start-2 grid">{newVenue}</div>
+        </div>
       </div>
 
       {/* Advanced filter & sort panel */}
@@ -183,18 +202,6 @@ export default function FilterBar({
           <AdvancedPanel rows={rows} filters={filters} onChange={onChange} chips={chips} onChipsChange={onChipsChange} />
         </div>
       )}
-
-      {/* Row 2: dropdowns + clear */}
-      <div className="flex flex-wrap gap-2 items-center !mt-2">
-        {dropdowns}
-        {hasFilters && (
-          <button onClick={clear} title={t('Show all venues again')}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors">
-            <XIcon className="w-3.5 h-3.5" />
-            {t('Clear filters')}
-          </button>
-        )}
-      </div>
 
       {showBar && (
         <div

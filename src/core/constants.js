@@ -229,8 +229,10 @@ export function emailAddresses(value) {
   return [...new Set(String(value || '').match(EMAIL_RE) || [])]
 }
 
-// Venues that only take enquiries through a form on their website. They are
-// not missing an email — there is none to have — but they can't be drafted.
+// Venues reached some other way than email: a form on their website, or a
+// message on Instagram, WhatsApp and the like ("Other channel"), or only by
+// phone ("Phone only"). They are not missing an email — there is none to
+// have — but they can't be drafted.
 const ONLINE_FORM_RE = /\b(online|web|contact|kontakt)[\s-]*form|\bformul[a-z]*\b|\bform only\b|\bvia form\b|\bnur (über )?formular|https?:\/\//i
 // A Note is prose, so it is read more strictly: no bare links (notes are full
 // of them) and no loose "formul…" ("anders formulieren").
@@ -238,10 +240,56 @@ const NOTE_FORM_RE = /\b(online|web|contact|kontakt)[\s-]*form(ular)?\b|\bformul
 function noteSaysForm(row) {
   return NOTE_FORM_RE.test(String(row?.['Note'] || ''))
 }
-export function isOnlineForm(row) {
+
+// Messaging apps and social networks, with the name the venue banner shows.
+const MESSENGERS = [
+  [/\b(instagram|insta)\b/i, 'Instagram'],
+  [/\bwhats\s?app\b/i, 'WhatsApp'],
+  [/\b(facebook|fb)\b/i, 'Facebook'],
+  [/\bmessenger\b/i, 'Messenger'],
+  [/\bsignal\b/i, 'Signal'],
+  [/\btelegram\b/i, 'Telegram'],
+  [/\blinked\s?in\b/i, 'LinkedIn'],
+  [/\b(tiktok|tik tok)\b/i, 'TikTok'],
+  [/\b(dm|pn)\b/i, ''],
+]
+const MESSENGER_NAMES = 'instagram|insta|whats\\s?app|facebook|fb|messenger|signal|telegram|linked\\s?in|social\\s?media'
+// In a Note only a phrase that says how to reach them counts: "via Instagram",
+// "über WhatsApp", "Instagram DM", "Instagram @club", not every mention of
+// the venue's Instagram. A venue reachable by phone *or* a message counts here.
+const NOTE_MESSENGER_RE = new RegExp(`(?:^|[\\s(,;:])(via|über|per|on|auf|through|only|nur)\\s+(${MESSENGER_NAMES})\\b|\\b(${MESSENGER_NAMES})[\\s-]*(dm|only|message|nachricht|pn)\\b|\\b(${MESSENGER_NAMES})[\\s:(-]*@[\\w.]+`, 'i')
+function messengerIn(text) {
+  for (const [re, name] of MESSENGERS) if (re.test(text)) return name || 'DM'
+  return ''
+}
+
+const PHONE_RE = /\b(phone|telephone|tel\.?|telefon|telefonisch|anrufen|call|by phone)\b|\+?\d[\d\s/().-]{6,}\d/i
+const NOTE_PHONE_RE = /\b(nur|only)\s+(per\s+|by\s+|über\s+)?(telefon|telefonisch|phone|tel\.?|anrufen)\b|\bphone only\b|\b(by|per) phone only\b|\bnur telefonisch\b|\bnur anrufen\b/i
+
+// How a venue without an email address is reached:
+// { kind: 'form' | 'message' | 'phone', name } — name is "Instagram" etc. for
+// messages — or null (an email address, or nothing that says).
+export function contactChannel(row) {
   const email = String(row?.['Email'] || '')
-  if (emailAddresses(email).length) return false
-  return ONLINE_FORM_RE.test(email) || ONLINE_FORM_RE.test(String(row?.['Contact'] || '')) || noteSaysForm(row)
+  if (emailAddresses(email).length) return null
+  const contact = String(row?.['Contact'] || '')
+  const note = String(row?.['Note'] || '')
+  if (ONLINE_FORM_RE.test(email) || ONLINE_FORM_RE.test(contact)) return { kind: 'form', name: '' }
+  const messenger = messengerIn(email)
+  if (messenger) return { kind: 'message', name: messenger }
+  if (PHONE_RE.test(email)) return { kind: 'phone', name: '' }
+  if (noteSaysForm(row)) return { kind: 'form', name: '' }
+  if (NOTE_MESSENGER_RE.test(note)) return { kind: 'message', name: messengerIn(note) }
+  if (NOTE_PHONE_RE.test(note)) return { kind: 'phone', name: '' }
+  return null
+}
+// "Other channel": a form or a message app.
+export function isOtherChannel(row) {
+  const c = contactChannel(row)
+  return !!c && c.kind !== 'phone'
+}
+export function isPhoneOnly(row) {
+  return contactChannel(row)?.kind === 'phone'
 }
 // The form's address, when the Email or Contact cell holds one — or the Note,
 // when it is the Note that says the venue takes a form.
@@ -256,7 +304,7 @@ export function onlineFormUrl(row) {
 }
 
 function hasEmail(row) {
-  return emailAddresses(row?.['Email']).length > 0 || isOnlineForm(row)
+  return emailAddresses(row?.['Email']).length > 0 || !!contactChannel(row)
 }
 
 // Why an outreach email can't be sent to this venue, as field names: the red

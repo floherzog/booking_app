@@ -1,5 +1,6 @@
 import { applyGermanArticles, hasArticlePlaceholder } from './germanArticles.js'
 import { plainT } from './tr.js'
+import { datesForVenue } from './venueDates.js'
 
 // Email templates are keyed by band × language. The venue's Country decides the
 // language through the configurable country→language map; everything else falls
@@ -235,7 +236,11 @@ export function substitutePlaceholders(str, row, opts = {}) {
     }
     const field = PLACEHOLDER_FIELDS[name]
     if (!field) return match // not one of ours — leave it alone
-    const value = (row?.[field] ?? '').trim()
+    // {{dates}}: the band's Dates, narrowed to the venue's weekdays or own
+    // dates from its Time Frame (venueDates.js).
+    const value = name === 'dates'
+      ? datesForVenue(row?.[field], row?.['Time Frame']).text
+      : (row?.[field] ?? '').trim()
 
     if (name === 'contact') {
       if (value) return opts.contactStyle === 'first' ? firstNameOf(value) : value

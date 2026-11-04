@@ -737,6 +737,10 @@ export default function App() {
     // an "add" import) the two drift apart, and comparing against some other
     // row's value silently dropped edits — clearing a field to "" whenever that
     // other row's field happened to be empty, for instance.
+    // Read through the ref: mail sync calls this from a callback made before
+    // the CSV (re)loaded, and a stale `rows` there left the email counters
+    // unstaged.
+    const rows = rowsRef.current
     const originalRow = rows.find(r => r._idx === rowIndex)
     const changes = [[rowIndex, field, value]]
 
@@ -768,7 +772,7 @@ export default function App() {
   // [[_idx, field, value], …] → staged edits. A value equal to what was loaded
   // un-stages that cell instead.
   function applyEdits(changes) {
-    const byIdx = new Map(rows.map(r => [r._idx, r]))
+    const byIdx = new Map(rowsRef.current.map(r => [r._idx, r]))
     setEdits(prev => {
       const next = { ...prev }
       for (const [idx, f, v] of changes) {

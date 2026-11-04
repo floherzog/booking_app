@@ -15,6 +15,7 @@ import { t, useT, getLanguage } from '../i18n'
 import { token } from '../lib/placeholders'
 import Busy from './Busy'
 import DraftsPanel from './DraftsPanel'
+import { useDragTick } from '../lib/useDragTick'
 
 function whenLabel(iso) {
   const d = new Date(iso)
@@ -93,14 +94,18 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
     if (repeat !== 'once' && !sourceRepeats(source)) setSource('nextBatch')
   }, [repeat, source])
 
-  function toggle(idx) {
-    setSkipped(prev => {
+  // Ticked = not skipped. Press a box and drag across the rows to tick or
+  // untick many at once.
+  const tick = useDragTick(
+    idx => !skipped.has(idx),
+    (idx, on) => setSkipped(prev => {
+      if (prev.has(idx) === !on) return prev
       const next = new Set(prev)
-      if (next.has(idx)) next.delete(idx)
+      if (on) next.delete(idx)
       else next.add(idx)
       return next
-    })
-  }
+    }),
+  )
 
   // Sequential on purpose: each message opens its own connection, and a server
   // will throttle (or drop) a burst of parallel logins.
@@ -316,10 +321,11 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
             </p>
           ) : candidates.map(({ row, prepared, delivery }) => {
             const result = results[row._idx]
-            const isSkipped = skipped.has(row._idx)
+            const drag = tick(row._idx, { enabled: prepared.ok && phase === 'preflight' })
             return (
               <div
                 key={row._idx}
+                {...drag.row}
                 className={`flex items-start gap-3 rounded-md border px-3 py-2 ${prepared.ok
                   ? 'border-gray-200 dark:border-gray-700'
                   : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40'}`}
@@ -328,9 +334,9 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400 disabled:opacity-40"
-                    checked={prepared.ok && !isSkipped}
+                    {...drag.box}
+                    checked={prepared.ok && drag.box.checked}
                     disabled={!prepared.ok}
-                    onChange={() => toggle(row._idx)}
                   />
                 ) : (
                   <span className="mt-0.5 w-4 text-center text-sm shrink-0">

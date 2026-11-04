@@ -7,6 +7,7 @@ import { matchDrafts } from '@core/draftMatch'
 import { formatDay } from '@core/parseDate'
 import { useDateOrder } from '../lib/dateOrder'
 import Busy from './Busy'
+import { useDragTick } from '../lib/useDragTick'
 import { CheckIcon, PencilIcon, RefreshIcon, SendIcon, TrashIcon } from './icons'
 
 // "Current drafts", beside "Create / send email" in the Email window: the
@@ -24,6 +25,9 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
   const [done, setDone] = useState({}) // key → { ok, action, error }
   const [confirm, setConfirm] = useState(null) // { action: 'send' | 'delete', keys }
 
+  // The list is fetched when the app starts (App.jsx), so it is usually here
+  // already; opening the window checks again in the background, keeping the
+  // list on screen meanwhile.
   useEffect(() => { if (mailReady) refreshDrafts() }, [mailReady])
 
   const matched = useMemo(() => matchDrafts(drafts || [], rows, settings), [drafts, rows, settings])
@@ -33,10 +37,20 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
   const tickedLive = [...ticked].filter(k => live.has(k))
   const allTicked = keys.length > 0 && tickedLive.length === keys.length
 
-  function toggle(key) {
-    setTicked(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })
-    setConfirm(null)
-  }
+  // Press a box and drag across the drafts to tick or untick many at once.
+  const tick = useDragTick(
+    key => ticked.has(key),
+    (key, on) => {
+      setTicked(prev => {
+        if (prev.has(key) === on) return prev
+        const next = new Set(prev)
+        if (on) next.add(key)
+        else next.delete(key)
+        return next
+      })
+      setConfirm(null)
+    },
+  )
 
   async function run(action, list) {
     setConfirm(null)
@@ -96,10 +110,11 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
           const result = done[key]
           const working = busy.has(key)
           const to = [...draft.to, ...draft.cc].map(p => p.address).join(', ')
+          const drag = tick(key, { enabled: !anyBusy })
           return (
-            <li key={key} className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+            <li key={key} {...drag.row} className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
               <div className="flex items-start gap-2">
-                <input type="checkbox" checked={ticked.has(key)} onChange={() => toggle(key)} disabled={anyBusy}
+                <input type="checkbox" {...drag.box} disabled={anyBusy}
                   aria-label={t('Select this draft')}
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400" />
                 <div className="min-w-0 flex-1">

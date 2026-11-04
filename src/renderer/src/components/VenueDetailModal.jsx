@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { statusMeta, useChipColors } from '../lib/palette'
-import { getMissingFields, describeMissing, fieldLabel, isOnlineForm, onlineFormUrl } from '@core/constants'
+import { getMissingFields, describeMissing, fieldLabel, contactChannel, onlineFormUrl } from '@core/constants'
 import { normalizeDateText } from '@core/parseDate'
 import { parseReplyStatus } from '@core/replyStatus'
 import DateInput from './DateInput'
@@ -399,7 +399,8 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
   const rowEdits = edits[rowIndex] || {}
   const effective = { ...row, ...rowEdits }
   const missing = getMissingFields(effective, classify)
-  const formUrl = isOnlineForm(effective) ? onlineFormUrl(effective) : ''
+  const channel = contactChannel(effective)
+  const formUrl = channel?.kind === 'form' ? onlineFormUrl(effective) : ''
   // The row tint in the table is this colour; here it gets a name, because a
   // colour on its own is only meaningful to whoever wrote the legend.
   const health = healthMeta(effective)
@@ -483,9 +484,13 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
           </div>
         )}
 
-        {isOnlineForm(effective) && (
-          <div className="mx-6 mt-2 flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-md px-3 py-2 shrink-0 text-xs text-cyan-800 dark:text-cyan-300">
-            <span>{t("Only takes enquiries through an online form, so it is never drafted.")}</span>
+        {channel && (
+          <div className={`mx-6 mt-2 flex items-center gap-2 border rounded-md px-3 py-2 shrink-0 text-xs ${channel.kind === 'phone'
+            ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 text-violet-800 dark:text-violet-300'
+            : 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800 text-cyan-800 dark:text-cyan-300'}`}>
+            <span>{channel.kind === 'form' ? t("Only takes enquiries through an online form, so it is never drafted.")
+              : channel.kind === 'message' ? t('Reached through {channel}, not email, so it is never drafted.', { channel: channel.name })
+              : t('Only reachable by phone, so it is never drafted.')}</span>
             {formUrl && (
               <a href={formUrl} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:no-underline whitespace-nowrap"><span className="inline-flex items-center gap-1">{t('Open form')} <ExternalIcon className="w-3 h-3" /></span></a>
             )}

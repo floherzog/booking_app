@@ -7,7 +7,7 @@ import { CheckIcon } from './icons'
 import { t, useT } from '../i18n'
 
 // What a shortcut chip and a custom chip look like before any colour is chosen.
-const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#F97316', duplicate: '#F43F5E', onlineForm: '#0891B2', autoSend: '#0D9488' }
+const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#F97316', duplicate: '#F43F5E', onlineForm: '#0891B2', phoneOnly: '#7C3AED', autoSend: '#0D9488' }
 const CUSTOM_HEX = '#475569'
 
 const sel = 'rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
@@ -211,7 +211,7 @@ function ChipSettings({ chips, filters, onChipsChange }) {
           <div className="space-y-1.5">
             <p className={head}>{t("Square — shortcuts")}</p>
             <p className={blurb}>
-              {t("Lists that cut across the statuses: a venue can be in several. Incomplete details, Online form, Duplicates and Auto-send appear only while they have venues.")}
+              {t("Lists that cut across the statuses: a venue can be in several. Incomplete details, Other channel, Phone only, Duplicates and Auto-send appear only while they have venues.")}
             </p>
             <div className="flex flex-wrap gap-x-3 gap-y-2">
               {SHORTCUTS.map(s => (

@@ -1,4 +1,4 @@
-import { ACTION_STATUSES, STATUS_META, CHIP_HUES, getMissingFields, isOnlineForm } from './constants.js'
+import { ACTION_STATUSES, STATUS_META, CHIP_HUES, getMissingFields, isOtherChannel, isPhoneOnly } from './constants.js'
 import { plainT } from './tr.js'
 import { replyHealth } from './replyStatus.js'
 
@@ -8,7 +8,7 @@ import { replyHealth } from './replyStatus.js'
 
 export const EMPTY_FILTERS = {
   band: '', country: '', type: '', status: '',
-  actionOnly: false, nextBatch: false, missingInfo: false, onlineForm: false, duplicate: false, autoSend: false,
+  actionOnly: false, nextBatch: false, missingInfo: false, onlineForm: false, phoneOnly: false, duplicate: false, autoSend: false,
   search: '', advanced: [], sort: null,
 }
 
@@ -17,13 +17,30 @@ export const SHORTCUTS = [
   { key: 'actionOnly', label: 'Action needed' },
   { key: 'nextBatch', label: 'Next batch' },
   { key: 'missingInfo', label: 'Incomplete details' },
-  { key: 'onlineForm', label: 'Online form' },
+  // Key kept from when it was only "Online form": saved chips refer to it.
+  { key: 'onlineForm', label: 'Other channel' },
+  { key: 'phoneOnly', label: 'Phone only' },
   { key: 'duplicate', label: 'Duplicates' },
   { key: 'autoSend', label: 'Auto-send' },
 ]
 const SHORTCUT_OFF = Object.fromEntries(SHORTCUTS.map(s => [s.key, false]))
 
 export const SEARCH_FIELDS = ['Venue', 'City', 'Country', 'Contact', 'Band', 'Email', 'Note', 'Status', 'Text', 'Time Frame', 'Dates']
+
+// The search ignores spacing and punctuation, so "a trane" finds "A-Trane"
+// and "jazzclub" finds "Jazz Club". Letters and digits only, lower case.
+export function searchKey(s) {
+  return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+}
+export function searchMatches(r, query) {
+  const q = String(query || '').toLowerCase().trim()
+  if (!q) return true
+  const key = searchKey(q)
+  return SEARCH_FIELDS.some(k => {
+    const cell = String(r[k] || '').toLowerCase()
+    return cell.includes(q) || (!!key && searchKey(cell).includes(key))
+  })
+}
 
 // Column filters on the free-text columns take keywords: "formular, web form"
 // matches a Note with either. Elsewhere the value is one phrase, so a picked
@@ -76,14 +93,15 @@ export function matchesFilters(r, filters, ctx = {}) {
   if (f.nextBatch && !(r._nextBatch || r['Draft'] === 'TRUE')) return false
   if (f.autoSend && r['Auto'] !== 'TRUE') return false
   if (f.missingInfo && getMissingFields(r, ctx.classify).length === 0) return false
-  if (f.onlineForm && !isOnlineForm(r)) return false
+  if (f.onlineForm && !isOtherChannel(r)) return false
+  if (f.phoneOnly && !isPhoneOnly(r)) return false
   if (f.duplicate && !ctx.isDuplicate?.(r)) return false
   if (f.actionOnly && !ACTION_STATUSES.has(r._status)) return false
   if (f.status && r._status !== f.status) return false
   if (f.band && r['Band'] !== f.band) return false
   if (f.country && r['Country'] !== f.country) return false
   if (f.type && r['Type'] !== f.type) return false
-  if (q && !SEARCH_FIELDS.some(k => (r[k] || '').toLowerCase().includes(q))) return false
+  if (q && !searchMatches(r, q)) return false
   for (const rule of f.advanced || []) {
     if (!ruleActive(rule)) continue
     if (!matchesRule(r, rule)) return false

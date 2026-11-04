@@ -1,5 +1,5 @@
 import { resolveTemplate, substituteTemplate, contactOptionsFor } from '@core/templates'
-import { emailAddresses, isOnlineForm } from '@core/constants'
+import { emailAddresses, contactChannel } from '@core/constants'
 import { renderEmailHtml } from '@core/emailHtml'
 import { genderOf, contactGenderOf, ensureGenders, ensureContactGenders } from './genders'
 import { accountForRow } from '@core/mailAccounts'
@@ -30,8 +30,10 @@ export function prepareDraft(row, templates, languages, settings) {
   // `resolved` carries its own `reason`, so it is spread first — otherwise it
   // would overwrite the more specific message below.
   if (!email) {
-    const reason = isOnlineForm(row)
-      ? t('This venue only takes an online form.')
+    const channel = contactChannel(row)
+    const reason = channel?.kind === 'form' ? t('This venue only takes an online form.')
+      : channel?.kind === 'message' ? t('This venue is reached through {channel}, not email.', { channel: channel.name })
+      : channel?.kind === 'phone' ? t('This venue can only be reached by phone.')
       : t('No email address for this venue.')
     return { ...resolved, ok: false, reason, empties: [] }
   }

@@ -122,11 +122,14 @@ export async function sendDraftWith({ account, transport, fetchDraft, fileToSent
 export function registerMailDraftsIpc() {
   ipcMain.handle('mailDrafts:list', async () => {
     const accounts = normalizeAccounts(readSettings().mail).filter(a => a.host && a.user)
+    // Each account is its own server login, so they are asked side by side.
+    const results = await Promise.allSettled(accounts.map(account => withImapClient(account, listDraftsWith)))
     const drafts = []
     const failures = []
-    for (const account of accounts) {
-      try { drafts.push(...await withImapClient(account, listDraftsWith)) } catch (e) { failures.push(friendlyMailError(e, account)) }
-    }
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') drafts.push(...r.value)
+      else failures.push(friendlyMailError(r.reason, accounts[i]))
+    })
     return { drafts, failures }
   })
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emailAddresses, isOnlineForm, onlineFormUrl, sendBlockers, getMissingFields, getMissingSeverity } from '@core/constants'
+import { emailAddresses, isOtherChannel, onlineFormUrl, sendBlockers, getMissingFields, getMissingSeverity } from '@core/constants'
 import { classifyContext } from '@core/classify'
 import { matchesFilters } from '@core/filterRows'
 
@@ -11,18 +11,18 @@ describe('emailAddresses', () => {
   })
 })
 
-describe('isOnlineForm', () => {
+describe('isOtherChannel', () => {
   it('spots the usual ways of writing it, in Email or Contact', () => {
     for (const Email of ['online form', 'Online-Form only', 'contact form', 'Kontaktformular', 'nur über Formular', 'via form', 'webform', 'https://club.de/booking']) {
-      expect(isOnlineForm({ Email })).toBe(true)
+      expect(isOtherChannel({ Email })).toBe(true)
     }
-    expect(isOnlineForm({ Email: '', Contact: 'Kontaktformular auf der Website' })).toBe(true)
+    expect(isOtherChannel({ Email: '', Contact: 'Kontaktformular auf der Website' })).toBe(true)
   })
 
   it('a real address wins, and ordinary text is no form', () => {
-    expect(isOnlineForm({ Email: 'info@club.de (or the contact form)' })).toBe(false)
-    expect(isOnlineForm({ Email: 'tbd', Contact: 'Anna Formby' })).toBe(false)
-    expect(isOnlineForm({ Email: 'information pending' })).toBe(false)
+    expect(isOtherChannel({ Email: 'info@club.de (or the contact form)' })).toBe(false)
+    expect(isOtherChannel({ Email: 'tbd', Contact: 'Anna Formby' })).toBe(false)
+    expect(isOtherChannel({ Email: 'information pending' })).toBe(false)
   })
 
   it('hands back the form’s address when there is one', () => {
@@ -32,11 +32,11 @@ describe('isOnlineForm', () => {
 
   it('reads the Note too, but only when there is no address and only plain wording', () => {
     for (const Note of ['Anfragen nur über das Formular', 'nur Kontaktformular', 'Booking via webform, see site', 'online form only']) {
-      expect(isOnlineForm({ Email: '', Note })).toBe(true)
+      expect(isOtherChannel({ Email: '', Note })).toBe(true)
     }
-    expect(isOnlineForm({ Email: 'info@club.de', Note: 'nur über Kontaktformular' })).toBe(false)
-    expect(isOnlineForm({ Email: '', Note: 'Text anders formulieren' })).toBe(false)
-    expect(isOnlineForm({ Email: '', Note: 'Website: https://club.de' })).toBe(false)
+    expect(isOtherChannel({ Email: 'info@club.de', Note: 'nur über Kontaktformular' })).toBe(false)
+    expect(isOtherChannel({ Email: '', Note: 'Text anders formulieren' })).toBe(false)
+    expect(isOtherChannel({ Email: '', Note: 'Website: https://club.de' })).toBe(false)
     expect(onlineFormUrl({ Email: '', Note: 'Kontaktformular: https://club.de/kontakt' })).toBe('https://club.de/kontakt')
     expect(onlineFormUrl({ Email: '', Note: 'see https://club.de' })).toBe('')
   })
@@ -65,5 +65,26 @@ describe('sendBlockers and the red "!"', () => {
     expect(getMissingSeverity(row({ Band: 'Beta' }), ctx)).toBe(2)
     expect(getMissingSeverity(row({ Email: 'tbd' }), ctx)).toBe(3)
     expect(getMissingSeverity(row(), ctx)).toBe(0)
+  })
+})
+
+describe('contactChannel', async () => {
+  const { contactChannel, isPhoneOnly } = await import('@core/constants')
+  it('groups messengers with forms and keeps phone apart', () => {
+    expect(contactChannel({ Email: 'Instagram' })).toEqual({ kind: 'message', name: 'Instagram' })
+    expect(contactChannel({ Email: 'whatsapp +49 171 1234567' })).toEqual({ kind: 'message', name: 'WhatsApp' })
+    expect(isOtherChannel({ Email: 'Instagram' })).toBe(true)
+    expect(isPhoneOnly({ Email: 'Tel. 030 1234567' })).toBe(true)
+    expect(isPhoneOnly({ Email: '', Note: 'nur telefonisch' })).toBe(true)
+    expect(isOtherChannel({ Email: '', Note: 'Anfrage über WhatsApp' })).toBe(true)
+  })
+  it('needs more than a mention in a Note, and never applies with an address', () => {
+    expect(contactChannel({ Email: '', Note: 'their instagram is great' })).toBe(null)
+    expect(contactChannel({ Email: 'a@club.de', Note: 'via Instagram' })).toBe(null)
+    expect(contactChannel({ Email: 'Julius fragen' })).toBe(null)
+  })
+  it('does not count as a missing email', () => {
+    expect(sendBlockers({ Venue: 'X', Band: 'B', Email: 'Instagram' })).not.toContain('Email')
+    expect(matchesFilters({ Email: 'phone only' }, { phoneOnly: true })).toBe(true)
   })
 })

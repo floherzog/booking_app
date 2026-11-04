@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getStoredTheme, setTheme } from '../lib/theme'
 import { usePinToolbar, setPinToolbar, usePinItems, setPinItem, PIN_ITEMS } from '../lib/uiPrefs'
 import { exportCsv } from '../lib/csvFile'
+import ExportPicker from './ExportPicker'
 import { validateRules, mergeRules } from '@core/rules'
 import RulesEditor from './RulesEditor'
 import { LogicFlow } from './LogicModal'
@@ -372,8 +373,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
   // In multi-band mode this is the merged list — the same single CSV switching
   // the mode off would write.
-  function handleExport() {
-    exportCsv(mergeRows(rows)).catch(() => { /* the user cancelled the save dialog */ })
+  // Export first asks what to include (ExportPicker): everything, or some
+  // bands, types or countries.
+  const [exportOpen, setExportOpen] = useState(false)
+  function handleExport(chosen) {
+    exportCsv(mergeRows(chosen)).then(path => { if (path !== null) setExportOpen(false) }).catch(() => {})
   }
 
   const multiBandOn = !!config.storage?.multiBand?.enabled
@@ -1130,15 +1134,16 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>{t("Import and export")}</p>
                     <div className="flex gap-2">
-                      <button type="button" onClick={handleExport} disabled={rows.length === 0} className={`${outlineBtn} flex-1`}>
-                        {t("Export CSV")}
+                      <button type="button" onClick={() => setExportOpen(o => !o)} disabled={rows.length === 0} aria-expanded={exportOpen} className={`${outlineBtn} flex-1`}>
+                        {t("Export CSV…")}
                       </button>
                       <button type="button" onClick={() => onOpenImport?.()} className={`${outlineBtn} flex-1`}>
                         {t("Import CSV…")}
                       </button>
                     </div>
+                    {exportOpen && <ExportPicker rows={rows} onExport={handleExport} onCancel={() => setExportOpen(false)} />}
                     <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      {caps.localFiles ? t('Export writes a copy wherever you point it.') : t('Export downloads a copy.')}{' '}
+                      {caps.localFiles ? t('Export writes a copy wherever you point it — all of it, or only some bands, types or countries.') : t('Export downloads a copy — all of it, or only some bands, types or countries.')}{' '}
                       {t('Import opens a guided wizard — replace the table or add to it, and match your file’s columns to the app’s. Changes stay in the app until you press Save.')}
                     </p>
                   </div>

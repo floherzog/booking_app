@@ -115,3 +115,13 @@ describe('is empty / isn’t empty', () => {
     expect(describeFilters({ advanced: [{ field: 'Email', op: 'empty', value: '' }] })).toBe('Email: is empty')
   })
 })
+
+describe('search ignores spacing and punctuation', async () => {
+  const { matchesFilters: match } = await import('@core/filterRows')
+  it('finds A-Trane as "a trane" and Jazz Club as "jazzclub"', () => {
+    expect(match({ Venue: 'A-Trane' }, { search: 'a trane' })).toBe(true)
+    expect(match({ Venue: 'A-Trane' }, { search: 'atrane' })).toBe(true)
+    expect(match({ Venue: 'Jazz Club' }, { search: 'jazzclub' })).toBe(true)
+    expect(match({ Venue: 'Bix' }, { search: 'a trane' })).toBe(false)
+  })
+})
