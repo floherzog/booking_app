@@ -5,14 +5,7 @@ import Busy from './Busy'
 import { formatDay } from '@core/parseDate'
 import { useDateOrder } from '../lib/dateOrder'
 import { bandsNamed, bandOfMessage } from '@core/bandNames'
-import { cachedMail, preloadMail } from '../lib/mailBodies'
-
-// A message's text for finding a band name in it, from the cached body.
-const bodyText = m => {
-  const mail = cachedMail(m)
-  if (!mail) return ''
-  return mail.text || String(mail.html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ')
-}
+import { cachedMail, cachedText, preloadMail } from '../lib/mailBodies'
 
 // Under the map in a venue's details: every email from and to its address,
 // newest first, folded away until opened. Not there at all without a mailbox
@@ -62,7 +55,7 @@ export default function MailHistory({ email, lastEmailed = '', lastReply = '', b
     )
   }
   if (!messages.length) return null
-  const bandOf = m => (bands.length ? bandOfMessage({ subject: m.subject, text: bodyText(m) }, bands) : null)
+  const bandOf = m => (bands.length ? bandOfMessage({ subject: m.subject, text: cachedText(m) }, bands) : null)
   const newer = newerThanCsv(severalBands && band ? messages.filter(m => bandOf(m) === band) : messages, { lastEmailed, lastReply })
   const sent = messages.filter(m => m.direction === 'out').length
   const received = messages.length - sent

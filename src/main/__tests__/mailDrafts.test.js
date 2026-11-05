@@ -2,10 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('electron', () => ({ ipcMain: { handle: () => {} }, app: { getPath: () => '/tmp' } }))
 vi.mock('imapflow', () => ({ ImapFlow: class {} }))
-vi.mock('nodemailer', () => ({ default: { createTransport: () => ({}) } }))
 vi.mock('../secrets.js', () => ({ getSecret: () => 'pw' }))
 
-const { listDraftsWith, deleteDraftWith, draftReadyToSend, sendDraftWith, sendDraftsFor } = await import('../ipc/mailDrafts.js')
+const { listDraftsWith, deleteDraftWith, draftReadyToSend, sendDraftWith, sendDraftsFor, readDraftForEditWith, replaceDraftWith } = await import('../ipc/mailDrafts.js')
 
 describe('drafts in the Drafts mailbox', () => {
   it('lists the drafts that aren’t deleted, from the account’s Drafts mailbox', async () => {
@@ -101,5 +100,48 @@ describe('drafts in the Drafts mailbox', () => {
     expect(got[3]).toMatchObject({ filed: true, removed: true })
     expect(appended).toEqual(['Sent', 'Sent'])
     expect(deleted).toEqual(['1', '4'])
+  })
+
+  it('reads a draft for editing with its images inline, and replaces it keeping the rest', async () => {
+    const png = Buffer.from('fakepng')
+    const pdf = Buffer.from('%PDF-1')
+    const parts = {
+      '1.1': Buffer.from('Hallo'),
+      '1.2': Buffer.from('<html><body><p>Hallo <img src="cid:logo@x"></p></body></html>'),
+      '2': png,
+      '3': pdf,
+    }
+    const appended = []
+    const deleted = []
+    const client = {
+      getMailboxLock: async () => ({ release: () => {} }),
+      fetchOne: async () => ({
+        envelope: { from: [{ name: 'Me', address: 'me@x' }], to: [{ address: 'info@moods.ch' }], subject: 'Anfrage', inReplyTo: '<prev@x>' },
+        headers: Buffer.from('References: <prev@x>\r\n\r\n'),
+        bodyStructure: { type: 'multipart/mixed', childNodes: [
+          { type: 'multipart/alternative', childNodes: [{ part: '1.1', type: 'text/plain' }, { part: '1.2', type: 'text/html' }] },
+          { part: '2', type: 'image/png', id: '<logo@x>', disposition: 'inline' },
+          { part: '3', type: 'application/pdf', disposition: 'attachment', dispositionParameters: { filename: 'rider.pdf' } },
+        ] },
+      }),
+      download: async (_uid, part) => ({ content: (async function* () { yield parts[part] })() }),
+      append: async (box, mime, flags) => { appended.push({ box, mime: mime.toString(), flags }); return { uid: 77 } },
+      messageDelete: async uid => { deleted.push(uid); return true },
+    }
+    const d = await readDraftForEditWith(client, 'Drafts', 5)
+    expect(d.html).toBe(`<p>Hallo <img src="data:image/png;base64,${png.toString('base64')}"></p>`)
+    expect(d.attachments.map(a => a.filename)).toEqual(['rider.pdf'])
+    expect(d.references).toBe('<prev@x>')
+
+    const r = await replaceDraftWith(client, { user: 'me@x' }, { mailbox: 'Drafts', uid: 5 }, { to: 'info@moods.ch', subject: 'Anfrage neu', html: d.html.replace('Hallo', 'Hallo Anna') })
+    expect(r).toEqual({ mailbox: 'Drafts', uid: 77 })
+    const mime = appended[0].mime
+    expect(appended[0].flags).toEqual(['\\Draft', '\\Seen'])
+    expect(mime).toMatch(/Subject: Anfrage neu/)
+    expect(mime).toMatch(/In-Reply-To: <prev@x>/)
+    expect(mime).toMatch(/filename=rider\.pdf/)
+    expect(mime).toMatch(/src=3D"cid:|src="cid:/) // the image is an inline part again
+    expect(mime).not.toMatch(/data:image\/png/)
+    expect(deleted).toEqual(['5'])
   })
 })

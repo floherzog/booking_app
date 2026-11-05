@@ -248,7 +248,6 @@ export default {
   'Dutch': 'Niederländisch',
   'Edit': 'Bearbeiten',
   'Edit date': 'Datum bearbeiten',
-  'Edit in Mail': 'In Mail bearbeiten',
   'Edit link': 'Link bearbeiten',
   'Edit template': 'Vorlage bearbeiten',
   'Email': 'E-Mail',
@@ -1065,4 +1064,10 @@ export default {
   'Open this venue': 'Diese Venue öffnen',
   'Venues with a draft waiting in your Drafts mailbox.': 'Venues, für die ein Entwurf in deinem Entwürfe-Postfach wartet.',
   'Drafted#chip': 'Mit Entwurf',
+  'Attachments, kept as they are:': 'Anhänge, bleiben wie sie sind:',
+  'Click to read it all': 'Klicken, um alles zu lesen',
+  'Edit draft': 'Entwurf bearbeiten',
+  'Edit this draft': 'Diesen Entwurf bearbeiten',
+  'Save draft': 'Entwurf speichern',
+  'This draft has no recipient.': 'Dieser Entwurf hat keinen Empfänger.',
 }

@@ -486,7 +486,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
     // `raised`: opened from the Email window, so it goes on top of that.
     <div className={`side-panel fixed inset-0 bg-black/40 flex items-center justify-end ${raised ? 'z-[1320]' : 'z-[1100]'}`} {...backdrop}>
       <div
-        className="bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="bg-white/85 dark:bg-gray-800/85 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <div className="side-panel-head px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between shrink-0">

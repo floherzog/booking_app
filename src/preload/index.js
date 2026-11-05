@@ -89,6 +89,8 @@ const api = {
   deleteDraft: ref => ipcRenderer.invoke('mailDrafts:delete', ref),
   sendDraft: ref => ipcRenderer.invoke('mailDrafts:send', ref),
   sendDrafts: refs => ipcRenderer.invoke('mailDrafts:sendMany', refs),
+  readDraft: ref => ipcRenderer.invoke('mailDrafts:read', ref),
+  replaceDraft: (ref, edit) => ipcRenderer.invoke('mailDrafts:replace', { ref, edit }),
   deleteDrafts: refs => ipcRenderer.invoke('mailDrafts:deleteMany', refs),
   onUpdateProgress: cb => {
     const handler = (_e, p) => cb(p)

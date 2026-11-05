@@ -215,7 +215,7 @@ export default function FilterBar({
           ref={pinRef}
           data-pinned-bar
           style={{ top: 'var(--chrome-top, 0px)' }}
-          className="!mt-0 fixed inset-x-0 z-[900] bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 shadow-sm"
+          className="!mt-0 fixed inset-x-0 z-[900] bg-gray-50/75 dark:bg-gray-900/75 backdrop-blur-md backdrop-saturate-150 border-b border-gray-200 dark:border-gray-800 shadow-sm"
         >
           <div className="max-w-[1700px] mx-auto px-4 py-2 space-y-2">
             {pinItems.chips && pinnedChips}

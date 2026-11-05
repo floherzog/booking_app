@@ -4,6 +4,9 @@ import { readSettings } from '../settingsStore.js'
 import { withImapClient, resolveDraftsMailbox, accountFor, friendlyMailError, appendToSent, sentMailboxWith } from './mailImap.js'
 import { smtpConfig } from './mailSmtp.js'
 import { normalizeAccounts } from '../../core/mailAccounts.js'
+import { htmlToText } from '../../core/htmlText.js'
+import { pickPart } from './mailHistory.js'
+import { buildDraftMime } from '../mime.js'
 
 // The drafts waiting in each account's Drafts mailbox, for the Email window's
 // "Current drafts" (components/DraftsPanel.jsx) and the ✓ on a venue's mail
@@ -117,6 +120,90 @@ export async function sendDraftWith({ account, transport, fetchDraft, fileToSent
   let removed = true
   try { await deleteDraft() } catch { removed = false }
   return { accepted: info?.accepted || recipients, filed, removed }
+}
+
+// --- Editing a draft in the app ---------------------------------------------
+// Mail opens a draft from a message:// link as a message to read, not to edit,
+// so the Email window edits it itself: the draft is read here (its images
+// turned into data: URLs the editor can show), edited, and written back as a
+// new draft that replaces the old one — same sender, threading and
+// attachments; the images go back in as inline parts (attachDataUrls).
+
+const leaves = (node, out = []) => {
+  if (!node) return out
+  if (node.childNodes?.length) node.childNodes.forEach(n => leaves(n, out))
+  else out.push(node)
+  return out
+}
+const textAsHtml = text => String(text || '').split(/\r?\n/)
+  .map(l => `<p>${l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`).join('')
+
+// → { from, to, cc, subject, html, inReplyTo, references, attachments: [{ filename, contentType, content }] }
+export async function readDraftForEditWith(client, mailbox, uid) {
+  const lock = await client.getMailboxLock(mailbox)
+  try {
+    const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, headers: ['references'] }, { uid: true })
+    if (!msg) throw new Error('That draft is no longer in the mailbox.')
+    const env = msg.envelope || {}
+    const body = pickPart(msg.bodyStructure)
+    const download = async part => streamToBuffer((await client.download(String(uid), part, { uid: true })).content)
+    let html = ''
+    if (body) {
+      const content = (await download(body.part)).toString('utf8')
+      html = body.type === 'html' ? content : textAsHtml(content)
+    }
+    // Everything that isn't the text itself: images shown in it, attachments.
+    const attachments = []
+    for (const node of leaves(msg.bodyStructure)) {
+      if (!node.part || (body && node.part === body.part)) continue
+      if (!node.disposition && /^text\/(plain|html)$/.test(node.type)) continue // the other alternative
+      const content = await download(node.part)
+      const cid = String(node.id || '').replace(/^<|>$/g, '')
+      if (cid && html.includes(`cid:${cid}`)) {
+        html = html.split(`cid:${cid}`).join(`data:${node.type};base64,${content.toString('base64')}`)
+        continue
+      }
+      const filename = node.dispositionParameters?.filename || node.parameters?.name || 'attachment'
+      attachments.push({ filename, contentType: node.type, content })
+    }
+    // Only what's inside <body>: the editor wants the content.
+    const inner = html.match(/<body\b[^>]*>([\s\S]*)<\/body>/i)
+    const references = (msg.headers ? msg.headers.toString() : '').replace(/^references:\s*/i, '').replace(/\s+/g, ' ').trim()
+    return {
+      from: person((env.from || [])[0]),
+      to: (env.to || []).map(person),
+      cc: (env.cc || []).map(person),
+      subject: env.subject || '',
+      html: inner ? inner[1] : html,
+      inReplyTo: env.inReplyTo || '',
+      references,
+      attachments,
+    }
+  } finally {
+    lock.release()
+  }
+}
+
+// The edited draft in, the old one out. `edit`: { to, cc, subject, html }
+// (addresses as text). → { mailbox, uid } of the new draft.
+export async function replaceDraftWith(client, account, { mailbox, uid }, edit) {
+  const old = await readDraftForEditWith(client, mailbox, uid)
+  const mime = await buildDraftMime({
+    from: old.from?.address ? old.from : { name: account.fromName, address: account.fromAddress || account.user },
+    to: edit.to,
+    cc: edit.cc || undefined,
+    subject: edit.subject,
+    html: edit.html,
+    text: htmlToText(edit.html),
+    attachments: old.attachments,
+    inReplyTo: old.inReplyTo || undefined,
+    references: old.references || undefined,
+    attachDataUrls: true,
+  })
+  const res = await client.append(mailbox, mime, ['\\Draft', '\\Seen'])
+  // Only once the new one is safely in: the old one goes.
+  await deleteDraftWith(client, mailbox, uid)
+  return { mailbox, uid: res?.uid ?? null }
 }
 
 // refs → Map(accountId → refs), at most 200 in all.
@@ -240,6 +327,24 @@ export function registerMailDraftsIpc() {
       }
     }))
     return results.flat()
+  })
+
+  ipcMain.handle('mailDrafts:read', async (_e, { accountId, mailbox, uid } = {}) => {
+    try {
+      const d = await withImapClient(accountFor(accountId), client => readDraftForEditWith(client, mailbox, uid))
+      // The renderer only needs to know the attachments are there.
+      return { ...d, attachments: d.attachments.map(a => ({ filename: a.filename, size: a.content.length })) }
+    } catch (e) {
+      return { error: friendlyMailError(e) }
+    }
+  })
+
+  ipcMain.handle('mailDrafts:replace', async (_e, { ref = {}, edit = {} } = {}) => {
+    try {
+      return await withImapClient(accountFor(ref.accountId), (client, account) => replaceDraftWith(client, account, ref, edit))
+    } catch (e) {
+      return { error: friendlyMailError(e) }
+    }
   })
 
   ipcMain.handle('mailDrafts:send', async (_e, { accountId, mailbox, uid } = {}) => {

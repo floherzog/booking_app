@@ -23,7 +23,7 @@ import { withEmailCounters } from '@core/emailCounters'
 import { matchDrafts, draftCounts } from '@core/draftMatch'
 import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
 import { preloadMail } from './lib/mailBodies'
-import StatsBar, { columnLabel as statsColumnLabel, chipExplainers } from './components/StatsBar'
+import StatsBar, { columnLabel as statsColumnLabel, chipExplainers, ChipExplainLine } from './components/StatsBar'
 import FilterBar from './components/FilterBar'
 import BackToTop from './components/BackToTop'
 import PageScrollbar from './components/PageScrollbar'
@@ -47,7 +47,7 @@ import { MailContext, getHistory, findReply, forgetHistory } from './lib/mailHis
 import { useDateOrder } from './lib/dateOrder'
 import { csvSuggestions } from '@core/csvSuggestions'
 import { mailReady, normalizeAccounts, secretKeyFor } from '@core/mailAccounts'
-import { GlobeIcon, SettingsIcon, ListIcon, InfoIcon, RefreshIcon } from './components/icons'
+import { GlobeIcon, SettingsIcon, ListIcon, InfoIcon, RefreshIcon, SpinnerIcon } from './components/icons'
 import { usePinToolbar, usePinItems } from './lib/uiPrefs'
 import { setChipColors } from './lib/palette'
 import MailSetupNotice, { mailSetupGaps } from './components/MailSetupNotice'
@@ -87,6 +87,7 @@ export default function App() {
   // When Settings opened one, it gets a "← Settings" button back to where the
   // user came from.
   const [cameFromSettings, setCameFromSettings] = useState(false)
+  const [templatesFromEmail, setTemplatesFromEmail] = useState(false) // Mail templates opened from the Email window
   // A CSV chosen on first run whose columns don't match ours, awaiting mapping.
   const [importSeed, setImportSeed] = useState(null)
   const [syncing, setSyncing] = useState(false)
@@ -1219,27 +1220,29 @@ export default function App() {
   // Mobile-only: icon-only vertical controls sidebar
   // "Showing 120 of 316 venues · fetched 11:24 · 3 unsaved edits" — the
   // header's line, so the toolbar and the column headings can sit together.
-  // What the chips that are on mean follows on the same line, at most two
-  // lines of it (the whole text on hover): the header is as tall as its
-  // buttons anyway, so switching chips never moves the list.
+  // The venue count, and under it what the chips that are on mean
+  // (ChipExplainLine: one line, always there, so nothing moves).
   const explainers = chipExplainers({ filters, rules, chips: filterChips, batchWhyEmpty: batchWhyEmpty?.reason, t })
   const listSummary = (
-    <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-2" title={explainers.map(x => `${x.label}: ${x.text}`).join('\n') || undefined}>
-      {filteredVenueCount === venueCount ? t('{n} venue|{n} venues', { n: venueCount }) : t('Showing {shown} of {n} venues', { shown: filteredVenueCount, n: venueCount })}
-      {lastFetched && ` · ${t('fetched {time}', { time: lastFetched.toLocaleTimeString(getLanguage()) })}`}
-      {editCount > 0 && (
-        <span className="text-amber-600 dark:text-amber-400 font-medium"> · {t('{n} unsaved edit|{n} unsaved edits', { n: editCount })}</span>
-      )}
-      {explainers.map(x => (
-        <span key={x.key}>
-          {' · '}
-          <span className={`px-1.5 py-px ${x.square ? 'rounded' : 'rounded-full'} ${x.badge}`}><span className="font-medium">{x.label}</span></span>
-          {' '}<span className="text-gray-500 dark:text-gray-400">{x.text}</span>
-        </span>
-      ))}
-    </p>
+    <div className="min-w-0">
+      <p className="text-xs leading-4 text-gray-400 dark:text-gray-500 truncate">
+        {filteredVenueCount === venueCount ? t('{n} venue|{n} venues', { n: venueCount }) : t('Showing {shown} of {n} venues', { shown: filteredVenueCount, n: venueCount })}
+        {lastFetched && ` · ${t('fetched {time}', { time: lastFetched.toLocaleTimeString(getLanguage()) })}`}
+        {editCount > 0 && (
+          <span className="text-amber-600 dark:text-amber-400 font-medium"> · {t('{n} unsaved edit|{n} unsaved edits', { n: editCount })}</span>
+        )}
+      </p>
+      <ChipExplainLine explainers={explainers} />
+    </div>
   )
 
+  // ↻ turns into a spinner of exactly its size while loading or checking mail
+  // (what it is doing is in its tooltip), so the header never shifts.
+  const refreshGlyph = (
+    <span className="inline-flex items-center justify-center w-[1.1em] h-[1.1em] align-middle" role={loading || syncing ? 'status' : undefined}>
+      {loading || syncing ? <SpinnerIcon className="w-full h-full" /> : <RefreshIcon className="w-full h-full" />}
+    </span>
+  )
   const mobileControls = (
     <div className="flex flex-col gap-0.5 items-stretch">
       <div className="flex flex-col rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-base">
@@ -1263,7 +1266,7 @@ export default function App() {
         <button onClick={() => setConfirmDiscard(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition-colors">{t("Discard")}</button>
       ))}
       <button onClick={() => setShowLogic(true)} className={iconBtn} title={t("How venues are classified")}><InfoIcon /></button>
-      <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn}>{loading || syncing ? <Busy /> : <RefreshIcon />}</button>
+      <button onClick={refreshAll} disabled={loading || syncing} className={iconBtn} title={loading ? t('Loading…') : syncing ? t('Checking mail…') : t('Reload the CSV')}>{refreshGlyph}</button>
       <button onClick={() => setShowSettings(true)} className={iconBtn} title={t("Settings")}>{sliders}</button>
     </div>
   )
@@ -1426,7 +1429,7 @@ export default function App() {
               </>
             )}
             <button onClick={() => setShowLogic(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors inline-flex items-center gap-1.5" title={t("How venues are classified")}><InfoIcon className="w-[1em] h-[1em]" /> {t('Logic')}</button>
-            <button onClick={refreshAll} disabled={loading || syncing} title={mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{loading ? <Busy label={t('Loading…')} /> : syncing ? <Busy label={t('Checking mail…')} /> : <RefreshIcon className="w-[1.1em] h-[1.1em]" />}</button>
+            <button onClick={refreshAll} disabled={loading || syncing} title={loading ? t('Loading…') : syncing ? t('Checking mail…') : mailSyncEnabled(settings) ? t('Reload the CSV and check the mail account') : t('Reload the CSV')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">{refreshGlyph}</button>
             <button onClick={() => setShowSettings(true)} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={t("Settings")}>{sliders}</button>
           </div>
         </div>
@@ -1542,8 +1545,10 @@ export default function App() {
         <TemplatesManager
           settings={settings}
           rows={rows}
-          onBack={cameFromSettings ? () => { setShowTemplates(false); setCameFromSettings(false); setShowSettings(true); refreshTemplates() } : null}
-          onClose={() => { setShowTemplates(false); setCameFromSettings(false); refreshTemplates() }}
+          onBack={cameFromSettings ? () => { setShowTemplates(false); setCameFromSettings(false); setShowSettings(true); refreshTemplates() }
+            : templatesFromEmail ? () => { setShowTemplates(false); setTemplatesFromEmail(false); refreshTemplates(); setShowBulkDraft(true) } : null}
+          backLabel={templatesFromEmail ? t('Email') : null}
+          onClose={() => { setShowTemplates(false); setCameFromSettings(false); setTemplatesFromEmail(false); refreshTemplates() }}
         />
         </Suspense>
       )}
@@ -1562,6 +1567,7 @@ export default function App() {
           onDraftCreated={recordDraft}
           onSent={recordSend}
           onOpenVenue={setVenueDetail}
+          onOpenTemplates={() => { setShowBulkDraft(false); setTemplatesFromEmail(true); setShowTemplates(true) }}
           onClearDraftFlags={clearDraftFlags}
           onClose={() => setShowBulkDraft(false)}
         />

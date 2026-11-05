@@ -17,6 +17,13 @@ export const EMAIL_EXTENSIONS = [
   VideoLink,
 ]
 
+// For editing a draft that is already in Mail (components/DraftEditor.jsx):
+// its images arrive as data: URLs, which the image extension otherwise refuses.
+export const DRAFT_EXTENSIONS = [
+  ...EMAIL_EXTENSIONS.filter(e => e !== Image),
+  Image.configure({ allowBase64: true }),
+]
+
 // Mail clients strip <style> blocks and ignore classes, so every rule an email
 // needs has to be an inline attribute.
 export const EMAIL_BODY_STYLE = 'margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#111827'

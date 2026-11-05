@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { statusMeta, chipStyle, customChipStyle, useChipColors, PALETTE } from '../lib/palette'
 import { STATUS_META, ACTION_STATUSES, ADVANCED_COLUMNS, getMissingFields, isOtherChannel, isPhoneOnly, describeStatus } from '@core/constants'
 import { SHORTCUTS, toggleShortcut, selectStatus, matchesFilters, filtersEqual, describeFilters, EMPTY_FILTERS } from '@core/filterRows'
@@ -137,6 +137,47 @@ export function CustomChip({ name, color, count, active, onClick, title }) {
 }
 
 export const columnLabel = key => ADVANCED_COLUMNS.find(c => c.key === key)?.label || key
+
+// Only the text colours of a badge ("bg-x text-y dark:text-z" → "text-y dark:text-z").
+const textOf = badge => String(badge || '').split(/\s+/).filter(c => /(^|:)text-/.test(c)).join(' ')
+
+// The chips that are on, explained on one line under the venue count, each
+// in its chip's colour. The line is always there (empty when no chip is on),
+// so switching chips never moves anything; when it runs too long it is cut,
+// and a click shows it whole.
+export function ChipExplainLine({ explainers }) {
+  const t = useT()
+  const ref = useRef(null)
+  const [open, setOpen] = useState(false)
+  const [cut, setCut] = useState(false)
+  const key = explainers.map(x => `${x.key}:${x.text}`).join('|')
+  useLayoutEffect(() => {
+    setOpen(false)
+    const el = ref.current
+    if (!el) return undefined
+    const measure = () => setCut(el.scrollWidth > el.clientWidth + 1)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [key])
+  const parts = explainers.map((x, i) => (
+    <span key={x.key} className={textOf(x.badge)}>
+      {i > 0 && <span className="text-gray-300 dark:text-gray-600"> · </span>}
+      <span className="font-semibold">{x.label}:</span> {x.text}
+    </span>
+  ))
+  return (
+    <p
+      ref={ref}
+      onClick={cut || open ? () => setOpen(o => !o) : undefined}
+      title={cut && !open ? t('Click to read it all') : undefined}
+      className={`text-xs leading-4 min-h-4 ${open ? 'whitespace-normal' : 'truncate'} ${cut || open ? 'cursor-pointer' : ''}`}
+    >
+      {parts}
+    </p>
+  )
+}
 
 // What the chips that are on show: the status, then the squares, then a saved
 // chip — a label, a sentence, and the chip's colours. Shown in the line at

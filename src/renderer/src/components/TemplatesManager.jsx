@@ -18,7 +18,7 @@ function emptyTemplate(band, language) {
 }
 
 // One row per template, grouped by band, with the language as a chip.
-export default function TemplatesManager({ settings, rows = [], onBack, onClose }) {
+export default function TemplatesManager({ settings, rows = [], onBack, backLabel, onClose }) {
   const t = useT()
   const [templates, setTemplates] = useState([])
   const [editing, setEditing] = useState(null) // a template object, or null
@@ -92,7 +92,7 @@ export default function TemplatesManager({ settings, rows = [], onBack, onClose 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1200] p-4" {...backdrop}>
       {confirmNode}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white/85 dark:bg-gray-800/85 rounded-lg shadow-xl w-full max-w-3xl h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div>
             {/* Editing a template is a page inside this one, and this manager can
@@ -103,7 +103,7 @@ export default function TemplatesManager({ settings, rows = [], onBack, onClose 
                 onClick={editing ? () => setEditing(null) : onBack}
                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 mb-1 -ml-1 px-1"
               >
-                ← {editing ? t('Templates') : t('Settings')}
+                ← {editing ? t('Templates') : backLabel || t('Settings')}
               </button>
             )}
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">

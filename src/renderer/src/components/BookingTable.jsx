@@ -1029,7 +1029,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
                   key={h.id}
                   style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'calc(var(--chrome-top, 0px) + var(--pin-top, 0px))' } : {}) }}
                   className={`px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide select-none
-                    ${pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50 dark:bg-gray-800 shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]` : ''}
+                    ${pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50/75 dark:bg-gray-800/75 backdrop-blur-md backdrop-saturate-150 shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]` : ''}
                     ${h.column.getCanSort() ? 'cursor-pointer hover:text-gray-800 dark:hover:text-gray-200' : ''}`}
                   onClick={h.column.getToggleSortingHandler()}
                 >

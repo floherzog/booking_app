@@ -19,6 +19,13 @@ export function cachedMail(ref) {
   return cache.get(key(ref)) || null
 }
 
+// A cached message's text, for finding a band name in it ('' when not read yet).
+export function cachedText(ref) {
+  const mail = cachedMail(ref)
+  if (!mail) return ''
+  return mail.text || String(mail.html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ')
+}
+
 export async function readMail(ref) {
   const hit = cachedMail(ref)
   if (hit) return hit

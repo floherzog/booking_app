@@ -9,14 +9,20 @@ import { useDateOrder } from '../lib/dateOrder'
 import Busy from './Busy'
 import { useDragTick } from '../lib/useDragTick'
 import { CheckIcon, PencilIcon, RefreshIcon, SendIcon, TrashIcon } from './icons'
+import { bandsNamed, bandOfMessage } from '@core/bandNames'
+import { cachedText, preloadMail } from '../lib/mailBodies'
+import DraftEditor from './DraftEditor'
 
 // "Current drafts", beside "Create / send email" in the Email window: the
 // drafts waiting in the Drafts mailbox for venues in the CSV (a draft to an
 // address the CSV doesn't have is left out). Each can be read, opened in Mail
-// to edit, sent as it is, or deleted for good — one at a time or ticked
+// to edit (in the app: DraftEditor), sent as it is, or deleted for good — one at a time or ticked
 // together, the ticked ones all in one go (main/ipc/mailDrafts.js sends them
 // side by side). A sent draft is recorded on its venue like any other send.
-// The venue's name opens the venue (`onOpenVenue`, over this window).
+// The venue's name opens the venue (`onOpenVenue`, over this window); the
+// rest of the entry opens the draft to read. Each draft shows the band it is
+// for (subject, else text — as in a venue's email list), its subject when
+// that can't be told.
 export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenVenue, onOpenSettings }) {
   const t = useT()
   useDateOrder()
@@ -26,6 +32,8 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenV
   const [busy, setBusy] = useState(() => new Set()) // keys being sent or deleted
   const [done, setDone] = useState({}) // key → { ok, action, error }
   const [confirm, setConfirm] = useState(null) // { action: 'send' | 'delete', keys }
+  const [editing, setEditing] = useState(null) // the draft open in DraftEditor
+  const [, setBodiesRead] = useState(0)
 
   // The list is fetched when the app starts (App.jsx), so it is usually here
   // already; opening the window checks again in the background, keeping the
@@ -34,6 +42,18 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenV
 
   const matched = useMemo(() => matchDrafts(drafts || [], rows, settings), [drafts, rows, settings])
   const keys = matched.map(m => draftRefKey(m.draft))
+  const bandNames = useMemo(() => (settings?.bands || []).map(b => b.name).filter(Boolean), [settings])
+  // Drafts whose subject names no band: their text is read (usually it is
+  // already, App reads drafts ahead) to find it there.
+  useEffect(() => {
+    if (!bandNames.length) return undefined
+    const todo = matched.map(m => m.draft).filter(d => !bandsNamed(d.subject, bandNames).length)
+    if (!todo.length) return undefined
+    let alive = true
+    preloadMail(todo).then(() => { if (alive) setBodiesRead(n => n + 1) })
+    return () => { alive = false }
+  }, [matched, bandNames])
+  const bandOf = d => (bandNames.length ? bandOfMessage({ subject: d.subject, text: cachedText(d) }, bandNames) : null)
   // Ticks for drafts that have gone (sent, deleted, or gone from the server) drop away.
   const live = new Set(keys)
   const tickedLive = [...ticked].filter(k => live.has(k))
@@ -90,7 +110,6 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenV
   }
   const isAsking = (action, list) => confirm?.action === action && confirm.keys.join() === list.join()
 
-  const openInMail = d => api.openExternal(`message://${encodeURIComponent(d.messageId)}`)
   const day = d => (d ? formatDay(new Date(d)) : '')
   const iconBtn = 'shrink-0 p-1.5 rounded text-gray-400 dark:text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-700 disabled:opacity-30'
   const anyBusy = busy.size > 0
@@ -119,7 +138,10 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenV
           const to = [...draft.to, ...draft.cc].map(p => p.address).join(', ')
           const drag = tick(key, { enabled: !anyBusy })
           return (
-            <li key={key} {...drag.row} className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+            <li key={key} {...drag.row}
+              onClick={e => { if (!e.target.closest('button, input, a, label')) mail.openMessage(draft) }}
+              title={t('Read this draft')}
+              className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/40 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/10 transition-colors">
               <div className="flex items-start gap-2">
                 <input type="checkbox" {...drag.box} disabled={anyBusy}
                   aria-label={t('Select this draft')}
@@ -130,25 +152,19 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenV
                       ? <button type="button" onClick={() => onOpenVenue(row._idx)} title={t('Open this venue')} className="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">{row['Venue'] || '—'}</button>
                       : (row['Venue'] || '—')}
                     {row['City'] && <span className="text-gray-400 dark:text-gray-500"> · {row['City']}</span>}
-                    {venueRows.length > 1
-                      ? <span className="text-gray-400 dark:text-gray-500"> · {venueRows.map(r => r['Band']).filter(Boolean).join(', ')}</span>
-                      : row['Band'] && <span className="text-gray-400 dark:text-gray-500"> · {row['Band']}</span>}
                   </p>
-                  <button type="button" onClick={() => mail.openMessage(draft)} title={t('Read this draft')}
-                    className="block w-full text-left text-xs text-gray-600 dark:text-gray-300 truncate hover:text-indigo-600 dark:hover:text-indigo-400">
-                    {draft.subject || t('(no subject)')}
-                  </button>
+                  {bandOf(draft)
+                    ? <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate" title={draft.subject}>{bandOf(draft)}</p>
+                    : <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{draft.subject || t('(no subject)')}</p>}
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{to} · {day(draft.date)}</p>
                   {result && !result.ok && <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{result.error}</p>}
                   {result?.note && <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">{result.note}</p>}
                 </div>
                 {working ? <span className="shrink-0 p-1.5 text-gray-500"><Busy /></span> : (
                   <div className="shrink-0 flex items-center">
-                    {draft.messageId && (
-                      <button type="button" onClick={() => openInMail(draft)} disabled={anyBusy} className={iconBtn} title={t('Edit in Mail')} aria-label={t('Edit in Mail')}>
-                        <PencilIcon className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button type="button" onClick={() => setEditing(draft)} disabled={anyBusy} className={iconBtn} title={t('Edit this draft')} aria-label={t('Edit this draft')}>
+                      <PencilIcon className="w-3.5 h-3.5" />
+                    </button>
                     <button type="button" onClick={() => ask('send', [key])} disabled={anyBusy}
                       className={isAsking('send', [key]) ? 'shrink-0 rounded px-1.5 py-1 text-xs font-medium bg-rose-600 text-white' : iconBtn}
                       title={t('Send this draft now')} aria-label={t('Send this draft now')}>
@@ -174,6 +190,13 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenV
 
   return (
     <div className="flex flex-col min-h-0 h-full">
+      {editing && (
+        <DraftEditor
+          draft={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { dropDraft(editing); setEditing(null); refreshDrafts() }}
+        />
+      )}
       <div className="px-4 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2 pr-12">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('Current drafts')}</h2>
         {matched.length > 0 && <span className="text-sm text-gray-400 dark:text-gray-500">{matched.length}</span>}

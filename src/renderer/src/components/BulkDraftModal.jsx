@@ -10,7 +10,7 @@ import { useBackdropClose } from '../lib/useBackdropClose'
 import { useEscape } from '../lib/useEscape'
 import { api } from '../platform'
 import MailSetupNotice, { mailSetupGaps } from './MailSetupNotice'
-import { CheckIcon, XIcon } from './icons'
+import { CheckIcon, XIcon, PencilIcon } from './icons'
 import { t, useT, getLanguage } from '../i18n'
 import { token } from '../lib/placeholders'
 import Busy from './Busy'
@@ -22,7 +22,7 @@ function whenLabel(iso) {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(getLanguage(), { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, mailReady = false, onDraftCreated, onSent, onOpenVenue, onClearDraftFlags, onClose }) {
+export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, mailReady = false, onDraftCreated, onSent, onOpenVenue, onOpenTemplates, onClearDraftFlags, onClose }) {
   const t = useT()
   const backdrop = useBackdropClose(onClose)
   // Opened from Select mode with venues picked: those are what it drafts.
@@ -194,7 +194,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1300] p-4" {...(phase === 'running' ? {} : backdrop)}>
       {/* Two sides: making new mail on the left, the drafts already waiting in
           Mail on the right (stacked on a narrow window). */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col md:flex-row overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-white/85 dark:bg-gray-800/85 rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col md:flex-row overflow-hidden" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} disabled={phase === 'running'} aria-label={t('Close')} className="absolute top-4 right-5 z-10 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none disabled:opacity-30">&times;</button>
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -398,7 +398,13 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
           )}
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-gray-400 dark:text-gray-500">
+            {onOpenTemplates && (
+              <button type="button" onClick={onOpenTemplates} disabled={phase === 'running'}
+                className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-40">
+                <PencilIcon className="w-3.5 h-3.5" /> {t('Mail templates')}
+              </button>
+            )}
+            <p className="flex-1 min-w-0 text-xs text-gray-400 dark:text-gray-500">
               {phase === 'preflight' && `${t('{n} ready', { n: eligible.length })}${blocked.length ? ` · ${t('{n} can’t be sent', { n: blocked.length })}` : ''}`}
               {phase === 'running' && t('Working on {i} of {n}…', { i: Object.keys(results).length + 1, n: eligible.length })}
               {phase === 'done' && (sentCount > 0

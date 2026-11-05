@@ -48,7 +48,7 @@ export default function MailReader({ message, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[1350] bg-black/40 flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div className="bg-white/85 dark:bg-gray-800/85 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-start gap-3">
             <h3 className="flex-1 min-w-0 text-base font-semibold text-gray-900 dark:text-gray-100 break-words">{head.subject || t('(no subject)')}</h3>

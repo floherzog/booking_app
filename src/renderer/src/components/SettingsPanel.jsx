@@ -583,7 +583,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1150] p-4" {...backdrop}>
       {/* One size for every section — sized to its content, the window jumped
           on every click in the rail. Long sections scroll inside it. */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl h-[90vh] sm:h-[min(90vh,48rem)] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white/85 dark:bg-gray-800/85 rounded-lg shadow-xl w-full max-w-3xl h-[90vh] sm:h-[min(90vh,48rem)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("Settings")}</h2>
           <button type="button" onClick={close} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
