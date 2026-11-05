@@ -2,12 +2,15 @@ import { ipcMain } from 'electron'
 import { readSettings } from '../settingsStore.js'
 import { withImapClient, resolveSentMailbox, friendlyMailError } from './mailImap.js'
 import { normalizeAccounts, accountLabel } from '../../core/mailAccounts.js'
-import { buildMultiBandSyncEdits, scanSince } from '../../core/mailSync.js'
+import { buildMultiBandSyncEdits, scanSince, normalizeAddress } from '../../core/mailSync.js'
+import { bandsNamed, textOfSource } from '../../core/bandNames.js'
 
 // Reading the mail account to keep the CSV's date columns honest.
 //
-// Envelopes only — never message bodies. One pass over Sent gives "when did I last
-// write to this venue", one pass over INBOX gives "when did they last answer".
+// Envelopes, mostly. One pass over Sent gives "when did I last write to this
+// venue", one pass over INBOX gives "when did they last answer". Only where
+// bands sharing a mailbox book the same venue, and the subject doesn't say
+// which band an email is about, is the start of that email read as well.
 // Nothing is written to the CSV here: the renderer stages the result as ordinary
 // edits, and the Save button remains the only thing that touches the file.
 
@@ -64,9 +67,10 @@ function sentRecipients(msg) {
   const people = [...(msg.envelope.to || []), ...(msg.envelope.cc || [])]
   // The subject tells bands apart that share a mailbox (multi-band mode).
   const subject = msg.envelope.subject || ''
+  const messageId = msg.envelope.messageId || ''
   return people
     .filter(p => p?.address)
-    .map(p => ({ address: p.address, date, subject }))
+    .map(p => ({ address: p.address, date, subject, messageId, uid: msg.uid }))
 }
 
 function inboxSenders(msg) {
@@ -78,26 +82,77 @@ function inboxSenders(msg) {
     headers: msg.headers ? msg.headers.toString() : '',
     subject: msg.envelope.subject || '',
   })
-  return [{ address: from.address, date, autoReply, subject: msg.envelope.subject || '' }]
+  return [{ address: from.address, date, autoReply, subject: msg.envelope.subject || '', inReplyTo: msg.envelope.inReplyTo || '', uid: msg.uid }]
+}
+
+const TEXT_BYTES = 24 * 1024
+const MAX_TEXTS = 300
+
+// The start of each message that has to say which band it is about, as text,
+// on `text`. `rivals`: address → the bands sharing this account at that venue.
+export async function readTextsWith(client, mailbox, messages, rivals) {
+  const want = messages.filter(m => {
+    const bands = rivals.get(normalizeAddress(m.address))
+    return bands && !bandsNamed(m.subject, bands).length
+  })
+  const uids = [...new Set(want.map(m => m.uid))].filter(Boolean).slice(-MAX_TEXTS)
+  if (!uids.length) return
+  let lock
+  try { lock = await client.getMailboxLock(mailbox) } catch { return }
+  try {
+    const texts = new Map()
+    for await (const msg of client.fetch(uids, { source: { start: 0, maxLength: TEXT_BYTES } }, { uid: true })) {
+      if (msg.source) texts.set(msg.uid, textOfSource(msg.source))
+    }
+    for (const m of want) if (texts.has(m.uid)) m.text = texts.get(m.uid)
+  } catch { /* the subject alone decides, as before */ } finally {
+    lock.release()
+  }
 }
 
 // One account's contribution to the sync.
-async function scanAccount(account, { since, wantSent, wantReplies }) {
+async function scanAccount(account, { since, wantSent, wantReplies, rivals }) {
   return withImapClient(account, async (client, acc) => {
     let sent = []
     let inbox = []
     if (wantSent) {
       const mailboxes = (await client.list()).map(m => ({ path: m.path, specialUse: m.specialUse }))
-      sent = await collect(client, resolveSentMailbox(mailboxes, acc.sentMailbox), since, sentRecipients)
+      const box = resolveSentMailbox(mailboxes, acc.sentMailbox)
+      sent = await collect(client, box, since, sentRecipients)
+      if (rivals?.size) await readTextsWith(client, box, sent, rivals)
     }
     if (wantReplies) {
       inbox = await collect(client, 'INBOX', since, inboxSenders)
+      if (rivals?.size) await readTextsWith(client, 'INBOX', inbox, rivals)
     }
     return { sent, inbox }
   })
 }
 
-// rows: a slim projection — { _idx, Email, 'Last emailed', Status }.
+// accountId → (address → bands): the venues where several bands send from
+// the same account, so a message to them must name its band.
+export function rivalsByAccount(rows = []) {
+  const groups = new Map()
+  for (const r of rows) {
+    const band = String(r.Band || '').trim()
+    const address = normalizeAddress(r.Email)
+    if (!band || !address || r._venueId == null) continue
+    const key = `${r.accountId || ''}|${r._venueId}`
+    const g = groups.get(key) || { accountId: r.accountId || '', address, bands: [] }
+    g.bands.push(band)
+    groups.set(key, g)
+  }
+  const out = new Map()
+  for (const g of groups.values()) {
+    if (g.bands.length < 2) continue
+    const byAddress = out.get(g.accountId) || new Map()
+    byAddress.set(g.address, [...new Set([...(byAddress.get(g.address) || []), ...g.bands])])
+    out.set(g.accountId, byAddress)
+  }
+  return out
+}
+
+// rows: a slim projection — { _idx, _venueId, Email, Band, accountId, 'Last emailed', Status }.
 //
 // Every configured account is scanned and the results merged: a band's mail goes
 // out from its own mailbox, and a venue's reply comes back to whichever address
@@ -122,13 +177,14 @@ export async function runMailSync(rows = []) {
   // reporting a failure the user did not cause. The others are scanned side by
   // side: each is its own server login.
   const live = accounts.filter(a => a.user)
-  const results = await Promise.allSettled(live.map(account => scanAccount(account, { since, wantSent, wantReplies })))
+  const rivals = rivalsByAccount(rows)
+  const results = await Promise.allSettled(live.map(account => scanAccount(account, { since, wantSent, wantReplies, rivals: rivals.get(account.id) })))
   results.forEach((r, i) => {
     const account = live[i]
     if (r.status === 'rejected') { failures.push(`${accountLabel(account)}: ${r.reason?.message || r.reason}`); return }
     // Tagged so multi-band mode can match each band to its own mailbox.
-    sentMessages.push(...r.value.sent.map(m => ({ ...m, accountId: account.id })))
-    inboxMessages.push(...r.value.inbox.map(m => ({ ...m, accountId: account.id })))
+    sentMessages.push(...r.value.sent.map(({ uid, ...m }) => ({ ...m, accountId: account.id })))
+    inboxMessages.push(...r.value.inbox.map(({ uid, ...m }) => ({ ...m, accountId: account.id })))
   })
 
   const opts = {
@@ -136,7 +192,7 @@ export async function runMailSync(rows = []) {
     repliesMode: wantReplies ? 'imap' : 'off',
   }
   // A venue's lines are linked by _venueId; one booked for several bands has
-  // its messages told apart by account and subject (core/mailSync.js).
+  // its messages told apart by account, subject and text (core/mailSync.js).
   const edits = buildMultiBandSyncEdits(rows, { sent: sentMessages, replies: inboxMessages }, opts)
 
   return {

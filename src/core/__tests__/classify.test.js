@@ -29,6 +29,15 @@ describe('classifyBooking — every status with the default rules', () => {
     expect(classifyBooking(row({ 'Last played': '01.01.23' }), TODAY)).not.toBe(STATUS.RECENTLY_PLAYED)
   })
 
+  it('a Follow Up Date after the gig outranks RECENTLY_PLAYED', () => {
+    // Played in January; follow up set for later → waits for it, then is due.
+    expect(classifyBooking(row({ 'Last played': '01.01.25', 'Follow Up Date': '01.09.25' }), TODAY)).toBe(STATUS.FOLLOW_UP_PENDING)
+    expect(classifyBooking(row({ 'Last played': '01.01.25', 'Follow Up Date': '01.06.25' }), TODAY)).toBe(STATUS.FOLLOW_UP_DUE)
+    // A follow-up from before the gig, or one already answered by an email, doesn't.
+    expect(classifyBooking(row({ 'Last played': '01.01.25', 'Follow Up Date': '01.12.24' }), TODAY)).toBe(STATUS.RECENTLY_PLAYED)
+    expect(classifyBooking(row({ 'Last played': '01.01.25', 'Follow Up Date': '01.03.25', 'Last emailed': '02.03.25' }), TODAY)).toBe(STATUS.RECENTLY_PLAYED)
+  })
+
   it('CONFIRMED for a gig still to come, ahead of every later gate', () => {
     expect(classifyBooking(row({ 'Last played': '01.12.25' }), TODAY)).toBe(STATUS.CONFIRMED)
     expect(classifyBooking(row({ 'Last played': '16.06.25', Note: 'anrufen', Type: 'festival' }), TODAY)).toBe(STATUS.CONFIRMED)

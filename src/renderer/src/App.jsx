@@ -23,7 +23,7 @@ import { withEmailCounters } from '@core/emailCounters'
 import { matchDrafts, draftCounts } from '@core/draftMatch'
 import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
 import { preloadMail } from './lib/mailBodies'
-import StatsBar, { columnLabel as statsColumnLabel } from './components/StatsBar'
+import StatsBar, { columnLabel as statsColumnLabel, chipExplainers } from './components/StatsBar'
 import FilterBar from './components/FilterBar'
 import BackToTop from './components/BackToTop'
 import PageScrollbar from './components/PageScrollbar'
@@ -313,13 +313,14 @@ export default function App() {
   // Updates: once per launch when Settings ▸ General asks for it, quietly — the
   // banner appears only for something newer, and not again for a version the
   // user dismissed. "Check for Updates…" in the menu always shows it.
-  // The ↻ button asks again too (refreshAll), under the same setting.
-  const checkUpdatesQuietly = useCallback(current => {
+  // The ↻ button asks again too (refreshAll), under the same setting — and
+  // since that is asked for, it shows even a version dismissed before.
+  const checkUpdatesQuietly = useCallback((current, { pressed = false } = {}) => {
     if (!caps.updates || !current?.general?.autoCheckUpdates) return
     api.checkForUpdates().then(r => {
       let dismissed = null
       try { dismissed = localStorage.getItem('dismissedUpdate') } catch { /* storage unavailable */ }
-      if (r?.newer && r.latest !== dismissed) setUpdate(r)
+      if (r?.newer && (pressed || r.latest !== dismissed)) setUpdate(r)
     }).catch(() => { /* offline: say nothing */ })
   }, [])
   const updateChecked = useRef(false)
@@ -434,7 +435,7 @@ export default function App() {
       const found = result?.edits || []
       found.forEach(e => handleEdit(e._idx, e.field, e.value))
       setSyncNote(found.length
-        ? { text: t('Mail sync staged {n} change — review and Save.|Mail sync staged {n} changes — review and Save.', { n: found.length }), tone: 'info' }
+        ? { text: t('Mail sync staged {n} change — review and Save.|Mail sync staged {n} changes — review and Save.', { n: found.length }), tone: 'info', untilSaved: true }
         : { text: t('Mail sync found nothing new.'), tone: 'info', autoHide: true })
     } catch (e) {
       setSyncNote({ text: e.message, tone: 'error' })
@@ -449,7 +450,7 @@ export default function App() {
   // The ↻ button: reload the CSV, then (when configured) ask the mail account.
   // Order matters — load() clears staged edits, so syncing first would wipe them.
   const refreshAll = useCallback(async () => {
-    checkUpdatesQuietly(settings)
+    checkUpdatesQuietly(settings, { pressed: true })
     if (mailIsReady) refreshDrafts()
     await load()
     await runMailSync({ silent: true })
@@ -673,11 +674,13 @@ export default function App() {
 
   // A sent email is the opposite of a draft: it belongs on the row. Staged as an
   // ordinary edit so it goes through SaveModal like every other change.
-  // Stamping today's date on a send is one of three options for keeping this
-  // column honest (Settings ▸ Mail settings): the IMAP scan reads the real date
-  // from Sent instead, and "off" leaves the column entirely to the user.
+  // Today's date goes on with every send from the app, also when the mail
+  // sync reads Last emailed from Sent (Settings ▸ Mail settings): the app knows
+  // it just sent, and the scan later finds the same day, so nothing counts
+  // twice. Only "off" leaves the column entirely to the user. The new date
+  // stages one more email on the counters (applyEdits).
   function recordSend(row) {
-    if ((settings?.mail?.sync?.lastEmailed || 'onSend') !== 'onSend') return
+    if ((settings?.mail?.sync?.lastEmailed || 'onSend') === 'off') return
     handleEdit(row._idx, 'Last emailed', formatDateDDMMYY(new Date()))
   }
 
@@ -777,6 +780,8 @@ export default function App() {
     setAdditions(new Set())
     setSelected(new Set())
     setShowSave(false)
+    // "Mail sync staged … — review and Save": done, so it goes.
+    setSyncNote(prev => (prev?.untilSaved ? null : prev))
   }
 
   // Replace the in-memory table with rows parsed from an uploaded CSV file.
@@ -904,6 +909,7 @@ export default function App() {
     setAdditions(new Set())
     setSelected(new Set())
     setConfirmDiscard(false)
+    setSyncNote(prev => (prev?.untilSaved ? null : prev)) // nothing staged any more
   }
 
   // One line of the save dialog taken back: a deletion kept, an added venue
@@ -1066,6 +1072,9 @@ export default function App() {
     [mailDrafts, liveRows, settings],
   )
   const draftsWaiting = useMemo(() => (matchedDrafts ? draftCounts(matchedDrafts) : null), [matchedDrafts])
+  // The "Drafted" chip: venues with a draft waiting in Mail.
+  const draftedSet = useMemo(() => new Set((matchedDrafts || []).flatMap(m => m.rows.map(r => r._idx))), [matchedDrafts])
+  const isDrafted = useCallback(r => draftedSet.has(r._idx), [draftedSet])
   // Their bodies are read ahead, so opening one in the Email window is instant.
   useEffect(() => {
     if (matchedDrafts?.length) preloadMail(matchedDrafts.map(m => m.draft))
@@ -1099,8 +1108,8 @@ export default function App() {
   ]
   const listNames = list => (list.length > 5 ? `${list.slice(0, 5).map(x => x.name).join(', ')} …` : list.map(x => x.name).join(', '))
   const filteredRows = useMemo(
-    () => liveRows.filter(r => matchesFilters(r, filters, { isDuplicate, classify: classifyCtx })),
-    [liveRows, filters, isDuplicate, classifyCtx],
+    () => liveRows.filter(r => matchesFilters(r, filters, { isDuplicate, isDrafted, classify: classifyCtx })),
+    [liveRows, filters, isDuplicate, isDrafted, classifyCtx],
   )
 
   // Venues whose Dates have fallen out of step with their band's Dates —
@@ -1135,10 +1144,10 @@ export default function App() {
   )
   const listWhyEmpty = useMemo(
     () => (filters.nextBatch && filteredRows.length === 0
-      ? explainEmptyBatch({ rows: liveRows, filters, rules, today, ctx: { isDuplicate, classify: classifyCtx }, columnLabel: statsColumnLabel, t })
+      ? explainEmptyBatch({ rows: liveRows, filters, rules, today, ctx: { isDuplicate, isDrafted, classify: classifyCtx }, columnLabel: statsColumnLabel, t })
       : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, classifyCtx, language, dateOrder],
+    [filters, filteredRows.length, liveRows, rules, today, isDuplicate, isDrafted, classifyCtx, language, dateOrder],
   )
   const batchActions = {
     rules: { label: t('Open Rules'), run: () => openSettings('rules') },
@@ -1210,13 +1219,24 @@ export default function App() {
   // Mobile-only: icon-only vertical controls sidebar
   // "Showing 120 of 316 venues · fetched 11:24 · 3 unsaved edits" — the
   // header's line, so the toolbar and the column headings can sit together.
+  // What the chips that are on mean follows on the same line, at most two
+  // lines of it (the whole text on hover): the header is as tall as its
+  // buttons anyway, so switching chips never moves the list.
+  const explainers = chipExplainers({ filters, rules, chips: filterChips, batchWhyEmpty: batchWhyEmpty?.reason, t })
   const listSummary = (
-    <p className="text-xs text-gray-400 dark:text-gray-500">
+    <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-2" title={explainers.map(x => `${x.label}: ${x.text}`).join('\n') || undefined}>
       {filteredVenueCount === venueCount ? t('{n} venue|{n} venues', { n: venueCount }) : t('Showing {shown} of {n} venues', { shown: filteredVenueCount, n: venueCount })}
       {lastFetched && ` · ${t('fetched {time}', { time: lastFetched.toLocaleTimeString(getLanguage()) })}`}
       {editCount > 0 && (
         <span className="text-amber-600 dark:text-amber-400 font-medium"> · {t('{n} unsaved edit|{n} unsaved edits', { n: editCount })}</span>
       )}
+      {explainers.map(x => (
+        <span key={x.key}>
+          {' · '}
+          <span className={`px-1.5 py-px ${x.square ? 'rounded' : 'rounded-full'} ${x.badge}`}><span className="font-medium">{x.label}</span></span>
+          {' '}<span className="text-gray-500 dark:text-gray-400">{x.text}</span>
+        </span>
+      ))}
     </p>
   )
 
@@ -1260,6 +1280,7 @@ export default function App() {
           onChange={setFilters}
           duplicateCount={duplicateSet.size}
           isDuplicate={isDuplicate}
+          isDrafted={caps.mail ? isDrafted : null}
           chips={filterChips}
           batchWhyEmpty={batchWhyEmpty?.reason}
         />
@@ -1275,6 +1296,7 @@ export default function App() {
         onChange={setFilters}
         duplicateCount={duplicateSet.size}
         isDuplicate={isDuplicate}
+        isDrafted={caps.mail ? isDrafted : null}
         chips={filterChips}
         batchWhyEmpty={batchWhyEmpty?.reason}
       />
@@ -1300,6 +1322,7 @@ export default function App() {
           onChange={setFilters}
           duplicateCount={duplicateSet.size}
           isDuplicate={isDuplicate}
+          isDrafted={caps.mail ? isDrafted : null}
           chips={filterChips}
           batchWhyEmpty={batchWhyEmpty?.reason}
         />
@@ -1375,11 +1398,11 @@ export default function App() {
       <div className="max-w-[1700px] mx-auto px-4 pt-6 space-y-5">
 
         {/* Desktop header — original layout */}
-        <div className="hidden sm:flex items-start justify-between">
-          <div>
+        <div className="hidden sm:flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
             {lastFetched && listSummary}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="shrink-0 flex items-center gap-2">
             <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
               <button onClick={() => setView('list')} className={`px-3 py-1.5 transition-colors inline-flex items-center gap-1.5 ${view === 'list' ? viewToggleActive : viewToggleInactive}`}><ListIcon className="w-[1em] h-[1em]" /> {t('List')}</button>
               <button onClick={() => setView('map')} className={`inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${view === 'map' ? viewToggleActive : viewToggleInactive}`}>{globe} {t("Map")}</button>
@@ -1538,6 +1561,7 @@ export default function App() {
           mailReady={mailIsReady}
           onDraftCreated={recordDraft}
           onSent={recordSend}
+          onOpenVenue={setVenueDetail}
           onClearDraftFlags={clearDraftFlags}
           onClose={() => setShowBulkDraft(false)}
         />
@@ -1598,6 +1622,7 @@ export default function App() {
           duplicatePartners={duplicatePartners[venueRep.get(rows.find(r => r._idx === venueDetail)?._venueId)] || []}
           multiBand
           entries={rows.filter(r => r._venueId === rows.find(x => x._idx === venueDetail)?._venueId && !deletions.has(r._idx))}
+          raised={showBulkDraft}
           onSelectEntry={setVenueDetail}
           onAddBand={band => setVenueDetail(handleAddBand(venueDetail, band))}
           onRemoveBand={() => setVenueDetail(handleRemoveBand(venueDetail))}

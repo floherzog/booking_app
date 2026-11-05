@@ -8,7 +8,7 @@ import { replyHealth } from './replyStatus.js'
 
 export const EMPTY_FILTERS = {
   band: '', country: '', type: '', status: '',
-  actionOnly: false, nextBatch: false, missingInfo: false, onlineForm: false, phoneOnly: false, duplicate: false, autoSend: false,
+  actionOnly: false, nextBatch: false, missingInfo: false, onlineForm: false, phoneOnly: false, drafted: false, duplicate: false, autoSend: false,
   search: '', advanced: [], sort: null,
 }
 
@@ -20,6 +20,7 @@ export const SHORTCUTS = [
   // Key kept from when it was only "Online form": saved chips refer to it.
   { key: 'onlineForm', label: 'Other channel' },
   { key: 'phoneOnly', label: 'Phone only' },
+  { key: 'drafted', label: 'Drafted#chip' },
   { key: 'duplicate', label: 'Duplicates' },
   { key: 'autoSend', label: 'Auto-send' },
 ]
@@ -85,6 +86,7 @@ export function selectStatus(filters, status) {
 }
 
 // ctx.isDuplicate(row): whether the row's venue is in a duplicate pair.
+// ctx.isDrafted(row): whether a draft to it waits in the Drafts mailbox.
 // ctx.classify: the classify context, so "Incomplete details" also counts a
 // band without Dates or a template (see sendBlockers in constants.js).
 export function matchesFilters(r, filters, ctx = {}) {
@@ -96,6 +98,7 @@ export function matchesFilters(r, filters, ctx = {}) {
   if (f.onlineForm && !isOtherChannel(r)) return false
   if (f.phoneOnly && !isPhoneOnly(r)) return false
   if (f.duplicate && !ctx.isDuplicate?.(r)) return false
+  if (f.drafted && !ctx.isDrafted?.(r)) return false
   if (f.actionOnly && !ACTION_STATUSES.has(r._status)) return false
   if (f.status && r._status !== f.status) return false
   if (f.band && r['Band'] !== f.band) return false

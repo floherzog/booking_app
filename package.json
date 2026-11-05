@@ -1,7 +1,7 @@
 {
   "name": "booking_app_mac",
   "productName": "Booking",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "Booking outreach manager for macOS",
   "private": true,
   "type": "module",
@@ -21,7 +21,8 @@
     "clean:build": "node scripts/clean-build.mjs",
     "verify:csv": "node scripts/verify-csv-roundtrip.mjs",
     "dist:signed": "npm run build && electron-builder --mac -c.directories.output=\"$HOME/Builds/booking_app_mac\"",
-    "build:helper": "node scripts/build-helper.mjs"
+    "build:helper": "node scripts/build-helper.mjs",
+    "signing:setup": "node scripts/signing-setup.mjs"
   },
   "dependencies": {
     "date-fns": "^4.3.0",

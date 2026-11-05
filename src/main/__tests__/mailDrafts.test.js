@@ -5,7 +5,7 @@ vi.mock('imapflow', () => ({ ImapFlow: class {} }))
 vi.mock('nodemailer', () => ({ default: { createTransport: () => ({}) } }))
 vi.mock('../secrets.js', () => ({ getSecret: () => 'pw' }))
 
-const { listDraftsWith, deleteDraftWith, draftReadyToSend, sendDraftWith } = await import('../ipc/mailDrafts.js')
+const { listDraftsWith, deleteDraftWith, draftReadyToSend, sendDraftWith, sendDraftsFor } = await import('../ipc/mailDrafts.js')
 
 describe('drafts in the Drafts mailbox', () => {
   it('lists the drafts that aren’t deleted, from the account’s Drafts mailbox', async () => {
@@ -64,5 +64,42 @@ describe('drafts in the Drafts mailbox', () => {
     await expect(sendDraftWith({ account: {}, transport, fetchDraft: async () => ({ raw: Buffer.from(''), recipients: [] }) }))
       .rejects.toThrow('no recipient')
     expect(transport.sendMail).not.toHaveBeenCalled()
+  })
+
+  it('sends several drafts with two logins, side by side, and reports each', async () => {
+    const logins = vi.fn()
+    const appended = []
+    const deleted = []
+    const client = {
+      list: async () => [{ path: 'Drafts', specialUse: '\\Drafts' }, { path: 'Sent', specialUse: '\\Sent' }],
+      getMailboxLock: async () => ({ release: () => {} }),
+      fetchOne: async uid => ({ envelope: { to: uid === '3' ? [] : [{ address: `v${uid}@x` }] } }),
+      download: async () => ({ content: (async function* () { yield Buffer.from('Subject: Hi\r\n\r\nBody') })() }),
+      append: async (box, mime) => { appended.push(box) },
+      messageDelete: async uid => { deleted.push(uid); return true },
+    }
+    const withClient = async fn => { logins(); return fn(client) }
+    let inFlight = 0
+    let most = 0
+    const transport = {
+      sendMail: vi.fn(async ({ envelope }) => {
+        inFlight += 1; most = Math.max(most, inFlight)
+        await new Promise(r => setTimeout(r, 5))
+        inFlight -= 1
+        if (envelope.to[0] === 'v2@x') throw new Error('rejected')
+        return { accepted: envelope.to }
+      }),
+    }
+    const refs = [1, 2, 3, 4].map(uid => ({ accountId: 'a', mailbox: 'Drafts', uid }))
+    const got = await sendDraftsFor({ id: 'a', user: 'me@x' }, refs, { withClient, transport })
+    expect(logins).toHaveBeenCalledTimes(2)
+    expect(most).toBeGreaterThan(1)
+    expect(got.map(r => r.uid)).toEqual([1, 2, 3, 4])
+    expect(got[0]).toMatchObject({ accepted: ['v1@x'], filed: true, removed: true })
+    expect(got[1].error).toMatch(/rejected/)
+    expect(got[2].error).toMatch(/no recipient/)
+    expect(got[3]).toMatchObject({ filed: true, removed: true })
+    expect(appended).toEqual(['Sent', 'Sent'])
+    expect(deleted).toEqual(['1', '4'])
   })
 })

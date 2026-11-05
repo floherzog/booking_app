@@ -145,13 +145,40 @@ describe('buildMultiBandSyncEdits', () => {
     expect(edits).toContainEqual({ _idx: 1, field: 'Last emailed', value: '01.05.26', before: '' })
   })
 
-  it('counts a message naming no band (or both) for every band on that account', () => {
+  it('counts a message naming no band for none of the bands sharing that account', () => {
     const rows = [entry(0, 'Alpha', 'a'), entry(1, 'Beta', 'a')]
     const edits = buildMultiBandSyncEdits(rows, {
-      replies: [{ address: 'club@venue.de', date: d(2026, 6, 2), subject: 'Re: Anfrage', accountId: 'a', autoReply: false }],
-    }, { lastEmailed: 'off' })
+      sent: [sent('a', 'Anfrage', d(2026, 5, 1))],
+      replies: [{ address: 'club@venue.de', date: d(2026, 6, 2), subject: 'Hallo', accountId: 'a', autoReply: false }],
+    })
+    expect(edits).toEqual([])
+  })
+
+  it('counts an email naming both bands for both', () => {
+    const rows = [entry(0, 'Alpha', 'a'), entry(1, 'Beta', 'a')]
+    const edits = buildMultiBandSyncEdits(rows, { sent: [sent('a', 'Alpha & Beta 2027', d(2026, 5, 1))] }, { repliesMode: 'off' })
     expect(edits.map(e => e._idx).sort()).toEqual([0, 1])
-    expect(edits.every(e => e.field === 'Status')).toBe(true)
+  })
+
+  it('reads the band off the text when the subject names none', () => {
+    const rows = [entry(0, 'Almost Natural', 'a'), entry(1, 'Trillmann', 'a')]
+    const edits = buildMultiBandSyncEdits(rows, {
+      sent: [{ ...sent('a', 'Konzertanfrage', d(2026, 5, 1)), text: 'Hallo, ich buche die Band almost-natural …' }],
+    }, { repliesMode: 'off' })
+    expect(edits).toEqual([{ _idx: 0, field: 'Last emailed', value: '01.05.26', before: '' }])
+  })
+
+  it('gives a reply naming no band to the email it answers, else the latest one sent before it', () => {
+    const rows = [entry(0, 'Alpha', 'a'), entry(1, 'Beta', 'a')]
+    const reply = (date, inReplyTo) => ({ address: 'club@venue.de', date, subject: 'Re: Anfrage', accountId: 'a', autoReply: false, inReplyTo })
+    const sentMail = [
+      { ...sent('a', 'Alpha 2027', d(2026, 3, 1)), messageId: '<alpha@x>' },
+      { ...sent('a', 'Beta 2027', d(2026, 4, 1)), messageId: '<beta@x>' },
+    ]
+    const threaded = buildMultiBandSyncEdits(rows, { sent: sentMail, replies: [reply(d(2026, 5, 2), '<alpha@x>')] }, { lastEmailed: 'off' })
+    expect(threaded.map(e => e._idx)).toEqual([0])
+    const unthreaded = buildMultiBandSyncEdits(rows, { sent: sentMail, replies: [reply(d(2026, 5, 2))] }, { lastEmailed: 'off' })
+    expect(unthreaded.map(e => e._idx)).toEqual([1])
   })
 })
 

@@ -81,6 +81,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const [accountPasswords, setAccountPasswords] = useState({})
   const [hasPassword, setHasPassword] = useState({})
   const [openAccount, setOpenAccount] = useState(null)
+  const [openBand, setOpenBand] = useState(null) // the band's name, folded open like an account
   const [accountTests, setAccountTests] = useState({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -508,6 +509,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setBands([...bands, { name, tourDates: '' }]
       .sort((a, c) => a.name.localeCompare(c.name)))
     setNewBand('')
+    setOpenBand(name) // a new band wants its Dates filled in
   }
 
   function updateBand(i, patch) {
@@ -1093,23 +1095,49 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                     {bands.length === 0 && (
                       <p className="text-xs text-gray-400 dark:text-gray-500">{t("No bands yet — add one below.")}</p>
                     )}
-                    {bands.map((b, i) => (
-                      <div key={i} className="rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-2">
-                        <div className="flex gap-2 items-center">
-                          <input
-                            className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            value={b.name}
-                            placeholder={t("Band name")}
-                            onChange={e => updateBand(i, { name: e.target.value })}
-                          />
+                    {bands.map((b, i) => {
+                      // Folded like the mail accounts: the name and what it
+                      // has set, opened to change it. Keyed by position while
+                      // open, so renaming doesn't fold it away.
+                      const open = openBand === i || (openBand === b.name && b.name)
+                      const sendsAs = accounts.length > 1 && accounts.find(a => a.id === b.mailAccountId)
+                      return (
+                      <div key={i} className="rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-2 pr-2">
                           <button
                             type="button"
-                            onClick={() => removeBand(i)}
+                            onClick={() => setOpenBand(open ? null : i)}
+                            aria-expanded={!!open}
+                            className="flex-1 min-w-0 flex items-center justify-between gap-3 px-3 py-2 text-left"
+                          >
+                            <span className="min-w-0">
+                              <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{b.name || <span className="italic text-gray-400">{t("Band name")}</span>}</span>
+                              <span className="block text-xs text-gray-400 dark:text-gray-500 truncate">
+                                {b.tourDates || t('No dates yet')}
+                                {sendsAs && ` · ${accountLabel(sendsAs, t)}`}
+                              </span>
+                            </span>
+                            <span className="text-gray-400 shrink-0">{open ? '▴' : '▾'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { removeBand(i); setOpenBand(null) }}
                             className="shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400 px-2 py-1 rounded transition-colors"
                             title={t("Remove band")}
                           >
                             &times;
                           </button>
+                        </div>
+                        {open && (
+                        <div className="px-3 pb-3 pt-3 space-y-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex gap-2 items-center">
+                          <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">{t("Name")}</label>
+                          <input
+                            className="flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            value={b.name}
+                            placeholder={t("Band name")}
+                            onChange={e => { setOpenBand(i); updateBand(i, { name: e.target.value }) }}
+                          />
                         </div>
                         <div className="flex gap-2 items-center">
                           <label className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">{t("Dates")}</label>
@@ -1152,8 +1180,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                             <span className="text-xs text-gray-400 dark:text-gray-500">{t("— they show up in Send and the other lists for this band")}</span>
                           </label>
                         ))}
+                        </div>
+                        )}
                       </div>
-                    ))}
+                      )
+                    })}
                     <div className="flex gap-2 items-center pt-1">
                       <input
                         className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500"
@@ -1505,7 +1536,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <div className="space-y-1.5">
                         {[
                           { v: 'onSend', label: t('Stamp today’s date when I draft or send'), hint: t('No server access needed. Misses anything you sent from Mail itself.') },
-                          { v: 'imap', label: t('Read the real date from my Sent mailbox'), hint: t('Catches everything, however you sent it. Needs the IMAP details above.') },
+                          { v: 'imap', label: t('Read the real date from my Sent mailbox'), hint: t('Catches everything, however you sent it; a send from the app is dated at once. Needs the IMAP details above.') },
                           { v: 'off', label: t('Leave it to me'), hint: t('The column is only ever changed by hand.') },
                         ].map(o => (
                           <label key={o.v} className="flex items-start gap-2 cursor-pointer">

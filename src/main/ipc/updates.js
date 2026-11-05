@@ -50,6 +50,8 @@ export async function checkForUpdates({ currentVersion, fetchImpl = fetch, arch 
   try {
     res = await fetchImpl(RELEASES_API, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'booking-app-mac' },
+      // Never an answer from before the release went out.
+      cache: 'no-store',
     })
   } catch {
     return { current, error: 'Could not reach GitHub. Check your internet connection.' }

@@ -14,8 +14,10 @@ import { CheckIcon, PencilIcon, RefreshIcon, SendIcon, TrashIcon } from './icons
 // drafts waiting in the Drafts mailbox for venues in the CSV (a draft to an
 // address the CSV doesn't have is left out). Each can be read, opened in Mail
 // to edit, sent as it is, or deleted for good — one at a time or ticked
-// together. A sent draft is recorded on its venue like any other send.
-export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenSettings }) {
+// together, the ticked ones all in one go (main/ipc/mailDrafts.js sends them
+// side by side). A sent draft is recorded on its venue like any other send.
+// The venue's name opens the venue (`onOpenVenue`, over this window).
+export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenVenue, onOpenSettings }) {
   const t = useT()
   useDateOrder()
   const mail = useContext(MailContext)
@@ -54,25 +56,30 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
 
   async function run(action, list) {
     setConfirm(null)
-    for (const key of list) {
-      const item = matched.find(m => draftRefKey(m.draft) === key)
-      if (!item) continue
-      const ref = { accountId: item.draft.accountId, mailbox: item.draft.mailbox, uid: item.draft.uid }
-      setBusy(prev => new Set(prev).add(key))
-      try {
-        const r = action === 'send' ? await api.sendDraft(ref) : await api.deleteDraft(ref)
-        if (r?.error) throw new Error(r.error)
-        if (action === 'send') item.rows.forEach(row => onSent?.(row))
-        // Sent, but still in Drafts: say so, or it would be sent twice.
-        const note = action === 'send' && r?.removed === false ? t('Sent — but it is still in Drafts. Delete it there, so it doesn’t go out twice.') : ''
-        setDone(prev => ({ ...prev, [key]: { ok: true, action, note } }))
-        dropDraft(ref)
-      } catch (e) {
-        setDone(prev => ({ ...prev, [key]: { ok: false, action, error: e.message } }))
-      } finally {
-        setBusy(prev => { const next = new Set(prev); next.delete(key); return next })
-      }
+    const items = list.map(key => matched.find(m => draftRefKey(m.draft) === key)).filter(Boolean)
+    if (!items.length) return
+    const refOf = item => ({ accountId: item.draft.accountId, mailbox: item.draft.mailbox, uid: item.draft.uid })
+    const keysOf = new Set(items.map(item => draftRefKey(item.draft)))
+    setBusy(prev => new Set([...prev, ...keysOf]))
+    let results
+    try {
+      results = await (action === 'send' ? api.sendDrafts(items.map(refOf)) : api.deleteDrafts(items.map(refOf)))
+    } catch (e) {
+      results = items.map(item => ({ ...refOf(item), error: e.message }))
     }
+    const next = {}
+    items.forEach((item, i) => {
+      const key = draftRefKey(item.draft)
+      const r = results?.[i] || { error: t('No answer from the mail server.') }
+      if (r.error) { next[key] = { ok: false, action, error: r.error }; return }
+      if (action === 'send') item.rows.forEach(row => onSent?.(row))
+      // Sent, but still in Drafts: say so, or it would be sent twice.
+      const note = action === 'send' && r.removed === false ? t('Sent — but it is still in Drafts. Delete it there, so it doesn’t go out twice.') : ''
+      next[key] = { ok: true, action, note }
+      if (action === 'delete' || r.removed !== false) dropDraft(refOf(item))
+    })
+    setDone(prev => ({ ...prev, ...next }))
+    setBusy(prev => new Set([...prev].filter(k => !keysOf.has(k))))
     setTicked(new Set())
     refreshDrafts()
   }
@@ -119,7 +126,9 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-gray-800 dark:text-gray-100 truncate">
-                    {row['Venue'] || '—'}
+                    {onOpenVenue
+                      ? <button type="button" onClick={() => onOpenVenue(row._idx)} title={t('Open this venue')} className="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">{row['Venue'] || '—'}</button>
+                      : (row['Venue'] || '—')}
                     {row['City'] && <span className="text-gray-400 dark:text-gray-500"> · {row['City']}</span>}
                     {venueRows.length > 1
                       ? <span className="text-gray-400 dark:text-gray-500"> · {venueRows.map(r => r['Band']).filter(Boolean).join(', ')}</span>
@@ -182,18 +191,20 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400" />
             {tickedLive.length ? t('{n} selected', { n: tickedLive.length }) : t('Select all')}
           </label>
-          {tickedLive.length > 0 && (
+          {/* Always laid out, only shown once something is ticked: ticking a
+              draft never moves the list. */}
+          <div className={`flex items-center gap-2 ${tickedLive.length ? '' : 'invisible'}`} aria-hidden={!tickedLive.length}>
             <>
-              <button type="button" onClick={() => ask('delete', tickedLive)} disabled={anyBusy}
+              <button type="button" onClick={() => ask('delete', tickedLive)} disabled={anyBusy || !tickedLive.length}
                 className={`text-xs font-medium px-2.5 py-1 rounded-md border ${isAsking('delete', tickedLive) ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-red-400 hover:text-red-600'}`}>
                 {isAsking('delete', tickedLive) ? t('Really delete {n}?', { n: tickedLive.length }) : t('Delete {n}', { n: tickedLive.length })}
               </button>
-              <button type="button" onClick={() => ask('send', tickedLive)} disabled={anyBusy}
+              <button type="button" onClick={() => ask('send', tickedLive)} disabled={anyBusy || !tickedLive.length}
                 className={`text-xs font-medium px-2.5 py-1 rounded-md text-white ${isAsking('send', tickedLive) ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
                 {isAsking('send', tickedLive) ? t('Really send {n}?', { n: tickedLive.length }) : t('Send {n}', { n: tickedLive.length })}
               </button>
             </>
-          )}
+          </div>
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
@@ -204,7 +215,7 @@ export default function DraftsPanel({ rows, settings, mailReady, onSent, onOpenS
         <p className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
           <CheckIcon className="w-3.5 h-3.5 text-green-600" />
           {[sentCount && t('{n} sent', { n: sentCount }), deletedCount && t('{n} deleted', { n: deletedCount })].filter(Boolean).join(' · ')}
-          {sentCount > 0 && (settings?.mail?.sync?.lastEmailed || 'onSend') === 'onSend' && <span> — {t('press Save to write the new dates to the CSV.')}</span>}
+          {sentCount > 0 && (settings?.mail?.sync?.lastEmailed || 'onSend') !== 'off' && <span> — {t('press Save to write the new dates to the CSV.')}</span>}
         </p>
       )}
     </div>

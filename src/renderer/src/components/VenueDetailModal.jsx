@@ -254,6 +254,14 @@ function FrequencyField({ fieldDef, value, isEdited, onChange }) {
   )
 }
 
+// "moods.ch" → "https://moods.ch"; '' for something that isn't a web address.
+function webUrl(value) {
+  const v = String(value || '').trim()
+  if (!v || /\s/.test(v)) return ''
+  if (/^https?:\/\//i.test(v)) return v
+  return /^[\p{L}\p{N}-]+(\.[\p{L}\p{N}-]+)+([/?#].*)?$/u.test(v) ? `https://${v}` : ''
+}
+
 function Field({ fieldDef, value, isEdited, onChange, row }) {
   const t = useT()
   const { key, type, hint, span, rows: rowCount = 3 } = fieldDef
@@ -303,7 +311,9 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
 
   return (
     <div className={span === 2 ? 'col-span-2' : ''}>
-      <label htmlFor={inputId} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+      {/* One line, so two fields side by side start level; a long hint is cut
+          short and shown whole on hover. */}
+      <label htmlFor={inputId} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 truncate" title={hint ? t(hint) : undefined}>
         {t(fieldDef.label)}
         {hint && <span className="ml-1 text-gray-300 dark:text-gray-600 font-normal">{t(hint)}</span>}
       </label>
@@ -329,6 +339,22 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
           {/* Keep the row's current value selectable even if it isn't in the managed list. */}
           {local && !(fieldDef.options || []).includes(local) && <option value={local}>{local}</option>}
         </select>
+      ) : type === 'url' ? (
+        <div className="flex items-center gap-2">
+          <input
+            id={inputId}
+            type="url"
+            value={local}
+            onChange={e => { setLocal(e.target.value); commit(e.target.value) }}
+            className={`${base} flex-1 min-w-0`}
+          />
+          {webUrl(local) && (
+            <a href={webUrl(local)} target="_blank" rel="noopener noreferrer" title={webUrl(local)}
+              className="shrink-0 inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              {t('Open')} <ExternalIcon className="w-3 h-3" />
+            </a>
+          )}
+        </div>
       ) : (
         <input
           id={inputId}
@@ -347,31 +373,71 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
   )
 }
 
-// Multi-band mode: one tab per band this venue is booked for, plus a picker to
-// add another. The tab shows the band's status colour, so a glance tells which
-// band needs something.
-function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
+// One tab per band this venue is booked for, plus a picker to add another.
+// The tab shows the band's status colour, so a glance tells which band needs
+// something, and with several bands how many emails each has had. The open
+// tab is a picker too — click it to move this entry to another band — and its
+// × stops booking the venue for that band.
+function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd, onChange, onRemove }) {
   const t = useT()
   useChipColors()
   const bandOf = e => edits[e._idx]?.['Band'] ?? e['Band'] ?? ''
+  const emailsOf = e => Number(edits[e._idx]?.['Total emails'] ?? e['Total emails']) || 0
   const taken = new Set(entries.map(bandOf).filter(Boolean))
   const free = bandOptions.filter(b => b && !taken.has(b))
   const sorted = [...entries].sort((a, b) => bandOf(a).localeCompare(bandOf(b)))
+  const several = entries.length > 1
+  const count = e => several && (
+    <span className="inline-flex items-center gap-0.5 opacity-70 tabular-nums" title={t('{n} email sent all time|{n} emails sent all time', { n: emailsOf(e) })}>
+      {emailsOf(e)}<MailIcon className="w-3 h-3" />
+    </span>
+  )
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-1">
       {sorted.map(e => {
-        const active = e._idx === activeIdx
+        const dot = <span className="w-2 h-2 rounded-full shrink-0" style={{ background: statusMeta(e._status).mapColor ?? '#9CA3AF' }} aria-hidden />
+        if (e._idx !== activeIdx) {
+          return (
+            <button
+              key={e._idx}
+              onClick={() => onSelect(e._idx)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors text-gray-600 border-gray-300 hover:border-gray-400 dark:text-gray-300 dark:border-gray-600 dark:hover:border-gray-500"
+            >
+              {dot}
+              {bandOf(e) || <span className="italic">{t("no band")}</span>}
+              {count(e)}
+            </button>
+          )
+        }
         return (
-          <button
-            key={e._idx}
-            onClick={() => onSelect(e._idx)}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${active
-              ? 'bg-gray-800 text-white border-gray-800 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200'
-              : 'text-gray-600 border-gray-300 hover:border-gray-400 dark:text-gray-300 dark:border-gray-600 dark:hover:border-gray-500'}`}
-          >
-            <span className="w-2 h-2 rounded-full" style={{ background: statusMeta(e._status).mapColor ?? '#9CA3AF' }} aria-hidden />
-            {bandOf(e) || <span className="italic">{t("no band")}</span>}
-          </button>
+          <span key={e._idx} className="inline-flex items-center rounded-md text-xs font-medium border bg-gray-800 text-white border-gray-800 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200">
+            <label className="relative inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 cursor-pointer" title={t('Change band')}>
+              {dot}
+              {bandOf(e) || <span className="italic">{t("no band")}</span>}
+              {count(e)}
+              {free.length > 0 && <span aria-hidden className="opacity-60">▾</span>}
+              {free.length > 0 && (
+                <select
+                  value=""
+                  onChange={ev => { if (ev.target.value) onChange(ev.target.value) }}
+                  aria-label={t('Change band')}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                >
+                  <option value="">{t('Change band')}</option>
+                  {free.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              )}
+            </label>
+            {bandOf(e) && (
+              <button
+                type="button"
+                onClick={onRemove}
+                title={t('Remove from {band}', { band: bandOf(e) })}
+                aria-label={t('Remove from {band}', { band: bandOf(e) })}
+                className="px-1.5 py-1 border-l border-white/20 dark:border-gray-900/20 opacity-70 hover:opacity-100"
+              >×</button>
+            )}
+          </span>
         )
       })}
       {free.length > 0 && (
@@ -389,7 +455,7 @@ function BandTabs({ entries, activeIdx, edits, bandOptions, onSelect, onAdd }) {
   )
 }
 
-export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand, onOpenSettings }) {
+export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose, onDelete, duplicatePartners = [], onDismissDuplicate, onOpenMerge, onSave, editCount, onOpenMap, bandOptions = [], typeOptions = [], templates = [], languages, settings, draftedAtIso, onDraftCreated, onSent, multiBand = false, entries = [], onSelectEntry, onAddBand, onRemoveBand, onOpenSettings, raised = false }) {
   const t = useT()
   const [confirmDelete, setConfirmDelete] = useState(false) // false | 'band' | 'venue'
   const backdrop = useBackdropClose(onClose)
@@ -404,9 +470,11 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
   // The row tint in the table is this colour; here it gets a name, because a
   // colour on its own is only meaningful to whoever wrote the legend.
   const health = healthMeta(effective)
-  // With staged edits: a new Last emailed date stages one more email.
-  const totalEmails = Number(effective['Total emails']) || 0
-  const recentEmails = Number(effective['Recent emails']) || 0
+  // With staged edits: a new Last emailed date stages one more email. With
+  // several bands, the whole venue's (each band's own are on its tab).
+  const counted = severalBands ? entries.map(e => ({ ...e, ...(edits[e._idx] || {}) })) : [effective]
+  const totalEmails = counted.reduce((n, e) => n + (Number(e['Total emails']) || 0), 0)
+  const recentEmails = counted.reduce((n, e) => n + (Number(e['Recent emails']) || 0), 0)
 
   function handleChange(field, value) {
     onEdit(rowIndex, field, value)
@@ -415,7 +483,8 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
   return (
     // A side panel the full height of the window, from the very top: its header
     // starts below the Mac's drag strip instead (index.css, .side-panel).
-    <div className="side-panel fixed inset-0 bg-black/40 flex items-center justify-end z-[1100]" {...backdrop}>
+    // `raised`: opened from the Email window, so it goes on top of that.
+    <div className={`side-panel fixed inset-0 bg-black/40 flex items-center justify-end ${raised ? 'z-[1320]' : 'z-[1100]'}`} {...backdrop}>
       <div
         className="bg-white dark:bg-gray-800 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
@@ -469,6 +538,8 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                 bandOptions={bandOptions}
                 onSelect={idx => { setConfirmDelete(false); onSelectEntry?.(idx) }}
                 onAdd={band => { setConfirmDelete(false); onAddBand?.(band) }}
+                onChange={band => { setConfirmDelete(false); onEdit(rowIndex, 'Band', band) }}
+                onRemove={() => setConfirmDelete('band')}
               />
             )}
           </div>
@@ -514,7 +585,16 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
               onOpenMap={onOpenMap}
             />
           )}
-          {caps.mail && <MailHistory email={effective['Email']} lastEmailed={effective['Last emailed']} lastReply={parseReplyStatus(effective['Status']).dateStr} />}
+          {caps.mail && (
+            <MailHistory
+              email={effective['Email']}
+              lastEmailed={effective['Last emailed']}
+              lastReply={parseReplyStatus(effective['Status']).dateStr}
+              bands={bandOptions.filter(Boolean)}
+              band={effective['Band'] || ''}
+              severalBands={severalBands}
+            />
+          )}
           {SECTIONS.map(section => {
             // In multi-band mode the band is chosen with the tabs above, and the
             // section heading says whose data this is: the venue's (every band)
@@ -560,7 +640,8 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
           })}
         </div>
 
-        <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 shrink-0 flex items-center justify-between gap-3">
+        {/* Wraps onto a second line rather than pushing Save out of the panel. */}
+        <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           {confirmDelete ? (
             <div className="flex items-center gap-2">
               <span className="text-xs text-red-700 dark:text-red-400">
@@ -583,14 +664,6 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              {multiBand && effective['Band'] && (
-                <button
-                  onClick={() => setConfirmDelete('band')}
-                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors whitespace-nowrap"
-                >
-                  {t("Remove from")} {effective['Band']}
-                </button>
-              )}
               <button
                 onClick={() => setConfirmDelete('venue')}
                 className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors whitespace-nowrap"
@@ -599,7 +672,7 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
               </button>
             </div>
           )}
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex flex-wrap items-start justify-end gap-3 min-w-0">
             {caps.mail && (
               <DraftVenueButton
                 row={effective}

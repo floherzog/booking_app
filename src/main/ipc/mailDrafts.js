@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import nodemailer from 'nodemailer'
 import { readSettings } from '../settingsStore.js'
-import { withImapClient, resolveDraftsMailbox, accountFor, friendlyMailError, appendToSent } from './mailImap.js'
+import { withImapClient, resolveDraftsMailbox, accountFor, friendlyMailError, appendToSent, sentMailboxWith } from './mailImap.js'
 import { smtpConfig } from './mailSmtp.js'
 import { normalizeAccounts } from '../../core/mailAccounts.js'
 
@@ -119,6 +119,70 @@ export async function sendDraftWith({ account, transport, fetchDraft, fileToSent
   return { accepted: info?.accepted || recipients, filed, removed }
 }
 
+// refs → Map(accountId → refs), at most 200 in all.
+function byAccount(refs) {
+  const out = new Map()
+  for (const ref of (Array.isArray(refs) ? refs : []).slice(0, 200)) {
+    const list = out.get(ref.accountId) || []
+    list.push(ref)
+    out.set(ref.accountId, list)
+  }
+  return out
+}
+
+// Several drafts of one account sent together: one login reads them all, the
+// SMTP connections send them side by side, and one more login files the copies
+// in Sent and takes them out of Drafts. (One at a time, every draft cost three
+// logins and a connection of its own.) `deps` is injectable for the tests.
+// → [{ ...ref, accepted, filed, removed } | { ...ref, error }], in ref order.
+export async function sendDraftsFor(account, refs, {
+  withClient = fn => withImapClient(account, fn),
+  transport,
+} = {}) {
+  const results = new Map()
+  const fail = (ref, e) => results.set(ref, { ...ref, error: friendlyMailError(e, account) })
+  const ready = []
+  try {
+    await withClient(async client => {
+      for (const ref of refs) {
+        try {
+          const { raw, recipients } = await fetchDraftWith(client, ref.mailbox, ref.uid)
+          if (!recipients.length) throw new Error('This draft has no recipient.')
+          ready.push({ ref, mime: draftReadyToSend(raw), recipients })
+        } catch (e) { fail(ref, e) }
+      }
+    })
+  } catch (e) {
+    refs.filter(r => !results.has(r) && !ready.some(x => x.ref === r)).forEach(r => fail(r, e))
+  }
+  const sent = []
+  await Promise.all(ready.map(async item => {
+    try {
+      const info = await transport.sendMail({ raw: item.mime, envelope: { from: account.fromAddress || account.user, to: item.recipients } })
+      sent.push(item)
+      results.set(item.ref, { ...item.ref, accepted: info?.accepted || item.recipients, filed: false, removed: false })
+    } catch (e) { fail(item.ref, e) }
+  }))
+  // Gone out either way from here on: filing and removing are best-effort,
+  // and a failure only shows as "still in Drafts".
+  if (sent.length) {
+    try {
+      await withClient(async client => {
+        let sentBox = null
+        try { sentBox = await sentMailboxWith(client, account) } catch { /* not filed */ }
+        for (const item of sent) {
+          const r = results.get(item.ref)
+          if (sentBox) {
+            try { await client.append(sentBox, item.mime, ['\\Seen']); r.filed = true } catch { /* not filed */ }
+          }
+          try { await deleteDraftWith(client, item.ref.mailbox, item.ref.uid); r.removed = true } catch { /* still in Drafts */ }
+        }
+      })
+    } catch { /* the login failed: sent, but not filed or removed */ }
+  }
+  return refs.map(r => results.get(r))
+}
+
 export function registerMailDraftsIpc() {
   ipcMain.handle('mailDrafts:list', async () => {
     const accounts = normalizeAccounts(readSettings().mail).filter(a => a.host && a.user)
@@ -139,6 +203,43 @@ export function registerMailDraftsIpc() {
     } catch (e) {
       return { error: friendlyMailError(e) }
     }
+  })
+
+  // Several at once: accounts side by side, one login per account.
+  ipcMain.handle('mailDrafts:deleteMany', async (_e, refs = []) => {
+    const results = await Promise.all([...byAccount(refs)].map(async ([accountId, list]) => {
+      const out = []
+      try {
+        await withImapClient(accountFor(accountId), async client => {
+          for (const ref of list) {
+            try { out.push({ ...ref, ...(await deleteDraftWith(client, ref.mailbox, ref.uid)) }) } catch (e) { out.push({ ...ref, error: e.message }) }
+          }
+        })
+      } catch (e) {
+        const done = new Set(out.map(r => r.uid))
+        list.filter(ref => !done.has(ref.uid)).forEach(ref => out.push({ ...ref, error: friendlyMailError(e) }))
+      }
+      return out
+    }))
+    return results.flat()
+  })
+
+  ipcMain.handle('mailDrafts:sendMany', async (_e, refs = []) => {
+    const results = await Promise.all([...byAccount(refs)].map(async ([accountId, list]) => {
+      let transport
+      let account
+      try {
+        account = accountFor(accountId)
+        // A few SMTP connections, so the drafts go out side by side.
+        transport = nodemailer.createTransport({ ...smtpConfig(account), pool: true, maxConnections: 3 })
+        return await sendDraftsFor(account, list, { transport })
+      } catch (e) {
+        return list.map(ref => ({ ...ref, error: friendlyMailError(e, account) }))
+      } finally {
+        transport?.close()
+      }
+    }))
+    return results.flat()
   })
 
   ipcMain.handle('mailDrafts:send', async (_e, { accountId, mailbox, uid } = {}) => {

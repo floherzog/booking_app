@@ -215,9 +215,10 @@ above all others:
 Artifacts land in `~/Builds/booking_app_mac/`, not in the repo — see
 `electron-builder.yml` for why. `export BUILD=~/Builds/booking_app_mac` first.
 
-- [ ] `npm run dist` — the build log shows `adhoc-sign  ad-hoc signature applied`.
+- [ ] `npm run dist` — the build log shows `adhoc-sign  signature by "Booking self-signed (floherzog)" applied`
+      (not the ad-hoc fallback: that one makes the keychain ask again after the update).
 - [ ] `codesign -dv --verbose=4 "$BUILD/mac-arm64/Booking.app"` reports
-      `Signature=adhoc`, and `codesign --verify --deep --strict` is silent.
+      `Authority=Booking self-signed (floherzog)`, and `codesign --verify --deep --strict` is silent.
 - [ ] Fake a download locally and confirm it does **not** say "damaged":
 
       ```sh

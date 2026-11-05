@@ -47,6 +47,11 @@ const SHORTCUT_STYLE = {
     on: 'bg-violet-600 text-white border-violet-600 dark:bg-violet-500 dark:border-violet-500',
     off: 'bg-transparent text-violet-700 border-violet-300 hover:border-violet-400 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:hover:border-violet-600 dark:hover:bg-violet-900/20',
   },
+  drafted: {
+    badge: PALETTE.sky.badge,
+    on: 'bg-sky-600 text-white border-sky-600 dark:bg-sky-500 dark:border-sky-500',
+    off: 'bg-transparent text-sky-700 border-sky-300 hover:border-sky-400 hover:bg-sky-50 dark:text-sky-400 dark:border-sky-800 dark:hover:border-sky-600 dark:hover:bg-sky-900/20',
+  },
   autoSend: {
     badge: PALETTE.teal.badge,
     on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
@@ -61,6 +66,7 @@ const SHORTCUT_TITLES = {
   missingInfo: () => t('Venues with something missing — everything behind the “Missing info” status, plus a missing contact or location, which don’t stop an email.'),
   onlineForm: () => t('Venues you reach some other way than email: a form on their website, Instagram, WhatsApp and the like. They keep their status but are never drafted.'),
   phoneOnly: () => t('Venues you can only reach by phone. They keep their status but are never drafted.'),
+  drafted: () => t('Venues with a draft waiting in your Drafts mailbox.'),
   duplicate: () => t('Venues in the same city with very similar names — probably one place entered twice. Open one to merge them, or mark them as not a duplicate.'),
   autoSend: () => t('Venues flagged Auto: an email run set to “Auto column decides” sends to them straight away instead of drafting.'),
 }
@@ -132,8 +138,30 @@ export function CustomChip({ name, color, count, active, onClick, title }) {
 
 export const columnLabel = key => ADVANCED_COLUMNS.find(c => c.key === key)?.label || key
 
+// What the chips that are on show: the status, then the squares, then a saved
+// chip — a label, a sentence, and the chip's colours. Shown in the line at
+// the top with the venue count (App.jsx), not under the chips, so switching a
+// chip never moves the list.
+export function chipExplainers({ filters, rules, chips, batchWhyEmpty, t }) {
+  const custom = chips?.custom || []
+  const activeStatus = filters.status
+  const activeMeta = activeStatus ? statusMeta(activeStatus) : null
+  return [
+    activeMeta && { key: 'status', label: t(activeMeta.label), text: describeStatus(activeStatus, rules, t), badge: activeMeta.badge },
+    ...SHORTCUTS.filter(s => filters[s.key]).map(s => ({
+      key: s.key, square: true, label: t(s.label),
+      text: s.key === 'nextBatch' && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key](rules),
+      badge: chipStyle(s.key, SHORTCUT_STYLE[s.key]).badge,
+    })),
+    ...custom.map(c => filtersEqual(filters, c.filters) && {
+      key: c.id, square: true, label: c.name, text: describeFilters(c.filters, columnLabel, t),
+      badge: customChipStyle(c.color, CUSTOM_STYLE).badge,
+    }),
+  ].filter(Boolean)
+}
+
 // `strip`: one row that scrolls sideways, for the pinned bar at the top.
-export default function StatsBar({ rows, filters, onChange, duplicateCount, isDuplicate, chips, batchWhyEmpty, strip = false }) {
+export default function StatsBar({ rows, filters, onChange, duplicateCount, isDuplicate, isDrafted, chips, batchWhyEmpty, strip = false }) {
   const t = useT()
   useChipColors()
   const rules = useRules()
@@ -152,33 +180,19 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
       missingInfo: rows.filter(r => getMissingFields(r, classify).length > 0).length,
       onlineForm: rows.filter(isOtherChannel).length,
       phoneOnly: rows.filter(isPhoneOnly).length,
+      drafted: isDrafted ? rows.filter(isDrafted).length : 0,
       duplicate: duplicateCount,
       autoSend: rows.filter(r => r['Auto'] === 'TRUE').length,
     }
-  }, [rows, duplicateCount, classify])
+  }, [rows, duplicateCount, classify, isDrafted])
 
   const customCounts = useMemo(
-    () => custom.map(c => rows.filter(r => matchesFilters(r, c.filters, { isDuplicate, classify })).length),
-    [custom, rows, isDuplicate, classify],
+    () => custom.map(c => rows.filter(r => matchesFilters(r, c.filters, { isDuplicate, isDrafted, classify })).length),
+    [custom, rows, isDuplicate, isDrafted, classify],
   )
 
   const activeStatus = filters.status
-  const activeMeta = activeStatus ? statusMeta(activeStatus) : null
   const shortcuts = SHORTCUTS.filter(s => !hidden.has(s.key) && (ALWAYS_SHOWN.has(s.key) || counts[s.key] > 0 || filters[s.key]))
-  // One line per chip that is on: the status, then the squares, then a saved chip.
-  const explainers = [
-    activeMeta && { key: 'status', label: t(activeMeta.label), text: describeStatus(activeStatus, rules, t), badge: activeMeta.badge },
-    ...SHORTCUTS.filter(s => filters[s.key]).map(s => ({
-      key: s.key, square: true, label: t(s.label),
-      text: s.key === 'nextBatch' && !counts.nextBatch && batchWhyEmpty ? batchWhyEmpty : SHORTCUT_TITLES[s.key](rules),
-      badge: chipStyle(s.key, SHORTCUT_STYLE[s.key]).badge,
-    })),
-    ...custom.map(c => filtersEqual(filters, c.filters) && {
-      key: c.id, square: true, label: c.name, text: describeFilters(c.filters, columnLabel, t),
-      badge: customChipStyle(c.color, CUSTOM_STYLE).badge,
-    }),
-  ].filter(Boolean)
-
   return (
     <div className="space-y-2">
       <div className={`flex gap-2 items-center ${strip ? 'flex-nowrap overflow-x-auto [scrollbar-width:none] [&>*]:shrink-0 py-0.5' : 'flex-wrap'}`}>
@@ -217,16 +231,6 @@ export default function StatsBar({ rows, filters, onChange, duplicateCount, isDu
           )
         })}
       </div>
-
-      {!strip && explainers.length > 0 && (
-        <div className="flex flex-col items-start gap-1">
-          {explainers.map(x => (
-            <p key={x.key} className={`text-xs px-3 py-1.5 inline-block ${x.square ? 'rounded' : 'rounded-full'} ${x.badge}`}>
-              <span className="font-medium">{x.label}:</span> {x.text}
-            </p>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

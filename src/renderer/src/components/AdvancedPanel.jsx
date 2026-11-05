@@ -7,7 +7,7 @@ import { CheckIcon } from './icons'
 import { t, useT } from '../i18n'
 
 // What a shortcut chip and a custom chip look like before any colour is chosen.
-const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#F97316', duplicate: '#F43F5E', onlineForm: '#0891B2', phoneOnly: '#7C3AED', autoSend: '#0D9488' }
+const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#F97316', duplicate: '#F43F5E', onlineForm: '#0891B2', phoneOnly: '#7C3AED', drafted: '#0284C7', autoSend: '#0D9488' }
 const CUSTOM_HEX = '#475569'
 
 const sel = 'rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'

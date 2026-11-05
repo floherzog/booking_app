@@ -76,11 +76,16 @@ export function classifyBooking(row, today, rules = DEFAULT_RULES, ctx = {}) {
   // A gig still to come, or one played recently → not for booking outreach
   // right now. Mirrors the next-batch policy. "Still to come" is the same test
   // as replyHealth's 'gig'.
+  // A follow-up date set for after the gig outranks "recently played": it is
+  // the user saying when to write again (until an email after it fulfils it).
   const lastPlayed = parseDate(row['Last played'] || '')
-  if (lastPlayed && lastPlayed > today) return STATUS.CONFIRMED
-  if (lastPlayed && differenceInDays(today, lastPlayed) < rules.recentlyPlayedDays) return STATUS.RECENTLY_PLAYED
-
   const lastEmailed = parseDate(lastEmailedRaw)
+  const openFollowUp = parseDate(followUpRaw)
+  const followUpAfterGig = openFollowUp && lastPlayed && openFollowUp > lastPlayed
+    && !(lastEmailed && lastEmailed >= openFollowUp)
+  if (lastPlayed && lastPlayed > today) return STATUS.CONFIRMED
+  if (lastPlayed && !followUpAfterGig && differenceInDays(today, lastPlayed) < rules.recentlyPlayedDays) return STATUS.RECENTLY_PLAYED
+
   // Re-contact window: the venue's own Frequency, else its type's interval,
   // else the rules' defaultFrequencyDays.
   const freqDays = frequencyToDays(row['frequency'], typeRule.frequencyDays

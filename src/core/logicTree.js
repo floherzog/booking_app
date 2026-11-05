@@ -49,7 +49,7 @@ export function buildLogicNodes(rules = DEFAULT_RULES, typeRules = DEFAULT_TYPE_
     },
     {
       col: t('Last Played'), q: t('Played within the last {days} days', { days: rules.recentlyPlayedDays }), yes: 'RECENTLY_PLAYED',
-      note: t('A recent gig — not an outreach target right now.'),
+      note: t('A recent gig — not an outreach target right now, unless a Follow Up Date after the gig says when to write again.'),
     },
     {
       col: t('Note'), q: t('Note contains a hold keyword'),

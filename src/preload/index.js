@@ -88,6 +88,8 @@ const api = {
   listDrafts: () => ipcRenderer.invoke('mailDrafts:list'),
   deleteDraft: ref => ipcRenderer.invoke('mailDrafts:delete', ref),
   sendDraft: ref => ipcRenderer.invoke('mailDrafts:send', ref),
+  sendDrafts: refs => ipcRenderer.invoke('mailDrafts:sendMany', refs),
+  deleteDrafts: refs => ipcRenderer.invoke('mailDrafts:deleteMany', refs),
   onUpdateProgress: cb => {
     const handler = (_e, p) => cb(p)
     ipcRenderer.on('updates:progress', handler)

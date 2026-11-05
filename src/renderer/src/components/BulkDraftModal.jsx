@@ -22,7 +22,7 @@ function whenLabel(iso) {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(getLanguage(), { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, mailReady = false, onDraftCreated, onSent, onClearDraftFlags, onClose }) {
+export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, filteredRows, selected = null, templates, languages, settings, mailReady = false, onDraftCreated, onSent, onOpenVenue, onClearDraftFlags, onClose }) {
   const t = useT()
   const backdrop = useBackdropClose(onClose)
   // Opened from Select mode with venues picked: those are what it drafts.
@@ -426,7 +426,7 @@ export default function BulkDraftModal({ rows, batchWhyEmpty, onOpenSettings, fi
         </div>
       </div>
       <div className="md:w-[26rem] shrink-0 h-[40%] md:h-auto min-h-0 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700">
-        <DraftsPanel rows={rows} settings={settings} mailReady={mailReady} onSent={onSent} onOpenSettings={onOpenSettings} />
+        <DraftsPanel rows={rows} settings={settings} mailReady={mailReady} onSent={onSent} onOpenVenue={onOpenVenue} onOpenSettings={onOpenSettings} />
       </div>
       </div>
     </div>

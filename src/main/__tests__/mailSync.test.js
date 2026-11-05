@@ -44,3 +44,38 @@ describe('isAutoReply', () => {
     expect(isAutoReply({ subject: 'We loved your automatic reply demo' })).toBe(false)
   })
 })
+
+describe('reading which band an email is about', async () => {
+  const { rivalsByAccount, readTextsWith } = await import('../ipc/mailSync.js')
+  it('only venues with several bands on one account need it', () => {
+    const rows = [
+      { _venueId: 'v1', Email: 'a@club.de', Band: 'Alpha', accountId: 'm' },
+      { _venueId: 'v1', Email: 'a@club.de', Band: 'Beta', accountId: 'm' },
+      { _venueId: 'v2', Email: 'b@club.de', Band: 'Alpha', accountId: 'm' },
+      { _venueId: 'v2', Email: 'b@club.de', Band: 'Gamma', accountId: 'n' },
+    ]
+    const got = rivalsByAccount(rows)
+    expect([...got.keys()]).toEqual(['m'])
+    expect(got.get('m').get('a@club.de')).toEqual(['Alpha', 'Beta'])
+  })
+  it('reads the start of just the emails whose subject names no band', async () => {
+    const fetched = []
+    const client = {
+      getMailboxLock: async () => ({ release: () => {} }),
+      async *fetch(uids, query) {
+        fetched.push(...uids)
+        expect(query.source.maxLength).toBeGreaterThan(0)
+        for (const uid of uids) yield { uid, source: Buffer.from('Subject: x\r\n\r\nWir sind Beta.') }
+      },
+    }
+    const msgs = [
+      { address: 'a@club.de', subject: 'Alpha 2027', uid: 1 },
+      { address: 'a@club.de', subject: 'Anfrage', uid: 2 },
+      { address: 'z@other.de', subject: 'Anfrage', uid: 3 },
+    ]
+    await readTextsWith(client, 'Sent', msgs, new Map([['a@club.de', ['Alpha', 'Beta']]]))
+    expect(fetched).toEqual([2])
+    expect(msgs[1].text).toMatch(/Beta/)
+    expect(msgs[0].text).toBeUndefined()
+  })
+})

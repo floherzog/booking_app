@@ -10,8 +10,8 @@ const drafts = [
 ]
 const api = vi.hoisted(() => ({
   listDrafts: vi.fn(),
-  sendDraft: vi.fn(async () => ({ accepted: ['info@moods.ch'] })),
-  deleteDraft: vi.fn(async () => ({ ok: true })),
+  sendDrafts: vi.fn(async refs => refs.map(r => ({ ...r, accepted: ['info@moods.ch'], filed: true, removed: true }))),
+  deleteDrafts: vi.fn(async refs => refs.map(r => ({ ...r, ok: true }))),
   openExternal: vi.fn(),
 }))
 vi.mock('../../platform', () => ({ api, caps: { mail: true } }))
@@ -46,28 +46,36 @@ describe('Current drafts', () => {
   it('sends only on the second click, then records the send and drops the draft', async () => {
     const { el, root, onSent } = await open()
     await act(async () => button(el, 'Send this draft now').click())
-    expect(api.sendDraft).not.toHaveBeenCalled()
+    expect(api.sendDrafts).not.toHaveBeenCalled()
     expect(el.textContent).toContain('Send?')
     api.listDrafts.mockResolvedValue({ drafts: drafts.slice(1), failures: [] }) // gone from Drafts
     await act(async () => button(el, 'Send this draft now').click())
     await wait(10)
     expect(el.textContent).not.toContain('Anfrage Moods')
-    expect(api.sendDraft).toHaveBeenCalledWith({ accountId: 'default', mailbox: 'Drafts', uid: 1 })
+    expect(api.sendDrafts).toHaveBeenCalledWith([{ accountId: 'default', mailbox: 'Drafts', uid: 1 }])
     expect(onSent).toHaveBeenCalledWith(rows[0])
     expect(el.textContent).toContain('1 sent')
     act(() => root.unmount())
   })
 
   it('deletes ticked drafts after asking', async () => {
-    api.deleteDraft.mockClear()
+    api.deleteDrafts.mockClear()
     const { el, root, onSent } = await open()
     await act(async () => el.querySelector('input[aria-label="Select this draft"]').click())
     await act(async () => button(el, 'Delete 1').click())
-    expect(api.deleteDraft).not.toHaveBeenCalled()
+    expect(api.deleteDrafts).not.toHaveBeenCalled()
     await act(async () => button(el, 'Really delete 1?').click())
     await wait(10)
-    expect(api.deleteDraft).toHaveBeenCalledWith({ accountId: 'default', mailbox: 'Drafts', uid: 1 })
+    expect(api.deleteDrafts).toHaveBeenCalledWith([{ accountId: 'default', mailbox: 'Drafts', uid: 1 }])
     expect(onSent).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
+  it('opens the venue from its name', async () => {
+    const onOpenVenue = vi.fn()
+    const { el, root } = await open({ onOpenVenue })
+    await act(async () => button(el, 'Moods').click())
+    expect(onOpenVenue).toHaveBeenCalledWith(3)
     act(() => root.unmount())
   })
 

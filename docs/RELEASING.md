@@ -77,9 +77,17 @@ This is the step that prevents the "file is damaged" report. A build with no
 signature at all is rejected outright by macOS once it carries a quarantine
 flag; `scripts/adhoc-sign.cjs` prevents that, and this verifies it worked.
 
+The hook signs with the self-signed certificate in `~/.booking-signing`
+(created once with `npm run signing:setup`; keep that folder). The same
+certificate on every build is what lets the keychain's "Always Allow" for the
+mail passwords survive an update. Without it the hook falls back to ad-hoc and
+says so — then every update asks for the keychain again.
+
 ```sh
-codesign -dv --verbose=4 "$BUILD/mac-arm64/Booking.app" 2>&1 | grep Signature
-#   expect: Signature=adhoc
+codesign -dv --verbose=4 "$BUILD/mac-arm64/Booking.app" 2>&1 | grep Authority
+#   expect: Authority=Booking self-signed (floherzog)
+codesign -d -r- "$BUILD/mac-arm64/Booking.app" 2>&1 | grep designated
+#   expect: identifier "com.floherzog.booking" and certificate leaf = H"c7eb6944…"
 
 codesign --verify --deep --strict "$BUILD/mac-arm64/Booking.app"
 #   expect: no output

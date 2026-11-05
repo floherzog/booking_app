@@ -10,8 +10,10 @@ const sel = 'flex-1 min-w-0 rounded-md border-gray-300 dark:border-gray-600 shad
 // Two blocks side by side. On the left, what narrows the list: search (with
 // Clear filters beside it while any filter is on) over the Band / Country /
 // Type dropdowns. On the right, on a tinted panel of its own, the list's
-// actions: Select and Filter / Chips over Email (the bulk dialog; Mac only)
-// and + New Venue.
+// actions: Select and Filter / Chips over Email (the bulk dialog; Mac only,
+// and the main action) and + New Venue. The buttons are exactly as tall as
+// the search field and the dropdowns and level with them; the panel reaches
+// a little past them all round.
 //
 // With `pinned` (Settings ▸ General), a separate bar slides in at the top of
 // the window once the first row has scrolled out of view, holding the items
@@ -46,7 +48,7 @@ export default function FilterBar({
 
   const showSave = editCount > 0 && onSave
   const barHasItems = pinItems.chips || pinItems.search || (pinItems.select && canSelect) || (pinItems.email && onEmail)
-    || pinItems.filter || pinItems.newVenue || pinItems.dropdowns || (pinItems.save && showSave)
+    || pinItems.filter || pinItems.newVenue || pinItems.dropdowns || (pinItems.save && showSave) || !isEmptyFilters(filters)
   const showBar = pinned && scrolledPast && barHasItems
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function FilterBar({
       title={selectMode && selectedCount
         ? t('Draft or send to the selected venue|Draft or send to the {n} selected venues', { n: selectedCount })
         : t('Draft or send to several venues: the next batch, follow-ups, what the filters show, or the venues you select')}
-      className={`${btn} bg-white border-indigo-300 text-indigo-700 hover:border-indigo-500 dark:bg-gray-800 dark:border-indigo-700 dark:text-indigo-300 dark:hover:border-indigo-500`}
+      className={`${btn} bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 dark:bg-indigo-500 dark:border-indigo-500 dark:hover:bg-indigo-600`}
     >
       <MailIcon />
       <span className="hidden sm:inline">{t("Email")}{selectMode && selectedCount ? ` ${selectedCount}` : ''}</span>
@@ -127,7 +129,7 @@ export default function FilterBar({
   const newVenue = (
     <button
       onClick={onNewVenue}
-      className="shrink-0 flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1 rounded-md transition-colors"
+      className={`${btn} bg-white border-indigo-300 text-indigo-700 hover:border-indigo-500 dark:bg-gray-800 dark:border-indigo-700 dark:text-indigo-300 dark:hover:border-indigo-500`}
     >
       <span className="text-base leading-none">+</span>
       <span className="hidden sm:inline">{t("New Venue")}</span>
@@ -174,15 +176,18 @@ export default function FilterBar({
     </button>
   )
 
-  const barRow = pinItems.search || (pinItems.select && select) || (pinItems.email && email) || pinItems.filter || pinItems.newVenue || (pinItems.save && save)
+  // Clear filters comes along whenever the row is there, and brings the row
+  // when a filter is on.
+  const barRow = pinItems.search || (pinItems.select && select) || (pinItems.email && email) || pinItems.filter || pinItems.newVenue || (pinItems.save && save) || clearButton
 
   return (
     <>
       {/* Narrowing on the left, the actions on their own panel on the right.
-          The panel is exactly as tall as the left block — its top level with
-          the search field, its bottom with the dropdowns — and its two rows
-          of buttons share that height. */}
-      <div ref={barRef} className="flex gap-3 items-stretch">
+          The panel's buttons fill the same two rows as the left block, with
+          the same gap: each row of buttons as tall as the field beside it.
+          The panel itself reaches 6px past them (negative margin = padding),
+          so it never makes the toolbar taller. */}
+      <div ref={barRef} className="flex gap-4 items-stretch">
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex gap-2">
             {search}
@@ -190,7 +195,7 @@ export default function FilterBar({
           </div>
           <div className="flex gap-2 items-center">{dropdowns}</div>
         </div>
-        <div className="shrink-0 grid grid-cols-2 grid-rows-2 gap-1.5 p-1 rounded-lg bg-gray-100 border border-gray-200 dark:bg-gray-800/60 dark:border-gray-700/70">
+        <div className="shrink-0 grid grid-cols-2 grid-rows-2 gap-x-1.5 gap-y-2 -my-1.5 -mr-1.5 p-[5px] rounded-lg bg-gray-100 border border-gray-200 dark:bg-gray-800/60 dark:border-gray-700/70">
           <div className="col-start-1 row-start-1 grid">{select}</div>
           <div className="col-start-2 row-start-1 grid">{filterButton(() => setAdvancedOpen(o => !o))}</div>
           <div className="col-start-1 row-start-2 grid">{email}</div>
@@ -217,9 +222,10 @@ export default function FilterBar({
             {barRow && (
               <div className="flex gap-2">
                 {pinItems.search ? search : <span className="flex-1" />}
+                {clearButton}
                 {pinItems.select && select}
-                {pinItems.email && email}
                 {pinItems.filter && filterButton(openPanelInPlace)}
+                {pinItems.email && email}
                 {pinItems.newVenue && newVenue}
                 {pinItems.save && save}
               </div>

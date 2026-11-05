@@ -68,6 +68,8 @@ export const UNSUPPORTED = {
   listDrafts: 'mail',
   deleteDraft: 'mail',
   sendDraft: 'mail',
+  sendDrafts: 'mail',
+  deleteDrafts: 'mail',
   connectWebSync: 'settingsSync',
   syncSettingsNow: 'settingsSync',
   disconnectWebSync: 'settingsSync',

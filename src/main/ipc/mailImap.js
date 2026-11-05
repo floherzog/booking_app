@@ -198,15 +198,21 @@ export function resolveSentMailbox(mailboxes, configured) {
   return named ? named.path : 'Sent Messages'
 }
 
+// The Sent mailbox on an open connection, or null when the server has none.
+// Never file into a folder the server does not have. Some servers create it
+// on APPEND, which left the copy in a stray "Sent Messages" folder next to
+// the real one. Without a match the copy is skipped — the mail is sent
+// either way, and the Sent mailbox can be named in Settings.
+export async function sentMailboxWith(client, account) {
+  const mailboxes = mailboxSummary(await client.list())
+  const mailbox = resolveSentMailbox(mailboxes, account.sentMailbox)
+  return mailboxes.some(m => m.path === mailbox) ? mailbox : null
+}
+
 export async function appendToSent(mime, accountId) {
   return withImapClient(accountFor(accountId), async (client, account) => {
-    const mailboxes = mailboxSummary(await client.list())
-    const mailbox = resolveSentMailbox(mailboxes, account.sentMailbox)
-    // Never file into a folder the server does not have. Some servers create it
-    // on APPEND, which left the copy in a stray "Sent Messages" folder next to
-    // the real one. Without a match the copy is skipped — the mail is sent
-    // either way, and the Sent mailbox can be named in Settings.
-    if (!mailboxes.some(m => m.path === mailbox)) return { mailbox: null, uid: null }
+    const mailbox = await sentMailboxWith(client, account)
+    if (!mailbox) return { mailbox: null, uid: null }
     const res = await client.append(mailbox, mime, ['\\Seen'])
     return { mailbox, uid: res?.uid ?? null }
   })
