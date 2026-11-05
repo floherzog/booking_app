@@ -58,6 +58,16 @@ describe('reading which band an email is about', async () => {
     expect([...got.keys()]).toEqual(['m'])
     expect(got.get('m').get('a@club.de')).toEqual(['Alpha', 'Beta'])
   })
+  it('in the inbox, a band’s receive-only account counts as one it reads', () => {
+    const rows = [
+      { _venueId: 'v2', Email: 'b@club.de', Band: 'Alpha', accountId: 'm' },
+      { _venueId: 'v2', Email: 'b@club.de', Band: 'Gamma', accountId: 'n', replyAccountIds: ['n', 'm'] },
+    ]
+    expect(rivalsByAccount(rows).size).toBe(0)
+    const inbox = rivalsByAccount(rows, { reply: true })
+    expect([...inbox.keys()]).toEqual(['m'])
+    expect(inbox.get('m').get('b@club.de')).toEqual(['Alpha', 'Gamma'])
+  })
   it('reads the start of just the emails whose subject names no band', async () => {
     const fetched = []
     const client = {

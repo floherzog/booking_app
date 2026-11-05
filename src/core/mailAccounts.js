@@ -137,6 +137,17 @@ export function accountForRow(row, settings) {
   return accountById(accounts, accountIdForBand(settings?.bands, row?.['Band']))
 }
 
+// The accounts a line's replies can arrive in: its band's own, then the band's
+// receive-only ones (Settings ▸ Bands) that still exist.
+export function replyAccountIdsForRow(row, settings) {
+  const accounts = normalizeAccounts(settings?.mail)
+  const own = accountForRow(row, settings)?.id
+  const name = String(row?.['Band'] || '').trim().toLowerCase()
+  const band = (settings?.bands || []).find(b => String(typeof b === 'string' ? b : b?.name || '').trim().toLowerCase() === name)
+  const extra = Array.isArray(band?.receiveAccountIds) ? band.receiveAccountIds : []
+  return [...new Set([own, ...extra].filter(id => id && accounts.some(a => a.id === id)))]
+}
+
 // What to call an account in the UI.
 export function accountLabel(account, t = plainT) {
   if (!account) return ''

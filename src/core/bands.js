@@ -12,7 +12,7 @@ export function bandName(b) {
 // Migrate/normalize a stored band list (strings and/or objects) to full objects.
 export function normalizeBands(bands) {
   return (bands || []).map(b => {
-    if (typeof b === 'string') return { name: b, tourDates: '', mailAccountId: '' }
+    if (typeof b === 'string') return { name: b, tourDates: '', mailAccountId: '', receiveAccountIds: [] }
     // Migrate the earlier { tourStart, tourEnd } shape into free-text tourDates.
     let tourDates = b?.tourDates || ''
     if (!tourDates && (b?.tourStart || b?.tourEnd)) {
@@ -22,6 +22,9 @@ export function normalizeBands(bands) {
       name: b?.name || '',
       tourDates,
       mailAccountId: String(b?.mailAccountId || ''),
+      // More mailboxes its venues' replies can arrive in (read by the mail
+      // sync only — the band still sends from mailAccountId).
+      receiveAccountIds: Array.isArray(b?.receiveAccountIds) ? [...new Set(b.receiveAccountIds.map(String).filter(Boolean))] : [],
     }
   })
 }

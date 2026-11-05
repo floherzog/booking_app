@@ -1,4 +1,4 @@
-import { accountForRow } from '@core/mailAccounts'
+import { accountForRow, replyAccountIdsForRow } from '@core/mailAccounts'
 import { api } from '../platform'
 
 // Bridge to the main process's IMAP scan. Only the fields the matcher needs
@@ -13,6 +13,7 @@ export async function syncFromMail(rows, settings) {
     Email: r['Email'] || '',
     Band: r['Band'] || '',
     accountId: accountForRow(r, settings).id,
+    replyAccountIds: replyAccountIdsForRow(r, settings),
     'Last emailed': r['Last emailed'] || '',
     Status: r['Status'] || '',
   }))

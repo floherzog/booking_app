@@ -1089,4 +1089,6 @@ export default {
   'shown': 'gezeigt',
   'Leave empty if you don’t know the day': 'Leer lassen, wenn du den Tag nicht weißt',
   'on': 'am',
+  'Replies': 'Antworten',
+  'The mail sync reads this band’s replies in the account it sends as, and also in:': 'Der Mail-Abgleich liest die Antworten für diese Band im Konto, von dem sie sendet, und zusätzlich in:',
 }

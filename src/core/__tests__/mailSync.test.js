@@ -184,8 +184,25 @@ describe('buildMultiBandSyncEdits', () => {
 
 describe('linked venues and accounts', async () => {
   const { buildMultiBandSyncEdits: build } = await import('@core/mailSync')
-  it('a venue with one line counts mail from every account', () => {
-    const rows = [{ _idx: 0, _venueId: 'v0', Email: 'a@club.de', Band: 'Juno', accountId: 'one', 'Last emailed': '' }]
+  it('a band with its own mailbox ignores the main account, also at a venue with one line', () => {
+    const rows = [{ _idx: 0, _venueId: 'v0', Email: 'a@club.de', Band: 'Foundry', accountId: 'foundry', 'Last emailed': '', Status: '' }]
+    const sent = [{ address: 'a@club.de', date: new Date(2026, 9, 1), accountId: 'main', subject: 'Anfrage' }]
+    const replies = [{ address: 'a@club.de', date: new Date(2026, 9, 3), accountId: 'main', subject: 'Re: Anfrage' }]
+    expect(build(rows, { sent, replies })).toEqual([])
+  })
+  it('replies also count from a band’s receive-only accounts; Last emailed only from its own', () => {
+    const rows = [{ _idx: 0, _venueId: 'v0', Email: 'a@club.de', Band: 'Foundry', accountId: 'foundry', replyAccountIds: ['foundry', 'info'], 'Last emailed': '', Status: '' }]
+    const sent = [
+      { address: 'a@club.de', date: new Date(2026, 9, 1), accountId: 'foundry', subject: 'Anfrage' },
+      { address: 'a@club.de', date: new Date(2026, 9, 5), accountId: 'info', subject: 'Something else' },
+    ]
+    const replies = [{ address: 'a@club.de', date: new Date(2026, 9, 3), accountId: 'info', subject: 'Re: Anfrage' }]
+    const edits = build(rows, { sent, replies })
+    expect(edits.find(e => e.field === 'Last emailed')?.value).toBe('01.10.26')
+    expect(edits.find(e => e.field === 'Status')?.value).toMatch(/^reply: 03\.10\.26/)
+  })
+  it('a line whose account isn’t known counts every account', () => {
+    const rows = [{ _idx: 0, _venueId: 'v0', Email: 'a@club.de', Band: 'Juno', accountId: '', 'Last emailed': '' }]
     const sent = [{ address: 'a@club.de', date: new Date(2026, 9, 1), accountId: 'two', subject: 'Anfrage' }]
     expect(build(rows, { sent, replies: [] }).map(e => e.value)).toEqual(['01.10.26'])
   })

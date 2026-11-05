@@ -111,7 +111,7 @@ export async function readTextsWith(client, mailbox, messages, rivals) {
 }
 
 // One account's contribution to the sync.
-async function scanAccount(account, { since, wantSent, wantReplies, rivals }) {
+async function scanAccount(account, { since, wantSent, wantReplies, rivals, replyRivals }) {
   return withImapClient(account, async (client, acc) => {
     let sent = []
     let inbox = []
@@ -123,24 +123,28 @@ async function scanAccount(account, { since, wantSent, wantReplies, rivals }) {
     }
     if (wantReplies) {
       inbox = await collect(client, 'INBOX', since, inboxSenders)
-      if (rivals?.size) await readTextsWith(client, 'INBOX', inbox, rivals)
+      if (replyRivals?.size) await readTextsWith(client, 'INBOX', inbox, replyRivals)
     }
     return { sent, inbox }
   })
 }
 
-// accountId → (address → bands): the venues where several bands send from
-// the same account, so a message to them must name its band.
-export function rivalsByAccount(rows = []) {
+// accountId → (address → bands): the venues where several bands read the same
+// account, so a message to them must name its band. `reply`: the inbox, where a
+// band also reads its receive-only accounts; else Sent, its own account only.
+export function rivalsByAccount(rows = [], { reply = false } = {}) {
   const groups = new Map()
   for (const r of rows) {
     const band = String(r.Band || '').trim()
     const address = normalizeAddress(r.Email)
     if (!band || !address || r._venueId == null) continue
-    const key = `${r.accountId || ''}|${r._venueId}`
-    const g = groups.get(key) || { accountId: r.accountId || '', address, bands: [] }
-    g.bands.push(band)
-    groups.set(key, g)
+    const accounts = reply ? [r.accountId || '', ...(r.replyAccountIds || [])] : [r.accountId || '']
+    for (const accountId of new Set(accounts)) {
+      const key = `${accountId}|${r._venueId}`
+      const g = groups.get(key) || { accountId, address, bands: [] }
+      g.bands.push(band)
+      groups.set(key, g)
+    }
   }
   const out = new Map()
   for (const g of groups.values()) {
@@ -152,11 +156,10 @@ export function rivalsByAccount(rows = []) {
   return out
 }
 
-// rows: a slim projection — { _idx, _venueId, Email, Band, accountId, 'Last emailed', Status }.
+// rows: a slim projection — { _idx, _venueId, Email, Band, accountId, replyAccountIds, 'Last emailed', Status }.
 //
-// Every configured account is scanned and the results merged: a band's mail goes
-// out from its own mailbox, and a venue's reply comes back to whichever address
-// wrote to it, so looking at only one account would silently miss both. An
+// Every configured account is scanned and the results merged; each line then
+// counts only its band's own accounts (core/mailSync.js). An
 // account that cannot be reached is reported but never sinks the whole sync —
 // the ones that did work still produce their edits.
 export async function runMailSync(rows = []) {
@@ -178,7 +181,8 @@ export async function runMailSync(rows = []) {
   // side: each is its own server login.
   const live = accounts.filter(a => a.user)
   const rivals = rivalsByAccount(rows)
-  const results = await Promise.allSettled(live.map(account => scanAccount(account, { since, wantSent, wantReplies, rivals: rivals.get(account.id) })))
+  const replyRivals = rivalsByAccount(rows, { reply: true })
+  const results = await Promise.allSettled(live.map(account => scanAccount(account, { since, wantSent, wantReplies, rivals: rivals.get(account.id), replyRivals: replyRivals.get(account.id) })))
   results.forEach((r, i) => {
     const account = live[i]
     if (r.status === 'rejected') { failures.push(`${accountLabel(account)}: ${r.reason?.message || r.reason}`); return }

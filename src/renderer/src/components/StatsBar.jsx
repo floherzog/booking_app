@@ -90,7 +90,7 @@ export function StatusPill({ status, count, active, onClick, title }) {
       title={title}
       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all
         ${meta.badge}
-        ${active ? `ring-2 ring-offset-1 dark:ring-offset-gray-900 ${meta.badge.includes('text-white') ? 'ring-indigo-600 dark:ring-indigo-400' : 'ring-current'}` : 'hover:opacity-80'}`}
+        ${active ? 'ring-2 ring-offset-1 ring-current dark:ring-offset-gray-900' : 'hover:opacity-80'}`}
     >
       <span>{t(meta.label)}</span>
       {count !== undefined && <span className="font-bold">{count}</span>}

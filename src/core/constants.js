@@ -33,7 +33,7 @@ export const STATUS = {
 // (lib/health.js: green booked, yellow replied, orange auto-reply, red never
 // replied), so a status never uses those four for something else — except
 // Confirmed, which is the same news as a booked gig and takes its green.
-// What to do is indigo (Send: the Email button's own, solid), pink (Follow
+// What to do is indigo (Send: the Email button's hue), pink (Follow
 // up), violet (Never contacted), cyan (Missing info). Recent — written to,
 // nothing to do — is a content teal, Recently played a lime next to the
 // booked green; the parked ones are grey. A row is no longer marked by a
@@ -41,7 +41,7 @@ export const STATUS = {
 export const STATUS_META = {
   [STATUS.SEND]: {
     label: 'Send',
-    badge: 'bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white',
+    badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
     row: '',
     mapColor: '#4F46E5',
     priority: 1,

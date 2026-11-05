@@ -287,7 +287,11 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     setForm(f => ({
       ...f,
       mail: { ...f.mail, accounts: normalizeAccounts(f.mail).filter(a => a.id !== id) },
-      bands: normalizeBands(f.bands).map(b => (b.mailAccountId === id ? { ...b, mailAccountId: '' } : b)),
+      bands: normalizeBands(f.bands).map(b => ({
+        ...b,
+        mailAccountId: b.mailAccountId === id ? '' : b.mailAccountId,
+        receiveAccountIds: b.receiveAccountIds.filter(x => x !== id),
+      })),
     }))
     setAccountPasswords(p => { const n = { ...p }; delete n[id]; return n })
     try { await api.deleteSecret(secretKeyFor(id)) } catch { /* nothing stored */ }
@@ -509,7 +513,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   }
 
   // --- Band list -------------------------------------------------------------
-  // Bands are objects: { name, tourDates, mailAccountId }.
+  // Bands are objects: { name, tourDates, mailAccountId, receiveAccountIds }.
   function setBands(next) {
     setForm(f => ({ ...f, bands: next }))
   }
@@ -1185,6 +1189,27 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                                 <option key={a.id} value={a.id}>{accountLabel(a, t)}</option>
                               ))}
                             </select>
+                          </div>
+                        )}
+                        {/* Mailboxes the mail sync also reads for this band's
+                            replies; it only ever sends from the one above. */}
+                        {accounts.length > 1 && (
+                          <div className="flex gap-2 items-start">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0 pt-0.5">{t("Replies")}</span>
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <p className="text-xs text-gray-400 dark:text-gray-500">{t("The mail sync reads this band’s replies in the account it sends as, and also in:")}</p>
+                              {accounts.filter(a => a.id !== (b.mailAccountId || accounts[0].id)).map(a => {
+                                const on = (b.receiveAccountIds || []).includes(a.id)
+                                return (
+                                  <label key={a.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                                    <input type="checkbox" checked={on}
+                                      onChange={e => updateBand(i, { receiveAccountIds: e.target.checked ? [...(b.receiveAccountIds || []), a.id] : (b.receiveAccountIds || []).filter(x => x !== a.id) })}
+                                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400" />
+                                    {accountLabel(a, t)}
+                                  </label>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                         {/* Types only some bands book (Venue types ▸ Booked by), from the band's side. */}

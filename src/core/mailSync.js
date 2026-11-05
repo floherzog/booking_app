@@ -80,38 +80,29 @@ export function buildSyncEdits(rows = [], { sent = new Map(), replies = new Map(
   return edits
 }
 
-// A venue booked for several bands: one venue, several bands, possibly several
-// mailboxes. Each band's line keeps its own Last emailed and reply, so an
-// address alone no longer says enough:
-//   - a venue with one line counts every account's messages, as always;
-//   - otherwise an entry only counts messages from its own band's account (`accountId`);
-//   - when more of the venue's bands use that same account, the message has to
-//     say which band it is about: the bands named in the subject, else in its
-//     text (`text`, read for just these messages — see main/ipc/mailSync.js).
-//     An email naming two bands pitched both, and counts for both;
+// Which messages count for which line. Every line counts only its band's own
+// mailboxes: Last emailed what was sent from the band's account, a reply what
+// arrived there or in the band's receive-only accounts (Settings ▸ Bands). A
+// band with its own mailbox no longer picks up mail the main account had with
+// the same venue. A line whose account isn't known (no accounts set up) counts
+// every account, as before.
+//
+// A venue booked for several bands on the same account:
+//   - the message has to say which band it is about: the bands named in the
+//     subject, else in its text (`text`, read for just these messages — see
+//     main/ipc/mailSync.js). An email naming two bands pitched both, and
+//     counts for both;
 //   - a reply naming no band answers the email it replies to (In-Reply-To),
 //     else the latest one sent to that address before it;
 //   - a message that still names no band counts for none of them: the CSV
 //     keeps what it has rather than give one band another band's dates.
 //
-// `rows` carry { _idx, Email, Band, accountId, _venueId, 'Last emailed', Status };
-// `sent` and `replies` are raw message lists: { address, date, autoReply,
-// subject, accountId, messageId?, inReplyTo?, text? }.
+// `rows` carry { _idx, Email, Band, accountId, replyAccountIds?, _venueId,
+// 'Last emailed', Status }; `sent` and `replies` are raw message lists:
+// { address, date, autoReply, subject, accountId, messageId?, inReplyTo?, text? }.
 export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } = {}, opts = {}) {
   const { lastEmailed = 'imap', repliesMode = 'imap' } = opts
 
-  const index = list => {
-    const out = new Map()
-    for (const m of list) {
-      const key = `${m?.accountId || ''}|${normalizeAddress(m?.address)}`
-      const bucket = out.get(key)
-      if (bucket) bucket.push(m)
-      else out.set(key, [m])
-    }
-    return out
-  }
-  const sentBy = index(sent)
-  const repliesBy = index(replies)
   const byAddress = list => {
     const out = new Map()
     for (const m of list) {
@@ -124,18 +115,28 @@ export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } =
   }
   const sentAny = byAddress(sent)
   const repliesAny = byAddress(replies)
-  const lines = new Map()
-  for (const r of rows) lines.set(r._venueId, (lines.get(r._venueId) || 0) + 1)
 
-  // The bands each venue has on each account — the ones a subject must tell apart.
-  const rivals = new Map()
+  // The accounts a line reads, per kind of message; null = all of them.
+  const accountsOf = (row, reply) => {
+    if (!row.accountId) return null
+    return new Set(reply ? [row.accountId, ...(row.replyAccountIds || [])] : [row.accountId])
+  }
+  const venueLines = new Map()
   for (const r of rows) {
-    const key = `${r._venueId}|${r.accountId || ''}`
-    const band = String(r['Band'] || '').trim()
-    if (!band) continue
-    const list = rivals.get(key)
-    if (list) list.push(band)
-    else rivals.set(key, [band])
+    if (r._venueId == null) continue
+    const list = venueLines.get(r._venueId)
+    if (list) list.push(r)
+    else venueLines.set(r._venueId, [r])
+  }
+  // The venue's bands that read this message's account — the ones it has to
+  // tell apart.
+  const rivalsFor = (row, m, reply) => {
+    const lines = row._venueId == null ? [row] : venueLines.get(row._venueId) || [row]
+    const bands = lines
+      .filter(r => { const a = accountsOf(r, reply); return !a || a.has(m.accountId || '') })
+      .map(r => String(r['Band'] || '').trim())
+      .filter(Boolean)
+    return [...new Set(bands)]
   }
 
   // The bands a message names, among those it has to tell apart.
@@ -144,14 +145,15 @@ export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } =
     return inSubject.length ? inSubject : bandsNamed(m.text, bands)
   }
   const sentById = new Map(sent.filter(m => m?.messageId).map(m => [m.messageId, m]))
-  // A reply that names no band: the bands of the email it answers.
+  // A reply that names no band: the bands of the email it answers (sent from
+  // whichever account — a reply may arrive in a receive-only one).
   const answered = (m, bands) => {
     const parent = m.inReplyTo && sentById.get(m.inReplyTo)
     if (parent) {
       const b = named(parent, bands)
       if (b.length) return b
     }
-    const earlier = (sentBy.get(`${m.accountId || ''}|${normalizeAddress(m.address)}`) || [])
+    const earlier = (sentAny.get(normalizeAddress(m.address)) || [])
       .filter(s => new Date(s.date) <= new Date(m.date))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
     for (const s of earlier) {
@@ -163,9 +165,12 @@ export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } =
 
   const forRow = (messages, row, { reply = false } = {}) => {
     if (!messages?.length) return null
-    const bands = rivals.get(`${row._venueId}|${row.accountId || ''}`) || []
+    const accounts = accountsOf(row, reply)
     const own = String(row['Band'] || '').trim().toLowerCase()
-    const mine = bands.length < 2 ? messages : messages.filter(m => {
+    const mine = messages.filter(m => {
+      if (accounts && !accounts.has(m.accountId || '')) return false
+      const bands = rivalsFor(row, m, reply)
+      if (bands.length < 2) return true
       let hit = named(m, bands)
       if (!hit.length && reply) hit = answered(m, bands)
       return hit.some(b => b.toLowerCase() === own)
@@ -177,11 +182,7 @@ export function buildMultiBandSyncEdits(rows = [], { sent = [], replies = [] } =
   for (const row of rows) {
     const address = normalizeAddress(row?.['Email'])
     if (!address) continue
-    const single = row._venueId == null || (lines.get(row._venueId) || 0) < 2
-    const key = `${row.accountId || ''}|${address}`
-    const s = single ? sentAny.get(address) : sentBy.get(key)
-    const r = single ? repliesAny.get(address) : repliesBy.get(key)
-    edits.push(...editsForRow(row, forRow(s, row), forRow(r, row, { reply: true }), { lastEmailed, repliesMode }))
+    edits.push(...editsForRow(row, forRow(sentAny.get(address), row), forRow(repliesAny.get(address), row, { reply: true }), { lastEmailed, repliesMode }))
   }
   return edits
 }
