@@ -25,6 +25,7 @@ import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from 
 import { preloadMail } from './lib/mailBodies'
 import StatsBar, { columnLabel as statsColumnLabel, chipExplainers, ChipExplainLine } from './components/StatsBar'
 import { HEALTH_META } from './lib/health'
+import { listsOf, activateList, sameSource, listLabel, listUsable } from '@core/storageLists'
 import FilterBar from './components/FilterBar'
 import BackToTop from './components/BackToTop'
 import PageScrollbar from './components/PageScrollbar'
@@ -658,9 +659,25 @@ export default function App() {
     const saved = await persist({ ...current, ...part, bands: normalizeBands(part.bands ?? current.bands) })
     // A rules change reclassifies through the effect below; a storage change
     // means the venues themselves come from somewhere else now, so refetch.
-    if (JSON.stringify(saved.storage) !== JSON.stringify(current.storage)) await load(saved)
+    if (!sameSource(saved.storage, current.storage)) await load(saved)
     return saved
   }
+
+  // The list switch at the top left: another of the lists in Settings ▸ Data &
+  // storage. Edits belong to the list they were made in, so they go first.
+  async function switchList(id) {
+    if (editCount > 0) { setError(t('Save or discard your unsaved changes first.')); return }
+    try {
+      const current = await getSettings()
+      const saved = await persist({ ...current, storage: activateList(current.storage, id) })
+      setSettings(saved)
+      await load(saved)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+  const venueLists = settings ? listsOf(settings.storage) : { lists: [], active: '' }
+  const switchable = venueLists.lists.filter(l => l.id === venueLists.active || listUsable(l, { localFiles: caps.localFiles }))
 
   // A created draft is recorded in settings, never on the venue row: a draft
   // is not a sent email, so "Last emailed" must stay exactly as it was.
@@ -1226,6 +1243,14 @@ export default function App() {
   const explainers = chipExplainers({ filters, rules, chips: filterChips, batchWhyEmpty: batchWhyEmpty?.reason, t })
   const listSummary = (
     <div className="min-w-0">
+      <div className="flex items-center gap-1.5 min-w-0">
+      {switchable.length > 1 && (
+        <select value={venueLists.active} onChange={e => switchList(e.target.value)} disabled={loading}
+          title={t('Which list is shown — the lists are in Settings ▸ Data & storage')}
+          className="shrink-0 max-w-[14rem] h-5 py-0 pl-1.5 pr-6 text-xs leading-4 font-medium rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:border-indigo-500 focus:ring-indigo-500 bg-[length:1rem] bg-[right_0.2rem_center]">
+          {switchable.map(l => <option key={l.id} value={l.id}>{listLabel(l, t)}</option>)}
+        </select>
+      )}
       <p className="text-xs leading-4 text-gray-400 dark:text-gray-500 truncate">
         {filteredVenueCount === venueCount ? t('{n} venue|{n} venues', { n: venueCount }) : t('Showing {shown} of {n} venues', { shown: filteredVenueCount, n: venueCount })}
         {lastFetched && ` · ${t('fetched {time}', { time: lastFetched.toLocaleTimeString(getLanguage()) })}`}
@@ -1245,6 +1270,7 @@ export default function App() {
           </span>
         )}
       </p>
+      </div>
       <ChipExplainLine explainers={explainers} />
     </div>
   )

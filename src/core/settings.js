@@ -20,6 +20,10 @@ export const DEFAULT_SETTINGS = {
     // without a band, all in `dir`. `files` maps band name → path; `sourcePath`
     // is the single CSV they were split from, and where switching off merges to.
     multiBand: { enabled: false, dir: '', base: '', files: {}, unassigned: '', sourcePath: '' },
+    // Several lists, one shown at a time — see src/core/storageLists.js. The
+    // fields above are the shown one's.
+    lists: [],
+    active: '',
   },
   rules: DEFAULT_RULES,
   bands: [],

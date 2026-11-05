@@ -26,6 +26,8 @@ import { token } from '../lib/placeholders'
 import WebSyncSettings from './WebSyncSettings'
 import { csvSuggestions } from '@core/csvSuggestions'
 import Busy from './Busy'
+import VenueLists from './VenueLists'
+import { activateList, sameSource } from '@core/storageLists'
 
 const THEMES = [
   { value: 'system', label: 'System' },
@@ -132,7 +134,9 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   const sync = mail.sync || {}
   const accounts = normalizeAccounts(mail)
   const ruleErrors = validateRules(form.rules, t)
-  const storageDirty = JSON.stringify(form.storage) !== JSON.stringify(config.storage)
+  // Only where the shown list comes from waits for "Use this"; names and the
+  // other lists save like everything else.
+  const storageDirty = !sameSource(form.storage, config.storage)
 
   useEffect(() => {
     api.hasSecret('githubToken').then(setHasGithubToken).catch(() => {})
@@ -169,7 +173,7 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
   // applied on its own (applyStorage), because it reloads the list.
   const pending = useRef(null)
   const savedSnap = useRef(JSON.stringify(panelPart(config)))
-  const toAutoSave = { ...panelPart(form), storage: config.storage }
+  const toAutoSave = { ...panelPart(form), storage: { ...config.storage, lists: form.storage?.lists ?? config.storage?.lists, active: form.storage?.active ?? config.storage?.active } }
 
   async function saveNow(next = toAutoSave) {
     clearTimeout(pending.current)
@@ -202,6 +206,14 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
     // saveNow reads the latest form through toAutoSave on each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(toAutoSave)])
+
+  // Another list shown (Data & storage ▸ lists): its source goes on top, and
+  // App reloads the list (handleSettingsSave).
+  async function showList(id) {
+    const next = activateList({ ...config.storage, lists: form.storage?.lists, active: form.storage?.active }, id)
+    setForm(f => ({ ...f, storage: next }))
+    await saveNow({ ...toAutoSave, storage: next })
+  }
 
   // Where the list lives: applied as a whole, then the list reloads.
   async function applyStorage() {
@@ -852,6 +864,13 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
 
               {section === 'storage' && (
                 <div className="space-y-4">
+                  <VenueLists
+                    storage={storage}
+                    onChange={next => setForm(f => ({ ...f, storage: { ...f.storage, lists: next.lists, active: next.active } }))}
+                    onShow={showList}
+                    blocked={unsavedEdits > 0 ? t('Save or discard your unsaved changes first.') : storageDirty ? t('Apply the storage change first.') : ''}
+                    lbl={lbl} monoInput={monoInput} outlineBtn={outlineBtn}
+                    shownBody={<div className="space-y-4">
                   {caps.storageChoice && (
                   <div className="space-y-2">
                     {[
@@ -1010,6 +1029,8 @@ export default function SettingsPanel({ config, rows = [], onOpenImport, onOpenT
                       <button type="button" onClick={applyStorage} className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline shrink-0">{t('Use this')}</button>
                     </div>
                   )}
+                    </div>}
+                  />
 
                   <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <p className={lbl}>{t("Import and export")}</p>
