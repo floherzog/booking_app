@@ -489,8 +489,10 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
         className="bg-white/85 dark:bg-gray-800/85 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <div className="side-panel-head px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between shrink-0">
-          <div className="space-y-1">
+        {/* The header wears the row's colour (what the venue has answered),
+            spelled out on the right. */}
+        <div className={`side-panel-head px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3 shrink-0 ${health.row}`}>
+          <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{effective['Venue'] || t('Venue')}</h2>
               <StatusBadge status={row._status} />
@@ -505,13 +507,6 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                 title={t('{n} email sent since the last reply|{n} emails sent since the last reply', { n: recentEmails })}
               >
                 {recentEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {t("since reply")}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${health.badge}`}
-                title={t(health.hint)}
-              >
-                <span className={`w-2 h-2 rounded-full ${health.dot}`} aria-hidden />
-                {t(health.label)}
               </span>
               {duplicatePartners.map(partner => (
                 <span key={partner._idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
@@ -543,7 +538,16 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
               />
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none mt-0.5">&times;</button>
+          <div className="flex items-center gap-3 shrink-0">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${health.badge}`}
+              title={t(health.hint)}
+            >
+              <span className={`w-2 h-2 rounded-full ${health.dot}`} aria-hidden />
+              {t(health.label)}
+            </span>
+            <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+          </div>
         </div>
 
         {missing.length > 0 && (

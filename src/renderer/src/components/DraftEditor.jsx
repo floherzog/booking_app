@@ -6,15 +6,16 @@ import { api } from '../platform'
 import { useT } from '../i18n'
 import { useEscape } from '../lib/useEscape'
 import { useInlinePrompt } from './InlinePrompt'
-import { BoldIcon, ItalicIcon, UnderlineIcon, LinkIcon } from './icons'
+import { BoldIcon, ItalicIcon, UnderlineIcon, LinkIcon, PaperclipIcon } from './icons'
 import Busy from './Busy'
 
 // A draft from the Drafts mailbox, edited in the app. Mail opens a draft from
 // a link only to read it, so this is where it is changed: To, Cc, subject and
 // text, with the editor the templates use. Save writes the edited draft back
 // and removes the old one (main/ipc/mailDrafts.js); images and attachments
-// stay as they were. Formatting the editor doesn't know (fonts, colours,
+// stay unless taken off here. Formatting the editor doesn't know (fonts, colours,
 // tables) is simplified — drafts made by the app have none.
+const sizeLabel = n => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round((n || 0) / 1e3))} KB`)
 const addresses = list => (list || []).map(p => p.address).filter(Boolean).join(', ')
 
 function ToolbarButton({ active, disabled, onClick, title, children }) {
@@ -37,6 +38,7 @@ export default function DraftEditor({ draft, onSaved, onClose }) {
   const [cc, setCc] = useState('')
   const [subject, setSubject] = useState('')
   const [saving, setSaving] = useState(false)
+  const [dropped, setDropped] = useState(() => new Set()) // attachment indexes taken off
   const [, setVersion] = useState(0)
   useEscape(onClose, !saving)
 
@@ -84,8 +86,9 @@ export default function DraftEditor({ draft, onSaved, onClose }) {
     setSaving(true)
     setError('')
     try {
-      const { html } = renderEmailHtml(editor.getJSON())
-      const r = await api.replaceDraft(ref, { to: to.trim(), cc: cc.trim(), subject, html })
+      const { html, cids } = renderEmailHtml(editor.getJSON())
+      const keepAttachments = (loaded.attachments || []).map((_a, i) => i).filter(i => !dropped.has(i))
+      const r = await api.replaceDraft(ref, { to: to.trim(), cc: cc.trim(), subject, html, cids, keepAttachments })
       if (r?.error) throw new Error(r.error)
       onSaved?.(r)
     } catch (e) {
@@ -127,9 +130,28 @@ export default function DraftEditor({ draft, onSaved, onClose }) {
                 <div className="max-h-[50vh] overflow-y-auto"><EditorContent editor={editor} /></div>
               </div>
               {loaded.attachments?.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {t('Attachments, kept as they are:')} {loaded.attachments.map(a => a.filename).join(', ')}
-                </p>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('Attachments')}</p>
+                  <ul className="flex flex-wrap gap-1.5">
+                    {loaded.attachments.map((a, i) => {
+                      const off = dropped.has(i)
+                      return (
+                        <li key={i} className={`inline-flex items-center gap-1.5 rounded-md border pl-2 pr-1 py-1 text-xs ${off
+                          ? 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 line-through'
+                          : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}>
+                          <PaperclipIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="max-w-[16rem] truncate" title={a.filename}>{a.filename}</span>
+                          <span className="text-gray-400">{sizeLabel(a.size)}</span>
+                          <button type="button" onClick={() => setDropped(d => { const n = new Set(d); off ? n.delete(i) : n.add(i); return n })}
+                            title={off ? t('Keep this attachment') : t('Remove this attachment')} aria-label={off ? t('Keep this attachment') : t('Remove this attachment')}
+                            className="px-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-600">
+                            {off ? '↺' : '×'}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
               )}
             </div>
             <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3">

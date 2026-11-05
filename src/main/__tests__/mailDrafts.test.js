@@ -102,6 +102,45 @@ describe('drafts in the Drafts mailbox', () => {
     expect(deleted).toEqual(['1', '4'])
   })
 
+  it('keeps a PDF Mail placed in the text as an attachment, the thumbnail by its own bytes, and drops what was taken off', async () => {
+    const thumb = Buffer.from('thumbpng')
+    const pdf = Buffer.from('%PDF-1')
+    const doc = Buffer.from('docx')
+    const parts = {
+      '1': Buffer.from('<html><body><p>Hi</p><img apple-inline="yes" src="cid:PDF-1"><div data-video-link="https://youtu.be/x" data-thumb-asset="t1"><a href="https://youtu.be/x"><img src="cid:asset-t1"></a></div></body></html>'),
+      '2': pdf, '3': thumb, '4': doc,
+    }
+    const appended = []
+    const client = {
+      getMailboxLock: async () => ({ release: () => {} }),
+      fetchOne: async () => ({
+        envelope: { from: [{ address: 'me@x' }], to: [{ address: 'a@b' }], subject: 'S' },
+        bodyStructure: { type: 'multipart/mixed', childNodes: [
+          { part: '1', type: 'text/html' },
+          { part: '2', type: 'application/pdf', id: '<PDF-1>', disposition: 'inline', dispositionParameters: { filename: 'rider.pdf' } },
+          { part: '3', type: 'image/png', id: '<asset-t1>', disposition: 'inline' },
+          { part: '4', type: 'application/msword', disposition: 'attachment', dispositionParameters: { filename: 'info.doc' } },
+        ] },
+      }),
+      download: async (_uid, part) => ({ content: (async function* () { yield parts[part] })() }),
+      append: async (box, mime) => { appended.push(mime.toString()); return { uid: 8 } },
+      messageDelete: async () => true,
+    }
+    const d = await readDraftForEditWith(client, 'Drafts', 5)
+    expect(d.html).not.toMatch(/PDF-1/)
+    expect(d.attachments.map(a => a.filename)).toEqual(['rider.pdf', 'info.doc'])
+    // The editor gives the thumbnail back as an app asset (cid:asset-t1): the
+    // asset file is gone, the draft's own picture is used.
+    await replaceDraftWith(client, { user: 'me@x' }, { mailbox: 'Drafts', uid: 5 },
+      { to: 'a@b', subject: 'S', html: '<p>Hi</p><img src="cid:asset-t1">', cids: [{ cid: 'asset-t1', assetId: 't1' }], keepAttachments: [0] },
+      () => null)
+    const mime = appended[0]
+    expect(mime).toMatch(/Content-ID: <asset-t1>/)
+    expect(mime).toContain(thumb.toString('base64'))
+    expect(mime).toMatch(/filename=rider\.pdf/)
+    expect(mime).not.toMatch(/info\.doc/)
+  })
+
   it('reads a draft for editing with its images inline, and replaces it keeping the rest', async () => {
     const png = Buffer.from('fakepng')
     const pdf = Buffer.from('%PDF-1')

@@ -24,6 +24,7 @@ import { matchDrafts, draftCounts } from '@core/draftMatch'
 import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
 import { preloadMail } from './lib/mailBodies'
 import StatsBar, { columnLabel as statsColumnLabel, chipExplainers, ChipExplainLine } from './components/StatsBar'
+import { HEALTH_META } from './lib/health'
 import FilterBar from './components/FilterBar'
 import BackToTop from './components/BackToTop'
 import PageScrollbar from './components/PageScrollbar'
@@ -1230,6 +1231,18 @@ export default function App() {
         {lastFetched && ` · ${t('fetched {time}', { time: lastFetched.toLocaleTimeString(getLanguage()) })}`}
         {editCount > 0 && (
           <span className="text-amber-600 dark:text-amber-400 font-medium"> · {t('{n} unsaved edit|{n} unsaved edits', { n: editCount })}</span>
+        )}
+        {/* What the row tints mean, where they are seen: a colour with no
+            legend is a puzzle. */}
+        {view === 'list' && (
+          <span title={t('Row colour: what the venue has answered')}>
+            {' · '}
+            {['gig', 'reply', 'auto-reply', 'silent'].map(k => (
+              <span key={k} title={t(HEALTH_META[k].hint)} className="whitespace-nowrap mr-2">
+                <span className={`inline-block w-2 h-2 rounded-full mr-1 ${HEALTH_META[k].dot}`} />{t(HEALTH_META[k].label)}
+              </span>
+            ))}
+          </span>
         )}
       </p>
       <ChipExplainLine explainers={explainers} />

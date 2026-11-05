@@ -76,5 +76,6 @@ export const BoldIcon = icon('BoldIcon', <path d="M7 4.5h6a3.75 3.75 0 0 1 0 7.5
 export const ItalicIcon = icon('ItalicIcon', <path d="M10 4.5h8M6 19.5h8M14.5 4.5l-5 15" />)
 export const UnderlineIcon = icon('UnderlineIcon', <path d="M7 4v7a5 5 0 0 0 10 0V4M5 20.5h14" />)
 export const LinkIcon = icon('LinkIcon', <><path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2" /><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" /></>)
+export const PaperclipIcon = icon('PaperclipIcon', <path d="M20 11.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9" />)
 export const ImageIcon = icon('ImageIcon', <><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="9" cy="9.5" r="1.5" /><path d="M21 16l-5-5-8.5 9" /></>)
 export const VideoIcon = icon('VideoIcon', <><rect x="2.5" y="5" width="19" height="14" rx="3" /><path d="M10 9.2v5.6l4.8-2.8z" /></>)

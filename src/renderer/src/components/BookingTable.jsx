@@ -926,14 +926,15 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
     const head = theadRef.current
     if (!pinHead || fits || !head) return
     let frame = 0
-    const cells = () => head.querySelectorAll('th')
     const place = () => {
       frame = 0
       const pinTop = stickyTop()
-      const r = head.getBoundingClientRect() // its own place: moving the cells doesn't move it
-      const room = (tableRef.current?.getBoundingClientRect().bottom ?? r.bottom) - r.bottom
-      const shift = Math.max(0, Math.min(pinTop - r.top, room))
-      cells().forEach(th => { th.style.transform = shift ? `translateY(${shift}px)` : '' })
+      // Measured off the table, which the moved heading row doesn't move.
+      const t = tableRef.current?.getBoundingClientRect()
+      if (!t) return
+      const room = t.bottom - t.top - head.offsetHeight
+      const shift = Math.max(0, Math.min(pinTop - t.top, room))
+      head.style.transform = shift ? `translateY(${shift}px)` : ''
     }
     const onScroll = () => { if (!frame) frame = requestAnimationFrame(place) }
     place()
@@ -943,7 +944,7 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
       cancelAnimationFrame(frame)
       offScroll()
       window.removeEventListener('resize', onScroll)
-      cells().forEach(th => { th.style.transform = '' })
+      head.style.transform = ''
     }
   }, [pinHead, fits])
 
@@ -1021,15 +1022,18 @@ export default function BookingTable({ rows, emptyNote, edits, onEdit, onVenueCl
         className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm ${colWidths ? 'table-fixed' : ''}`}
         style={colWidths ? { width: colWidths.reduce((a, b) => a + b, 0) } : undefined}
       >
-        <thead ref={theadRef} className="bg-gray-50 dark:bg-gray-800">
+        {/* Pinned, the heading row is frosted as one piece: a blur per cell
+            made scrolling several times the work for the graphics card. */}
+        <thead ref={theadRef} style={pinHead && fits ? { top: 'calc(var(--chrome-top, 0px) + var(--pin-top, 0px))' } : undefined}
+          className={pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50/75 dark:bg-gray-800/75 backdrop-blur-md backdrop-saturate-150` : 'bg-gray-50 dark:bg-gray-800'}>
           {table.getHeaderGroups().map(hg => (
             <tr key={hg.id}>
               {hg.headers.map((h, i) => (
                 <th
                   key={h.id}
-                  style={{ ...(colWidths ? { width: colWidths[i] } : {}), ...(pinHead && fits ? { top: 'calc(var(--chrome-top, 0px) + var(--pin-top, 0px))' } : {}) }}
+                  style={colWidths ? { width: colWidths[i] } : undefined}
                   className={`px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide select-none
-                    ${pinHead ? `${fits ? 'sticky' : 'relative'} z-20 bg-gray-50/75 dark:bg-gray-800/75 backdrop-blur-md backdrop-saturate-150 shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]` : ''}
+                    ${pinHead ? 'shadow-[inset_0_-1px_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_rgb(55_65_81)]' : ''}
                     ${h.column.getCanSort() ? 'cursor-pointer hover:text-gray-800 dark:hover:text-gray-200' : ''}`}
                   onClick={h.column.getToggleSortingHandler()}
                 >

@@ -29,19 +29,25 @@ export const STATUS = {
   DEAD: 'DEAD',
 }
 
+// Colours: the row's background already speaks for the venue's answers
+// (lib/health.js: green booked, yellow replied, orange auto-reply, red never
+// replied), so a status never uses those four for something else — except
+// Confirmed, which is the same news as a booked gig and takes its green.
+// What to do is indigo (Send, like the Email button), pink (Follow up),
+// violet (Never contacted), cyan (Missing info); the resting ones are grey.
 export const STATUS_META = {
   [STATUS.SEND]: {
     label: 'Send',
-    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-    row: 'border-l-4 border-amber-400',
-    mapColor: '#F59E0B',
+    badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    row: 'border-l-4 border-indigo-400',
+    mapColor: '#6366F1',
     priority: 1,
   },
   [STATUS.FOLLOW_UP_DUE]: {
     label: 'Follow up',
-    badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-    row: 'border-l-4 border-red-500',
-    mapColor: '#EF4444',
+    badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+    row: 'border-l-4 border-pink-500',
+    mapColor: '#EC4899',
     priority: 2,
   },
   [STATUS.NEVER_CONTACTED]: {
@@ -60,9 +66,9 @@ export const STATUS_META = {
   },
   [STATUS.RECENT_CONTACT]: {
     label: 'Recent',
-    badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    badge: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
     row: '',
-    mapColor: '#22C55E',
+    mapColor: '#6B7280',
     priority: 5,
   },
   [STATUS.ON_HOLD]: {
@@ -74,9 +80,9 @@ export const STATUS_META = {
   },
   [STATUS.CONFIRMED]: {
     label: 'Confirmed',
-    badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+    badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
     row: '',
-    mapColor: '#EC4899',
+    mapColor: '#22C55E',
     priority: 6.5,
   },
   [STATUS.RECENTLY_PLAYED]: {
@@ -88,9 +94,9 @@ export const STATUS_META = {
   },
   [STATUS.FESTIVAL_INELIGIBLE]: {
     label: 'Festival (not now)',
-    badge: 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300',
+    badge: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
     row: 'opacity-70',
-    mapColor: '#0EA5E9',
+    mapColor: '#A8A29E',
     priority: 8,
   },
   [STATUS.FILLER_OFF]: {
@@ -102,9 +108,9 @@ export const STATUS_META = {
   },
   [STATUS.MISSING_INFO]: {
     label: 'Missing info',
-    badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-    row: 'border-l-4 border-orange-400',
-    mapColor: '#FB923C',
+    badge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+    row: 'border-l-4 border-cyan-400',
+    mapColor: '#06B6D4',
     priority: 9,
   },
   [STATUS.DEAD]: {

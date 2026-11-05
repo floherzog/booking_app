@@ -28,24 +28,24 @@ const SHORTCUT_STYLE = {
     off: 'bg-transparent text-indigo-600 border-indigo-300 hover:border-indigo-400 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:border-indigo-600 dark:hover:bg-indigo-900/20',
   },
   missingInfo: {
-    badge: PALETTE.orange.badge,
-    on: 'bg-orange-500 text-white border-orange-500 dark:bg-orange-500 dark:border-orange-500',
-    off: 'bg-transparent text-orange-600 border-orange-300 hover:border-orange-400 hover:bg-orange-50 dark:text-orange-400 dark:border-orange-800 dark:hover:border-orange-600 dark:hover:bg-orange-900/20',
-  },
-  duplicate: {
-    badge: PALETTE.rose.badge,
-    on: 'bg-rose-500 text-white border-rose-500 dark:bg-rose-500 dark:border-rose-500',
-    off: 'bg-transparent text-rose-600 border-rose-300 hover:border-rose-400 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-800 dark:hover:border-rose-600 dark:hover:bg-rose-900/20',
-  },
-  onlineForm: {
     badge: PALETTE.cyan.badge,
     on: 'bg-cyan-600 text-white border-cyan-600 dark:bg-cyan-500 dark:border-cyan-500',
     off: 'bg-transparent text-cyan-700 border-cyan-300 hover:border-cyan-400 hover:bg-cyan-50 dark:text-cyan-400 dark:border-cyan-800 dark:hover:border-cyan-600 dark:hover:bg-cyan-900/20',
   },
+  duplicate: {
+    badge: PALETTE.amber.badge,
+    on: 'bg-amber-600 text-white border-amber-600 dark:bg-amber-500 dark:border-amber-500',
+    off: 'bg-transparent text-amber-700 border-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:border-amber-600 dark:hover:bg-amber-900/20',
+  },
+  onlineForm: {
+    badge: PALETTE.teal.badge,
+    on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
+    off: 'bg-transparent text-teal-700 border-teal-300 hover:border-teal-400 hover:bg-teal-50 dark:text-teal-400 dark:border-teal-800 dark:hover:border-teal-600 dark:hover:bg-teal-900/20',
+  },
   phoneOnly: {
-    badge: PALETTE.violet.badge,
-    on: 'bg-violet-600 text-white border-violet-600 dark:bg-violet-500 dark:border-violet-500',
-    off: 'bg-transparent text-violet-700 border-violet-300 hover:border-violet-400 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:hover:border-violet-600 dark:hover:bg-violet-900/20',
+    badge: PALETTE.blue.badge,
+    on: 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500',
+    off: 'bg-transparent text-blue-700 border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:border-blue-600 dark:hover:bg-blue-900/20',
   },
   drafted: {
     badge: PALETTE.sky.badge,
@@ -53,9 +53,9 @@ const SHORTCUT_STYLE = {
     off: 'bg-transparent text-sky-700 border-sky-300 hover:border-sky-400 hover:bg-sky-50 dark:text-sky-400 dark:border-sky-800 dark:hover:border-sky-600 dark:hover:bg-sky-900/20',
   },
   autoSend: {
-    badge: PALETTE.teal.badge,
-    on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
-    off: 'bg-transparent text-teal-600 border-teal-300 hover:border-teal-400 hover:bg-teal-50 dark:text-teal-400 dark:border-teal-800 dark:hover:border-teal-600 dark:hover:bg-teal-900/20',
+    badge: PALETTE.violet.badge,
+    on: 'bg-violet-600 text-white border-violet-600 dark:bg-violet-500 dark:border-violet-500',
+    off: 'bg-transparent text-violet-700 border-violet-300 hover:border-violet-400 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:hover:border-violet-600 dark:hover:bg-violet-900/20',
   },
 }
 // What each square chip shows — its tooltip, and the line under the chips while

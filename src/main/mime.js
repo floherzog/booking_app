@@ -23,7 +23,7 @@ export function inlineDataImages(html) {
 }
 
 // { from: { name, address }, to, cc, subject, html, text, inlineAssets, attachments }
-//   inlineAssets: [{ path, cid }]  → embedded and referenced as cid:<cid>
+//   inlineAssets: [{ path, cid }] or [{ content, contentType, cid }] → embedded and referenced as cid:<cid>
 //   attachments:  [{ path, filename }] or [{ content, filename, contentType }] → ordinary attachments
 //   inReplyTo / references: kept when a draft is rewritten (a reply stays one)
 //   attachDataUrls: data: images in the HTML become inline parts
@@ -44,7 +44,7 @@ export function buildDraftMime({ from, to, cc, subject, html, text, inlineAssets
     text: text || '',
     attachments: [
       ...inlineAssets.map(a => ({
-        path: a.path,
+        ...(a.content ? { content: a.content, contentType: a.contentType } : { path: a.path }),
         cid: a.cid,
         // Without this the image shows up as a separate attachment instead of
         // rendering where the <img> sits.

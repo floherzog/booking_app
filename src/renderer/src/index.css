@@ -194,13 +194,21 @@ html.window-chrome.dark .window-drag-strip {
    themselves are a little see-through (bg-white/85 on the panel), so that
    blur shows through them too. The filter sits on the full-window overlay,
    never on the panel: on the panel it would pin the panel's own popovers
-   (position: fixed) to the panel instead of the window. */
-.fixed.inset-0[class*="bg-black/"] {
+   (position: fixed) to the panel instead of the window. And on a layer of its
+   own under the window, not on the overlay that holds it: there, every
+   scrolled pixel inside the window re-blurred the whole screen (measured:
+   scrolling the venue view cost the graphics card about twice as much). */
+.fixed.inset-0[class*="bg-black/"]::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   -webkit-backdrop-filter: blur(6px) saturate(140%);
   backdrop-filter: blur(6px) saturate(140%);
 }
 @media (prefers-reduced-transparency: reduce) {
-  .fixed.inset-0[class*="bg-black/"] { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .fixed.inset-0[class*="bg-black/"]::before { display: none; }
 }
 
 /* With a modal open the strip goes clear, so the dimmed backdrop runs to the

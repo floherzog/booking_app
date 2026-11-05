@@ -7,6 +7,7 @@ import { normalizeAccounts } from '../../core/mailAccounts.js'
 import { htmlToText } from '../../core/htmlText.js'
 import { pickPart } from './mailHistory.js'
 import { buildDraftMime } from '../mime.js'
+import { assetPath } from './templates.js'
 
 // The drafts waiting in each account's Drafts mailbox, for the Email window's
 // "Current drafts" (components/DraftsPanel.jsx) and the ✓ on a venue's mail
@@ -138,7 +139,11 @@ const leaves = (node, out = []) => {
 const textAsHtml = text => String(text || '').split(/\r?\n/)
   .map(l => `<p>${l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`).join('')
 
-// → { from, to, cc, subject, html, inReplyTo, references, attachments: [{ filename, contentType, content }] }
+// → { from, to, cc, subject, html, inReplyTo, references,
+//     attachments: [{ filename, contentType, content }],
+//     inline: [{ cid, contentType, content }] } — the pictures the text shows,
+//     by Content-ID, so a picture the editor keeps as an app asset (a video's
+//     thumbnail) goes back in with its own bytes.
 export async function readDraftForEditWith(client, mailbox, uid) {
   const lock = await client.getMailboxLock(mailbox)
   try {
@@ -154,14 +159,22 @@ export async function readDraftForEditWith(client, mailbox, uid) {
     }
     // Everything that isn't the text itself: images shown in it, attachments.
     const attachments = []
+    const inline = []
     for (const node of leaves(msg.bodyStructure)) {
       if (!node.part || (body && node.part === body.part)) continue
       if (!node.disposition && /^text\/(plain|html)$/.test(node.type)) continue // the other alternative
       const content = await download(node.part)
       const cid = String(node.id || '').replace(/^<|>$/g, '')
       if (cid && html.includes(`cid:${cid}`)) {
-        html = html.split(`cid:${cid}`).join(`data:${node.type};base64,${content.toString('base64')}`)
-        continue
+        if (node.type.startsWith('image/')) {
+          inline.push({ cid, contentType: node.type, content })
+          html = html.split(`cid:${cid}`).join(`data:${node.type};base64,${content.toString('base64')}`)
+          continue
+        }
+        // Mail places an attached PDF in the text as <img src="cid:…">. The
+        // editor can't show that: it stays an attachment, out of the text.
+        const escaped = cid.replace(/[.*+?^$()|[\]{}\\]/g, '\\$&')
+        html = html.replace(new RegExp(`<img\\b[^>]*cid:${escaped}[^>]*>`, 'g'), '')
       }
       const filename = node.dispositionParameters?.filename || node.parameters?.name || 'attachment'
       attachments.push({ filename, contentType: node.type, content })
@@ -178,16 +191,30 @@ export async function readDraftForEditWith(client, mailbox, uid) {
       inReplyTo: env.inReplyTo || '',
       references,
       attachments,
+      inline,
     }
   } finally {
     lock.release()
   }
 }
 
-// The edited draft in, the old one out. `edit`: { to, cc, subject, html }
-// (addresses as text). → { mailbox, uid } of the new draft.
-export async function replaceDraftWith(client, account, { mailbox, uid }, edit) {
+// The edited draft in, the old one out. `edit`: { to, cc, subject, html, cids,
+// keepAttachments } — addresses as text; cids as renderEmailHtml gives them
+// (app assets the text shows: the old draft's picture of that Content-ID, else
+// the asset file); keepAttachments the indexes of the old attachments to keep
+// (all when left out). → { mailbox, uid } of the new draft.
+export async function replaceDraftWith(client, account, { mailbox, uid }, edit, resolveAsset = assetPath) {
   const old = await readDraftForEditWith(client, mailbox, uid)
+  const keep = Array.isArray(edit.keepAttachments) ? new Set(edit.keepAttachments) : null
+  const assets = []
+  for (const { cid, assetId } of Array.isArray(edit.cids) ? edit.cids : []) {
+    const had = old.inline.find(p => p.cid === cid)
+    if (had) assets.push({ cid, content: had.content, contentType: had.contentType })
+    else {
+      const path = resolveAsset(assetId)
+      if (path) assets.push({ cid, path })
+    }
+  }
   const mime = await buildDraftMime({
     from: old.from?.address ? old.from : { name: account.fromName, address: account.fromAddress || account.user },
     to: edit.to,
@@ -195,7 +222,8 @@ export async function replaceDraftWith(client, account, { mailbox, uid }, edit) 
     subject: edit.subject,
     html: edit.html,
     text: htmlToText(edit.html),
-    attachments: old.attachments,
+    attachments: keep ? old.attachments.filter((_a, i) => keep.has(i)) : old.attachments,
+    inlineAssets: assets,
     inReplyTo: old.inReplyTo || undefined,
     references: old.references || undefined,
     attachDataUrls: true,
@@ -333,7 +361,7 @@ export function registerMailDraftsIpc() {
     try {
       const d = await withImapClient(accountFor(accountId), client => readDraftForEditWith(client, mailbox, uid))
       // The renderer only needs to know the attachments are there.
-      return { ...d, attachments: d.attachments.map(a => ({ filename: a.filename, size: a.content.length })) }
+      return { ...d, inline: undefined, attachments: d.attachments.map(a => ({ filename: a.filename, contentType: a.contentType, size: a.content.length })) }
     } catch (e) {
       return { error: friendlyMailError(e) }
     }
