@@ -738,5 +738,9 @@
   "Daegu||Korea": {
     "lat": 35.8713,
     "lng": 128.6018
+  },
+  "Flensburg||Germany": {
+    "lat": 54.7833021,
+    "lng": 9.4333264
   }
 }
