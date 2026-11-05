@@ -150,15 +150,14 @@ export function useChipColors() {
 
 const hueOf = key => (CHIP_HUES.includes(chips.colors[key]) ? chips.colors[key] : null)
 
-// A status's badge, row marking and map colour, with any colour chosen for it.
-// A status whose row has a coloured left border keeps one, in its new colour;
-// the faded ones stay faded.
+// A status's badge and map colour, with any colour chosen for it. Its row
+// marking (the faded ones) stays as it is.
 export function statusMeta(status) {
   const meta = STATUS_META[status]
   const hue = hueOf(status)
   if (!meta || !hue) return meta || {}
   const p = PALETTE[hue]
-  return { ...meta, badge: p.badge, row: meta.row?.includes('border-l-4') ? p.row : meta.row, mapColor: p.hex }
+  return { ...meta, badge: p.badge, mapColor: p.hex }
 }
 
 // A square chip's on/off look: the chosen hue, or `fallback` (its own default).

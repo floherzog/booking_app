@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { normalizeDateText } from '@core/parseDate'
+import { composeReplyStatus } from '@core/replyStatus'
 import { MailIcon } from './icons'
 import DateInput from './DateInput'
 import { fieldLabel } from '@core/constants'
@@ -12,8 +13,12 @@ const BULK_FIELDS = [
   { key: 'Type', type: 'venueType' },
   { key: 'City', type: 'text' },
   { key: 'Country', type: 'text' },
+  { key: 'Contact', type: 'text' },
+  { key: 'Website', type: 'text' },
   { key: 'Follow Up Date', type: 'date' },
   { key: 'Last emailed', type: 'date' },
+  { key: 'Status', type: 'reply' },
+  { key: 'Last played', type: 'date' },
   { key: 'frequency', type: 'frequency' },
   { key: 'Time Frame', type: 'text' },
   { key: 'Dates', type: 'text' },
@@ -42,6 +47,7 @@ export default function BulkEditBar({
   const [fieldKey, setFieldKey] = useState(BULK_FIELDS[0].key)
   const [value, setValue] = useState('')
   const [note, setNote] = useState('')
+  const [replyKind, setReplyKind] = useState('reply') // Status: what came back, and when (optional)
   const [confirmDel, setConfirmDel] = useState(false)
 
   const field = BULK_FIELDS.find(f => f.key === fieldKey) || BULK_FIELDS[0]
@@ -51,12 +57,15 @@ export default function BulkEditBar({
     const f = BULK_FIELDS.find(x => x.key === key) || BULK_FIELDS[0]
     setFieldKey(key)
     setValue(defaultValue(f.type))
+    setReplyKind('reply')
     setNote('')
   }
 
   function apply() {
     if (none) return
-    const out = field.type === 'date' ? normalizeDateText(value) : value
+    const out = field.type === 'date' ? normalizeDateText(value)
+      : field.type === 'reply' ? composeReplyStatus(replyKind, normalizeDateText(value))
+      : value
     onBulkEdit(field.key, out)
     setNote(t('Applied to {n} venue|Applied to {n} venues', { n: selectedCount }))
   }
@@ -111,6 +120,22 @@ export default function BulkEditBar({
             <select value={value} onChange={e => setValue(e.target.value)} className={ctrl}>
               {FREQ_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l()}</option>)}
             </select>
+          ) : field.type === 'reply' ? (
+            <>
+              <select value={replyKind} onChange={e => setReplyKind(e.target.value)} className={ctrl}>
+                <option value="reply">{t('replied')}</option>
+                <option value="auto-reply">{t('auto-reply')}</option>
+                <option value="none">{t('no reply')}</option>
+              </select>
+              {replyKind !== 'none' && (
+                <>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{t('on')}</span>
+                  <div className="w-40" title={t('Leave empty if you don’t know the day')}>
+                    <DateInput key="reply-date" value={value} onCommit={setValue} onTextChange={setValue} className={ctrl} />
+                  </div>
+                </>
+              )}
+            </>
           ) : field.type === 'date' ? (
             <div className="w-40">
               <DateInput key={field.key} value={value} onCommit={setValue} onTextChange={setValue} className={ctrl} />

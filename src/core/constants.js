@@ -33,27 +33,30 @@ export const STATUS = {
 // (lib/health.js: green booked, yellow replied, orange auto-reply, red never
 // replied), so a status never uses those four for something else — except
 // Confirmed, which is the same news as a booked gig and takes its green.
-// What to do is indigo (Send, like the Email button), pink (Follow up),
-// violet (Never contacted), cyan (Missing info); the resting ones are grey.
+// What to do is indigo (Send: the Email button's own, solid), pink (Follow
+// up), violet (Never contacted), cyan (Missing info). Recent — written to,
+// nothing to do — is a content teal, Recently played a lime next to the
+// booked green; the parked ones are grey. A row is no longer marked by a
+// bar on its left: the badge and the row's tint say it.
 export const STATUS_META = {
   [STATUS.SEND]: {
     label: 'Send',
-    badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-    row: 'border-l-4 border-indigo-400',
-    mapColor: '#6366F1',
+    badge: 'bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white',
+    row: '',
+    mapColor: '#4F46E5',
     priority: 1,
   },
   [STATUS.FOLLOW_UP_DUE]: {
     label: 'Follow up',
     badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
-    row: 'border-l-4 border-pink-500',
+    row: '',
     mapColor: '#EC4899',
     priority: 2,
   },
   [STATUS.NEVER_CONTACTED]: {
     label: 'Never contacted',
     badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-    row: 'border-l-4 border-violet-400',
+    row: '',
     mapColor: '#8B5CF6',
     priority: 3,
   },
@@ -66,9 +69,9 @@ export const STATUS_META = {
   },
   [STATUS.RECENT_CONTACT]: {
     label: 'Recent',
-    badge: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+    badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
     row: '',
-    mapColor: '#6B7280',
+    mapColor: '#14B8A6',
     priority: 5,
   },
   [STATUS.ON_HOLD]: {
@@ -87,9 +90,9 @@ export const STATUS_META = {
   },
   [STATUS.RECENTLY_PLAYED]: {
     label: 'Recently played',
-    badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+    badge: 'bg-lime-100 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300',
     row: 'opacity-70',
-    mapColor: '#14B8A6',
+    mapColor: '#84CC16',
     priority: 7,
   },
   [STATUS.FESTIVAL_INELIGIBLE]: {
@@ -109,7 +112,7 @@ export const STATUS_META = {
   [STATUS.MISSING_INFO]: {
     label: 'Missing info',
     badge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
-    row: 'border-l-4 border-cyan-400',
+    row: '',
     mapColor: '#06B6D4',
     priority: 9,
   },

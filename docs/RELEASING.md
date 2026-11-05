@@ -79,9 +79,12 @@ flag; `scripts/adhoc-sign.cjs` prevents that, and this verifies it worked.
 
 The hook signs with the self-signed certificate in `~/.booking-signing`
 (created once with `npm run signing:setup`; keep that folder). The same
-certificate on every build is what lets the keychain's "Always Allow" for the
-mail passwords survive an update. Without it the hook falls back to ad-hoc and
-says so — then every update asks for the keychain again.
+certificate on every build gives the app a designated requirement that stays
+the same. It does not stop keychain prompts on its own: without an Apple Team
+ID the keychain also ties an item to the build's cdhash. Since 0.24 the stored
+passwords don't use an app-bound item at all (src/main/secrets.js: their key is
+kept through /usr/bin/security), so updates never ask. If the hook falls back
+to ad-hoc it says so; stop and fix it before releasing.
 
 ```sh
 codesign -dv --verbose=4 "$BUILD/mac-arm64/Booking.app" 2>&1 | grep Authority

@@ -9,7 +9,9 @@ vi.mock('electron', () => ({
   },
 }))
 
-const { setSecret, getSecret, deleteSecret } = await import('../secrets.js')
+const { setSecret, getSecret, deleteSecret, __setKeychainForTests } = await import('../secrets.js')
+let stored = ''
+__setKeychainForTests({ read: () => stored, write: hex => { stored = hex } })
 
 describe('secret key allowlist', () => {
   it('accepts the two original keys', () => {

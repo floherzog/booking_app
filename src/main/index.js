@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { app, shell, dialog, BrowserWindow, Menu, protocol, net, ipcMain } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { registerIpc } from './ipc/index.js'
+import { migrateSecrets } from './secrets.js'
 import { checkForUpdates } from './ipc/updates.js'
 import { startScheduler } from './scheduler.js'
 import { tm, setMainLanguage } from './i18n.js'
@@ -212,6 +213,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Passwords stored by 0.23 and earlier move to the keychain key that doesn't
+  // ask again after every update (secrets.js). Before the window, so the one
+  // last keychain prompt comes first, not in the middle of a mail sync.
+  try { migrateSecrets() } catch { /* stays as it was; tried again next launch */ }
   registerAssetProtocol()
   registerIpc()
   // The window says which language it speaks; the menu follows.

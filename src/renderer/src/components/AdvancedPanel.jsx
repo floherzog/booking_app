@@ -7,7 +7,7 @@ import { CheckIcon } from './icons'
 import { t, useT } from '../i18n'
 
 // What a shortcut chip and a custom chip look like before any colour is chosen.
-const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#06B6D4', duplicate: '#F59E0B', onlineForm: '#14B8A6', phoneOnly: '#3B82F6', drafted: '#0284C7', autoSend: '#8B5CF6' }
+const SHORTCUT_HEX = { actionOnly: '#1F2937', nextBatch: '#6366F1', missingInfo: '#06B6D4', duplicate: '#F59E0B', onlineForm: '#0EA5E9', phoneOnly: '#0EA5E9', drafted: '#3B82F6', autoSend: '#8B5CF6' }
 const CUSTOM_HEX = '#475569'
 
 const sel = 'rounded-md border-gray-300 dark:border-gray-600 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-800 dark:text-gray-100'
@@ -75,15 +75,7 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
 
       {/* Column filters */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("Filters (all must match)")}</span>
-          <button
-            onClick={addRule}
-            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
-          >
-            {t("+ Add filter")}
-          </button>
-        </div>
+        <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">{t("Filters (all must match)")}</span>
 
         {advanced.length === 0 && (
           <p className="text-xs text-gray-400 dark:text-gray-500">{t("No column filters — add one to narrow by any field (status, contact, time frame, …). Note, Outreach Text and Reply Status take keywords: “formular, web form” matches either.")}</p>
@@ -123,6 +115,13 @@ export default function AdvancedPanel({ rows, filters, onChange, chips, onChipsC
             </button>
           </div>
         ))}
+        {/* Where the next filter goes: on a line of its own, under the others. */}
+        <button
+          onClick={addRule}
+          className="w-40 h-[38px] rounded-md border border-dashed border-gray-300 dark:border-gray-600 px-3 text-left text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+        >
+          {t("+ Add filter")}
+        </button>
       </div>
 
       {chips && onChipsChange && (

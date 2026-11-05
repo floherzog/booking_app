@@ -233,9 +233,9 @@ Artifacts land in `~/Builds/booking_app_mac/`, not in the repo — see
 - [ ] First launch on a Mac that has never seen this build: it may bounce in the
       Dock for minutes while macOS scans the bundle. Time it; it must happen only
       once. `xattr -cr` on a second copy should skip the wait entirely.
-- [ ] After an update, the keychain may ask once whether Booking can use the
-      stored token/password (ad-hoc signature ⇒ new identity). *Always Allow*,
-      and confirm GitHub/IMAP still work without re-entering them.
+- [ ] After an update, **no** keychain prompt, and GitHub/IMAP still work
+      without re-entering anything. (Updating from 0.23 or earlier: one last
+      "Booking Safe Storage" prompt at launch, while the passwords move over.)
 - [ ] `settings.json`, `templates/` and `schedule.json` survive replacing the app.
 - [ ] First launch: blocked by "Apple could not verify…", then allowed via
       System Settings → Privacy & Security → Open Anyway (macOS 15+; right-click

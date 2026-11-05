@@ -1087,4 +1087,6 @@ export default {
   'Uses the same GitHub token as your other lists.': 'Verwendet denselben GitHub-Token wie deine anderen Listen.',
   'Which list is shown — the lists are in Settings ▸ Data & storage': 'Welche Liste gezeigt wird — die Listen sind unter Einstellungen ▸ Daten & Ordner',
   'shown': 'gezeigt',
+  'Leave empty if you don’t know the day': 'Leer lassen, wenn du den Tag nicht weißt',
+  'on': 'am',
 }

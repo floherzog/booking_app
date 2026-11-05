@@ -38,19 +38,19 @@ const SHORTCUT_STYLE = {
     off: 'bg-transparent text-amber-700 border-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:border-amber-600 dark:hover:bg-amber-900/20',
   },
   onlineForm: {
-    badge: PALETTE.teal.badge,
-    on: 'bg-teal-600 text-white border-teal-600 dark:bg-teal-500 dark:border-teal-500',
-    off: 'bg-transparent text-teal-700 border-teal-300 hover:border-teal-400 hover:bg-teal-50 dark:text-teal-400 dark:border-teal-800 dark:hover:border-teal-600 dark:hover:bg-teal-900/20',
-  },
-  phoneOnly: {
-    badge: PALETTE.blue.badge,
-    on: 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500',
-    off: 'bg-transparent text-blue-700 border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:border-blue-600 dark:hover:bg-blue-900/20',
-  },
-  drafted: {
     badge: PALETTE.sky.badge,
     on: 'bg-sky-600 text-white border-sky-600 dark:bg-sky-500 dark:border-sky-500',
     off: 'bg-transparent text-sky-700 border-sky-300 hover:border-sky-400 hover:bg-sky-50 dark:text-sky-400 dark:border-sky-800 dark:hover:border-sky-600 dark:hover:bg-sky-900/20',
+  },
+  phoneOnly: {
+    badge: PALETTE.sky.badge,
+    on: 'bg-sky-600 text-white border-sky-600 dark:bg-sky-500 dark:border-sky-500',
+    off: 'bg-transparent text-sky-700 border-sky-300 hover:border-sky-400 hover:bg-sky-50 dark:text-sky-400 dark:border-sky-800 dark:hover:border-sky-600 dark:hover:bg-sky-900/20',
+  },
+  drafted: {
+    badge: PALETTE.blue.badge,
+    on: 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500',
+    off: 'bg-transparent text-blue-700 border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:border-blue-600 dark:hover:bg-blue-900/20',
   },
   autoSend: {
     badge: PALETTE.violet.badge,
@@ -90,7 +90,7 @@ export function StatusPill({ status, count, active, onClick, title }) {
       title={title}
       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all
         ${meta.badge}
-        ${active ? 'ring-2 ring-offset-1 ring-current dark:ring-offset-gray-900' : 'hover:opacity-80'}`}
+        ${active ? `ring-2 ring-offset-1 dark:ring-offset-gray-900 ${meta.badge.includes('text-white') ? 'ring-indigo-600 dark:ring-indigo-400' : 'ring-current'}` : 'hover:opacity-80'}`}
     >
       <span>{t(meta.label)}</span>
       {count !== undefined && <span className="font-bold">{count}</span>}

@@ -76,10 +76,10 @@ inside the app bundle, so nothing is lost:
   choice — lives in `~/Library/Application Support/Booking/` and is read by the
   new version. New settings appear with their defaults; old ones are kept.
 - **Templates and their images** live in the same folder.
-- **The GitHub token and mail password** stay in the keychain. Because the app is
-  ad-hoc signed, each build is a *different* app as far as the keychain is
-  concerned, so macOS may ask once after an update whether Booking may use them —
-  answer **Always Allow**. (A Developer ID signature would remove that prompt.)
+- **The GitHub token and mail password** are encrypted with a key kept in your
+  login keychain (through Apple's `security` tool, so updates never ask for it
+  again). Updating from 0.23 or earlier asks one last time, at launch, while they
+  move over: answer **Always Allow**.
 
 ## What it does
 
