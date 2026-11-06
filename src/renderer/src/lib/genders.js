@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../platform'
-import { firstNameOf } from '@core/templates'
+import { firstNameOf, splitContacts } from '@core/templates'
 
 // Renderer-side mirror of the main process's venue-gender cache.
 //
@@ -79,13 +79,13 @@ export function useGenders(venues, enabled = true) {
 
 // --- first names, for "Liebe / Lieber" ---------------------------------------
 
+// One per person in the Contact cell (templates.js splitContacts), in order.
 export function contactGenderOf(contact) {
-  const first = firstNameOf(contact)
-  return (first && names[first]) || null
+  return splitContacts(contact).map(p => names[firstNameOf(p)] || null)
 }
 
 export async function ensureContactGenders(contacts = []) {
-  const wanted = [...new Set(contacts.map(firstNameOf).filter(Boolean))]
+  const wanted = [...new Set(contacts.flatMap(c => splitContacts(c).map(firstNameOf)).filter(Boolean))]
   const unknown = wanted.filter(n => !(n in names))
   if (unknown.length === 0) return { ok: true, added: 0 }
   try {
@@ -97,7 +97,7 @@ export async function ensureContactGenders(contacts = []) {
   }
 }
 
-// gender '' clears the correction and lets the model answer again.
+// `contact`: one person's name. gender '' clears the correction and lets the model answer again.
 export async function overrideContactGender(contact, gender) {
   const first = firstNameOf(contact)
   if (!first) return { ok: false }

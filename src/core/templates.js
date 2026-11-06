@@ -99,6 +99,33 @@ export function contactOptionsFor(row, settings) {
   }
 }
 
+// A Contact cell can name several people: "Anna Müller & Ben Schulz",
+// "Anna und Ben", "Anna / Ben", "Anna Müller, Ben Schulz" → one entry each.
+// A comma between two one-word parts ("Müller, Anna") or after a surname with
+// a particle ("van der Berg, Jan") is still one person, surname first —
+// unless the cell also has an "and" (then commas list people too).
+const CONTACT_SEPARATORS = /\s*(?:&|\+|\/|;|\n)\s*|\s+(?:and|und|et)\s+/i
+export function splitContacts(value) {
+  const parts = String(value || '').split(CONTACT_SEPARATORS).map(p => p.trim().replace(/^,+|,+$/g, '').trim()).filter(Boolean)
+  const out = []
+  for (const part of parts) {
+    const pieces = part.split(',').map(x => x.trim()).filter(Boolean)
+    const first = pieces[0]?.split(/\s+/) || []
+    const isList = pieces.length > 2 || (pieces.length === 2 && (parts.length > 1
+      || (first.length > 1 && !SURNAME_PARTICLES.has(first[0].toLowerCase()))))
+    if (isList) out.push(...pieces)
+    else out.push(pieces.join(', '))
+  }
+  return [...new Set(out)]
+}
+
+// "Anna", "Anna and Ben", "Anna, Ben and Carla" — in the template's language.
+const AND = { en: 'and', de: 'und' }
+export function joinNames(list, language = 'en') {
+  if (list.length <= 1) return list[0] || ''
+  return `${list.slice(0, -1).join(', ')} ${AND[language] || '&'} ${list[list.length - 1]}`
+}
+
 // "Anna Müller" → "Anna". Names with a comma ("Müller, Anna") are read as
 // surname-first, which is how the CSV occasionally records them.
 export function firstNameOf(full) {
@@ -139,14 +166,35 @@ const GREETINGS = {
     formal: { f: n => `Dear Ms ${n}`, m: n => `Dear Mr ${n}`, x: n => `Dear ${n}`, team: t => `Dear ${t}`, none: () => 'Dear Sir or Madam' },
   },
 }
+//
+// Several people in the Contact cell (splitContacts) are greeted together;
+// `gender` is then one entry per person, in order. German gives each their
+// own salutation when every gender is known ("Liebe Anna, lieber Ben"),
+// otherwise one neutral one ("Hallo Anna und Ben"); English has one "Dear"
+// ("Dear Anna and Ben", "Dear Ms Müller and Mr Schulz").
 export function greetingFor({ contact, style = 'full', language = 'en', gender, fallback = '' }) {
   const g = GREETINGS[language] || GREETINGS.en
-  const name = String(contact || '').trim()
+  const people = splitContacts(contact)
   const forms = g[style === 'formal' ? 'formal' : 'informal']
-  if (!name) return fallback ? forms.team(fallback) : forms.none()
-  const sex = gender === 'f' || gender === 'm' ? gender : 'x'
-  if (style === 'formal') return forms[sex](sex === 'x' ? name : lastNameOf(name))
-  return forms[sex](style === 'first' ? firstNameOf(name) : name)
+  if (!people.length) return fallback ? forms.team(fallback) : forms.none()
+  const genders = Array.isArray(gender) ? gender : [gender]
+  const sexOf = i => (genders[i] === 'f' || genders[i] === 'm' ? genders[i] : 'x')
+  const nameFor = (n, sex) => (style === 'formal' ? (sex === 'x' ? n : lastNameOf(n)) : style === 'first' ? firstNameOf(n) : n)
+  if (people.length === 1) return forms[sexOf(0)](nameFor(people[0], sexOf(0)))
+  if (g === GREETINGS.de) {
+    if (people.every((_, i) => sexOf(i) !== 'x')) {
+      return people.map((n, i) => {
+        const one = forms[sexOf(i)](nameFor(n, sexOf(i)))
+        return i ? one[0].toLowerCase() + one.slice(1) : one
+      }).join(', ')
+    }
+    return forms.x(joinNames(people.map(n => nameFor(n, 'x')), 'de'))
+  }
+  const named = people.map((n, i) => {
+    const sex = sexOf(i)
+    return style === 'formal' && sex !== 'x' ? `${sex === 'f' ? 'Ms' : 'Mr'} ${nameFor(n, sex)}` : nameFor(n, sex)
+  })
+  return `Dear ${joinNames(named, 'en')}`
 }
 
 // The venue's template language: a case-insensitive match of its Country against
@@ -248,7 +296,12 @@ export function substitutePlaceholders(str, row, opts = {}) {
       : (row?.[field] ?? '').trim()
 
     if (name === 'contact') {
-      if (value) return opts.contactStyle === 'first' ? firstNameOf(value) : value
+      if (value) {
+        // Several people: each by the chosen style, joined ("Anna und Ben").
+        if (!opts.contactStyle) return value
+        const people = splitContacts(value)
+        return joinNames(opts.contactStyle === 'first' ? people.map(firstNameOf) : people, opts.language)
+      }
       const fallback = String(opts.contactFallback || '')
       if (fallback) {
         // The fallback is itself a template ("{{venue}} Team"). Resolve it with

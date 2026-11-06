@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   PLACEHOLDERS, languageForRow, resolveTemplate, substitutePlaceholders,
-  substituteDoc, substituteTemplate, contactOptionsFor, firstNameOf, lastNameOf, greetingFor,
+  substituteDoc, substituteTemplate, contactOptionsFor, firstNameOf, lastNameOf, greetingFor, splitContacts,
   DEFAULT_TEMPLATE_OPTIONS, canonicalPlaceholders, placeholderName, GERMAN_PLACEHOLDERS,
 } from '@core/templates'
 
@@ -353,5 +353,48 @@ describe('German placeholder names', () => {
     expect(placeholderName('venue', 'de')).toBe('venue')
     expect(placeholderName('greeting', 'en')).toBe('greeting')
     expect(Object.keys(GERMAN_PLACEHOLDERS).every(k => PLACEHOLDERS.includes(k))).toBe(true)
+  })
+})
+
+describe('several contacts', () => {
+  it('splits a Contact cell into people', () => {
+    expect(splitContacts('Anna Müller & Ben Schulz')).toEqual(['Anna Müller', 'Ben Schulz'])
+    expect(splitContacts('Anna und Ben')).toEqual(['Anna', 'Ben'])
+    expect(splitContacts('Anna / Ben; Carla')).toEqual(['Anna', 'Ben', 'Carla'])
+    expect(splitContacts('Anna Müller, Ben Schulz')).toEqual(['Anna Müller', 'Ben Schulz'])
+    expect(splitContacts('Anna, Ben and Carla')).toEqual(['Anna', 'Ben', 'Carla'])
+    expect(splitContacts('Anna, Ben, Carla')).toEqual(['Anna', 'Ben', 'Carla'])
+    // One person, surname first.
+    expect(splitContacts('Müller, Anna')).toEqual(['Müller, Anna'])
+    expect(splitContacts('van der Berg, Jan')).toEqual(['van der Berg, Jan'])
+    expect(splitContacts('')).toEqual([])
+  })
+
+  it('greets each person in German when every gender is known', () => {
+    const g = (style, gender, language = 'de') => greetingFor({ contact: 'Anna Müller & Ben Schulz', style, gender, language })
+    expect(g('first', ['f', 'm'])).toBe('Liebe Anna, lieber Ben')
+    expect(g('full', ['f', 'm'])).toBe('Liebe Anna Müller, lieber Ben Schulz')
+    expect(g('formal', ['f', 'm'])).toBe('Sehr geehrte Frau Müller, sehr geehrter Herr Schulz')
+    expect(g('first', ['f', null])).toBe('Hallo Anna und Ben')
+    expect(g('formal', ['f'])).toBe('Guten Tag Anna Müller und Ben Schulz')
+  })
+
+  it('has one "Dear" in English', () => {
+    const g = (style, gender) => greetingFor({ contact: 'Anna Müller & Ben Schulz', style, gender, language: 'en' })
+    expect(g('first', ['f', 'm'])).toBe('Dear Anna and Ben')
+    expect(g('formal', ['f', 'm'])).toBe('Dear Ms Müller and Mr Schulz')
+    expect(g('formal', ['f', null])).toBe('Dear Ms Müller and Ben Schulz')
+  })
+
+  it('still takes a single gender for one person', () => {
+    expect(greetingFor({ contact: 'Anna', style: 'first', gender: 'f', language: 'de' })).toBe('Liebe Anna')
+    expect(greetingFor({ contact: 'Müller, Anna', style: 'formal', gender: ['f'], language: 'de' })).toBe('Sehr geehrte Frau Müller')
+  })
+
+  it('joins several people for {{contact}}', () => {
+    const row = { Contact: 'Anna Müller, Ben Schulz, Carla Rossi' }
+    expect(substitutePlaceholders('{{contact}}', row, { contactStyle: 'first', language: 'de' }).text).toBe('Anna, Ben und Carla')
+    expect(substitutePlaceholders('{{contact}}', row, { contactStyle: 'full', language: 'en' }).text).toBe('Anna Müller, Ben Schulz and Carla Rossi')
+    expect(substitutePlaceholders('{{contact}}', row).text).toBe('Anna Müller, Ben Schulz, Carla Rossi')
   })
 })

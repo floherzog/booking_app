@@ -18,7 +18,7 @@ import { useEscape } from '../lib/useEscape'
 import { useClassifyCtx } from '../lib/rulesContext'
 import { MailIcon, ExternalIcon, WarningIcon } from './icons'
 import { contactGenderOf, overrideContactGender, useContactGenders } from '../lib/genders'
-import { greetingFor, contactOptionsFor } from '@core/templates'
+import { greetingFor, contactOptionsFor, splitContacts, firstNameOf } from '@core/templates'
 import { t, useT } from '../i18n'
 import MailHistory from './MailHistory'
 import Busy from './Busy'
@@ -133,26 +133,38 @@ function GreetingField({ row, settings }) {
   const onDevice = (settings?.templates?.germanArticles ?? 'ondevice') !== 'off'
   // Re-renders once the model has answered.
   useContactGenders([row['Contact']], onDevice)
-  const [override, setOverride] = useState(null) // what was picked here
-  const gender = override ?? contactGenderOf(row['Contact'])
+  // What was picked here, per person (the Contact cell can name several).
+  const [overrides, setOverrides] = useState({})
+  const people = splitContacts(row['Contact'])
+  const auto = contactGenderOf(row['Contact'])
+  const gender = people.map((p, i) => overrides[p] || auto[i] || null)
   const opts = contactOptionsFor(row, settings)
   const example = greetingFor({ contact: row['Contact'], style: opts.contactStyle, language: opts.language, gender })
-  async function pick(value) {
-    setOverride(value || null)
-    await overrideContactGender(row['Contact'], value)
+  async function pick(person, value) {
+    setOverrides(o => ({ ...o, [person]: value }))
+    await overrideContactGender(person, value)
   }
+  const select = person => (
+    <select
+      value={overrides[person] ?? ''}
+      onChange={e => pick(person, e.target.value)}
+      className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-0.5 pl-2 pr-7"
+      title={t("Correct how the first name is read")}
+    >
+      {GREETING_CHOICES.map(c => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
+    </select>
+  )
   return (
     <div className="col-span-2 -mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
       <span>{t("Greeting:")}</span>
       <span className="font-medium text-gray-700 dark:text-gray-200">{example}</span>
-      <select
-        value={override ?? ''}
-        onChange={e => pick(e.target.value)}
-        className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-xs py-0.5 pl-2 pr-7"
-        title={t("Correct how the first name is read")}
-      >
-        {GREETING_CHOICES.map(c => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
-      </select>
+      {people.length <= 1 ? select(people[0] || '') : (
+        <span className="basis-full flex flex-wrap items-center gap-x-4 gap-y-1">
+          {people.map(p => (
+            <span key={p} className="inline-flex items-center gap-1.5">{firstNameOf(p)} {select(p)}</span>
+          ))}
+        </span>
+      )}
     </div>
   )
 }
