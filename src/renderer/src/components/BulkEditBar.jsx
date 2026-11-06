@@ -19,6 +19,8 @@ const BULK_FIELDS = [
   { key: 'Last emailed', type: 'date' },
   { key: 'Status', type: 'reply' },
   { key: 'Last played', type: 'date' },
+  { key: 'Total emails', type: 'number' },
+  { key: 'Recent emails', type: 'number' },
   { key: 'frequency', type: 'frequency' },
   { key: 'Time Frame', type: 'text' },
   { key: 'Dates', type: 'text' },
@@ -65,6 +67,7 @@ export default function BulkEditBar({
     if (none) return
     const out = field.type === 'date' ? normalizeDateText(value)
       : field.type === 'reply' ? composeReplyStatus(replyKind, normalizeDateText(value))
+      : field.type === 'number' ? (value.trim() === '' ? '' : String(Math.max(0, Math.floor(Number(value)) || 0)))
       : value
     onBulkEdit(field.key, out)
     setNote(t('Applied to {n} venue|Applied to {n} venues', { n: selectedCount }))
@@ -140,6 +143,11 @@ export default function BulkEditBar({
             <div className="w-40">
               <DateInput key={field.key} value={value} onCommit={setValue} onTextChange={setValue} className={ctrl} />
             </div>
+          ) : field.type === 'number' ? (
+            <input
+              type="number" min="0" step="1" value={value} onChange={e => setValue(e.target.value)}
+              placeholder="0" className={`${ctrl} w-24`}
+            />
           ) : (
             <input
               type="text" value={value} onChange={e => setValue(e.target.value)}

@@ -373,6 +373,35 @@ function Field({ fieldDef, value, isEdited, onChange, row }) {
   )
 }
 
+// "12 ✉ all time": click to correct the number. With several bands the chip
+// shows the whole venue's; the field edited is the open band's own.
+function CounterChip({ shown, own, label, title, editTitle, onChange }) {
+  const [draft, setDraft] = useState(null)
+  const chip = 'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+  if (draft !== null) {
+    const commit = () => {
+      const v = draft.trim()
+      if (v === '' || /^\d+$/.test(v)) onChange(v === '' ? '' : String(Number(v)))
+      setDraft(null)
+    }
+    return (
+      <span className={chip}>
+        <input type="number" min="0" autoFocus value={draft} aria-label={editTitle}
+          onChange={e => setDraft(e.target.value)} onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.stopPropagation(); setDraft(null) } }}
+          className="w-10 p-0 border-0 bg-transparent text-xs font-medium tabular-nums focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-gray-800 dark:text-gray-100" />
+        <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {label}
+      </span>
+    )
+  }
+  return (
+    <button type="button" onClick={() => setDraft(String(Number(own) || 0))} title={`${title} — ${editTitle}`}
+      className={`${chip} hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors`}>
+      <span className="tabular-nums">{shown}</span> <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {label}
+    </button>
+  )
+}
+
 // One tab per band this venue is booked for, plus a picker to add another.
 // The tab shows the band's status colour, so a glance tells which band needs
 // something, and with several bands how many emails each has had. The open
@@ -480,34 +509,78 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
     onEdit(rowIndex, field, value)
   }
 
+  const deleteNode = confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-700 dark:text-red-400">
+                {confirmDelete === 'band'
+                  ? t('Stop booking this venue for {band}?', { band: effective['Band'] })
+                  : severalBands ? t('Delete this venue for all {n} bands?', { n: entries.length }) : t('Delete this venue?')}
+              </span>
+              <button
+                onClick={() => {
+                  setConfirmDelete(false)
+                  if (confirmDelete === 'band') onRemoveBand?.()
+                  else onDelete(rowIndex)
+                }}
+                className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200"
+              >
+                {confirmDelete === 'band' ? t('Yes, remove') : t('Yes, delete')}
+              </button>
+              <span className="text-red-300">·</span>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300">{t("Cancel")}</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setConfirmDelete('venue')}
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors whitespace-nowrap"
+              >
+                {severalBands ? t('Delete venue (all bands)') : t('Delete venue')}
+              </button>
+            </div>
+          )
+  const saveNode = editCount > 0 ? (
+    <button
+      onClick={onSave}
+      className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors shrink-0"
+    >
+      {t("Save")}
+      <span className="bg-amber-400 text-amber-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{editCount}</span>
+    </button>
+  ) : (
+    <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">{t("No unsaved changes")}</span>
+  )
+
   return (
     // A side panel the full height of the window, from the very top: its header
     // starts below the Mac's drag strip instead (index.css, .side-panel).
     // `raised`: opened from the Email window, so it goes on top of that.
     <div className={`side-panel fixed inset-0 bg-black/40 flex items-center justify-end ${raised ? 'z-[1320]' : 'z-[1100]'}`} {...backdrop}>
       <div
-        className="bg-white/85 dark:bg-gray-800/85 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="bg-white/85 dark:bg-gray-800/85 h-full w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden isolate"
         onClick={e => e.stopPropagation()}
       >
         {/* The header wears the row's colour (what the venue has answered),
-            spelled out on the right. */}
-        <div className={`side-panel-head px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3 shrink-0 ${health.row}`}>
+            spelled out on the right. The colour fades out into the panel
+            below rather than stopping at a line; it sits behind the content
+            (-z-10 within the panel's `isolate`), so text over it stays crisp. */}
+        <div className={`side-panel-head relative px-6 py-4 flex items-start justify-between gap-3 shrink-0 ${health.row ? '' : 'border-b border-gray-100 dark:border-gray-700'}`}>
+          {health.row && (
+            <div aria-hidden className={`absolute inset-x-0 top-0 h-[calc(100%+3rem)] -z-10 pointer-events-none ${health.row}`}
+              style={{ maskImage: 'linear-gradient(to bottom, #000 calc(100% - 5rem), transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 calc(100% - 5rem), transparent)' }} />
+          )}
           <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{effective['Venue'] || t('Venue')}</h2>
               <StatusBadge status={row._status} />
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+              <CounterChip shown={totalEmails} own={effective['Total emails']} label={t("all time")}
                 title={t('{n} email sent all time|{n} emails sent all time', { n: totalEmails })}
-              >
-                {totalEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {t("all time")}
-              </span>
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                editTitle={severalBands ? t('Click to change it for {band}', { band: effective['Band'] || t('no band') }) : t('Click to change it')}
+                onChange={v => handleChange('Total emails', v)} />
+              <CounterChip shown={recentEmails} own={effective['Recent emails']} label={t("since reply")}
                 title={t('{n} email sent since the last reply|{n} emails sent since the last reply', { n: recentEmails })}
-              >
-                {recentEmails} <MailIcon className="inline w-3.5 h-3.5 -mt-0.5" /> {t("since reply")}
-              </span>
+                editTitle={severalBands ? t('Click to change it for {band}', { band: effective['Band'] || t('no band') }) : t('Click to change it')}
+                onChange={v => handleChange('Recent emails', v)} />
               {duplicatePartners.map(partner => (
                 <span key={partner._idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
                   {t("Duplicate of")} {partner['Venue']}
@@ -644,64 +717,29 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
           })}
         </div>
 
-        {/* Wraps onto a second line rather than pushing Save out of the panel. */}
-        <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-red-700 dark:text-red-400">
-                {confirmDelete === 'band'
-                  ? t('Stop booking this venue for {band}?', { band: effective['Band'] })
-                  : severalBands ? t('Delete this venue for all {n} bands?', { n: entries.length }) : t('Delete this venue?')}
-              </span>
-              <button
-                onClick={() => {
-                  setConfirmDelete(false)
-                  if (confirmDelete === 'band') onRemoveBand?.()
-                  else onDelete(rowIndex)
-                }}
-                className="text-xs font-semibold text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200"
-              >
-                {confirmDelete === 'band' ? t('Yes, remove') : t('Yes, delete')}
-              </button>
-              <span className="text-red-300">·</span>
-              <button onClick={() => setConfirmDelete(false)} className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300">{t("Cancel")}</button>
-            </div>
+        {/* One line: Delete on the left; draft, send and Save on the right,
+            all on the same centre line. Notes about drafting go underneath. */}
+        <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 shrink-0">
+          {caps.mail ? (
+            <DraftVenueButton
+              row={effective}
+              onOpenSettings={onOpenSettings}
+              templates={templates}
+              languages={languages}
+              settings={settings}
+              draftedAtIso={draftedAtIso}
+              onDraftCreated={onDraftCreated}
+              onSent={onSent}
+              showSend
+              leading={deleteNode}
+              trailing={saveNode}
+            />
           ) : (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setConfirmDelete('venue')}
-                className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors whitespace-nowrap"
-              >
-                {severalBands ? t('Delete venue (all bands)') : t('Delete venue')}
-              </button>
+            <div className="flex flex-wrap items-center gap-3 min-h-[34px]">
+              {deleteNode}
+              <div className="ml-auto">{saveNode}</div>
             </div>
           )}
-          <div className="ml-auto flex flex-wrap items-start justify-end gap-3 min-w-0">
-            {caps.mail && (
-              <DraftVenueButton
-                row={effective}
-                onOpenSettings={onOpenSettings}
-                templates={templates}
-                languages={languages}
-                settings={settings}
-                draftedAtIso={draftedAtIso}
-                onDraftCreated={onDraftCreated}
-                onSent={onSent}
-                showSend
-              />
-            )}
-          {editCount > 0 ? (
-            <button
-              onClick={onSave}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors shrink-0"
-            >
-              {t("Save")}
-              <span className="bg-amber-400 text-amber-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{editCount}</span>
-            </button>
-          ) : (
-            <p className="text-xs text-gray-400 dark:text-gray-500">{t("No unsaved changes")}</p>
-          )}
-          </div>
         </div>
       </div>
     </div>

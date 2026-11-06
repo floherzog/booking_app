@@ -15,7 +15,10 @@ import Busy from './Busy'
 // `showSend` promotes sending from the overflow to a button of its own. The venue
 // detail view sets it — there is room there, and sending one venue you are already
 // looking at is a normal thing to want. In the table row it stays in the overflow.
-export default function DraftVenueButton({ row, templates, languages, settings, draftedAtIso, onDraftCreated, onSent, onOpenSettings, showSend = false }) {
+// `leading` / `trailing` (the venue panel's footer): put on the same line as
+// the buttons, at the far left and after them, with the notes underneath the
+// whole line.
+export default function DraftVenueButton({ row, templates, languages, settings, draftedAtIso, onDraftCreated, onSent, onOpenSettings, showSend = false, leading = null, trailing = null }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null) // { ok, message }
@@ -60,8 +63,10 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
   }
 
   return (
-    <div className="flex flex-col items-end gap-1 shrink-0">
-      <div className="flex items-center gap-1.5">
+    <div className={`flex flex-col items-end gap-1 ${leading || trailing ? 'w-full' : 'shrink-0'}`}>
+      <div className={`flex items-center gap-1.5 ${leading || trailing ? 'w-full flex-wrap gap-y-2' : ''}`}>
+        {leading}
+        {(leading || trailing) && <span className="flex-1" />}
         {prepared.ok && (
           <span className="text-xs text-gray-400 dark:text-gray-500">
             <span className="font-mono">{prepared.language}</span>
@@ -146,6 +151,12 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
             </div>
           )}
         </div>
+        {trailing && (
+          <>
+            <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1.5" aria-hidden />
+            {trailing}
+          </>
+        )}
       </div>
 
       {setupGaps.length > 0 && (

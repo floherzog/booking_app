@@ -1091,4 +1091,6 @@ export default {
   'on': 'am',
   'Replies': 'Antworten',
   'The mail sync reads this band’s replies in the account it sends as, and also in:': 'Der Mail-Abgleich liest die Antworten für diese Band im Konto, von dem sie sendet, und zusätzlich in:',
+  'Click to change it': 'Klicken zum Ändern',
+  'Click to change it for {band}': 'Klicken zum Ändern für {band}',
 }
