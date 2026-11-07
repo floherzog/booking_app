@@ -8,7 +8,7 @@ import { accountForRow } from './mailAccounts.js'
 // When several rows share the address (one venue, several bands), the rows
 // whose band writes from the draft's account win; failing that, all of them.
 
-const draftAddresses = d => [...(d.to || []), ...(d.cc || [])].map(p => normalizeAddress(p?.address)).filter(Boolean)
+export const draftAddresses = d => [...(d.to || []), ...(d.cc || [])].map(p => normalizeAddress(p?.address)).filter(Boolean)
 
 // → [{ draft, rows }] for every draft that belongs to a venue, newest first.
 export function matchDrafts(drafts, rows, settings) {

@@ -107,6 +107,9 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
           </button>
         )}
 
+        {/* "Send now instead" (the table, where Send has no button) and
+            "Open in Mail.app" (only without a mail account set up). */}
+        {(!showSend || noAccount) && (
         <div className="relative">
           <button
             onClick={() => { setOverflow(v => !v); setConfirmSend(false) }}
@@ -129,7 +132,7 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
                     if (!confirmSend) { setConfirmSend(true); return }
                     run(sendEmail, t('Email sent'), { sent: true })
                   }}
-                  className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700"
+                  className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <span className={`block text-xs ${confirmSend ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
                     {confirmSend ? t('Really send to {email}?', { email: row['Email'] }) : t('Send now instead')}
@@ -139,18 +142,21 @@ export default function DraftVenueButton({ row, templates, languages, settings, 
                   </span>
                 </button>
               )}
-              <button
-                onMouseDown={e => { e.preventDefault(); run(createDraftViaAppleScript, t('Compose window opened in Mail')) }}
-                className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <span className="block text-xs text-gray-700 dark:text-gray-200">{t("Open in Mail.app instead")}</span>
-                <span className="block text-[11px] text-gray-400 dark:text-gray-500">
-                  {t("No server setup, but macOS will ask for Automation and Accessibility permission.")}
-                </span>
-              </button>
+              {noAccount && (
+                <button
+                  onMouseDown={e => { e.preventDefault(); run(createDraftViaAppleScript, t('Compose window opened in Mail')) }}
+                  className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <span className="block text-xs text-gray-700 dark:text-gray-200">{t("Open in Mail.app instead")}</span>
+                  <span className="block text-[11px] text-gray-400 dark:text-gray-500">
+                    {t("No server setup, but macOS will ask for Automation and Accessibility permission.")}
+                  </span>
+                </button>
+              )}
             </div>
           )}
         </div>
+        )}
         {trailing && (
           <>
             <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1.5" aria-hidden />

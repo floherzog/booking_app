@@ -21,6 +21,7 @@ import { contactGenderOf, overrideContactGender, useContactGenders } from '../li
 import { greetingFor, contactOptionsFor, splitContacts, firstNameOf } from '@core/templates'
 import { t, useT } from '../i18n'
 import MailHistory from './MailHistory'
+import ReplyStatusCell from './ReplyStatusCell'
 import Busy from './Busy'
 
 function MiniMap({ city, country, status, onOpenMap }) {
@@ -106,7 +107,7 @@ const SECTIONS = [
       { key: 'Follow Up Date', label: fieldLabel('Follow Up Date'), type: 'date', colorFn: followUpColor },
       { key: 'frequency', label: fieldLabel('frequency'), type: 'frequency', span: 2, hint: '· how often to re-contact (empty: the venue type’s interval, else the Rules default)' },
       { key: 'Last played', label: fieldLabel('Last played'), type: 'date', colorFn: lastPlayedColor },
-      { key: 'Status', label: fieldLabel('Status'), type: 'text' },
+      { key: 'Status', label: fieldLabel('Status'), type: 'reply' },
       { key: 'Note', label: fieldLabel('Note'), type: 'textarea', span: 2, rows: 3 },
     ],
   },
@@ -707,6 +708,18 @@ export default function VenueDetailModal({ rowIndex, row, edits, onEdit, onClose
                   const Comp = f.type === 'frequency' ? FrequencyField : Field
                   const OPTIONS = { Band: bandOptions, Type: typeOptions }
                   const fieldDef = OPTIONS[f.key] ? { ...f, options: OPTIONS[f.key] } : f
+                  // Reply status: the table's own editor — the date (click
+                  // to read that reply), and the kind as a badge.
+                  if (f.type === 'reply') {
+                    return (
+                      <div key={`${rowIndex}-${f.key}`}>
+                        <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 truncate">{t(f.label)}</span>
+                        <div className="pl-1">
+                          <ReplyStatusCell rowIndex={rowIndex} value={row['Status'] || ''} email={effective['Email'] || ''} edits={edits} onEdit={onEdit} />
+                        </div>
+                      </div>
+                    )
+                  }
                   return (
                     <Comp
                       // Per-band fields remount when the tab changes, so a

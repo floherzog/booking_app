@@ -19,7 +19,8 @@ function venueLabel(row, idx) {
 // The last look before writing: every value can still be changed (onEdit, the
 // table's own edit path), any one change taken back (onRevert), or all of them
 // dropped (onDiscard).
-export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose, onEdit, onRevert, onDiscard }) {
+// `onOpenVenue(idx)`: a venue's name opens its panel, on top of this dialog.
+export default function SaveModal({ rows, edits, deletions = new Set(), additions = new Set(), adapter, onSuccess, onClose, onEdit, onRevert, onDiscard, onOpenVenue }) {
   const t = useT()
   const backdrop = useBackdropClose(onClose)
   useEscape(onClose)
@@ -119,7 +120,12 @@ export default function SaveModal({ rows, edits, deletions = new Set(), addition
               <tbody key={g.idx} data-venue-group className="border-t border-gray-200 dark:border-gray-700">
                 <tr>
                   <th colSpan={4} scope="rowgroup" className="pt-3 pb-1 text-left font-semibold text-gray-900 dark:text-gray-100">
-                    {g.venue}
+                    {onOpenVenue && !g.lines.some(c => c.isDelete) ? (
+                      <button type="button" onClick={() => onOpenVenue(g.idx)} title={t('Open this venue')}
+                        className="font-semibold text-left hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline underline-offset-2">
+                        {g.venue}
+                      </button>
+                    ) : g.venue}
                     {g.lines.filter(c => !c.isDelete && !c.isAdd && !c.reverted).length > 1 && (
                       <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">{t('{n} change|{n} changes', { n: g.lines.filter(c => !c.isDelete && !c.isAdd && !c.reverted).length })}</span>
                     )}

@@ -21,6 +21,7 @@ import { selectRows, deliveryForRow } from '@core/delivery'
 import { formatDateDDMMYY } from '@core/parseDate'
 import { withEmailCounters } from '@core/emailCounters'
 import { matchDrafts, draftCounts } from '@core/draftMatch'
+import { carryOver } from '@core/carryOver'
 import { useDrafts, refreshDrafts, refreshDraftsSoon, refreshDraftsLater } from './lib/mailDrafts'
 import { preloadMail } from './lib/mailBodies'
 import StatsBar, { columnLabel as statsColumnLabel, chipExplainers, ChipExplainLine } from './components/StatsBar'
@@ -377,6 +378,24 @@ export default function App() {
   // not the snapshot it started with.
   const rowsRef = useRef(rows)
   rowsRef.current = rows
+  // What isn't saved yet, for the ↻ reload to keep (refreshAll).
+  const pendingRef = useRef(null)
+  pendingRef.current = { rows, edits, deletions, additions }
+  const restoreRef = useRef(null)
+  restoreRef.current = (pending, loaded) => {
+    const kept = carryOver(pending, loaded)
+    // load() may have staged fixes of its own; the user's edits go on top.
+    setEdits(prev => {
+      const next = { ...prev }
+      for (const [idx, fields] of Object.entries(kept.edits)) next[idx] = { ...(next[idx] || {}), ...fields }
+      return next
+    })
+    setDeletions(kept.deletions)
+    if (kept.added.length) appendImported(loaded, kept.added)
+    if (kept.lost) {
+      setSyncNote({ text: t('Reloaded. The unsaved changes to {n} venue couldn’t be kept — it was renamed or removed in the CSV meanwhile.|Reloaded. The unsaved changes to {n} venues couldn’t be kept — they were renamed or removed in the CSV meanwhile.', { n: kept.lost }), tone: 'warning' })
+    }
+  }
 
   // Which mail accounts have a password in the keychain (id → boolean), for
   // mailReady: is there a mailbox to ask at all?
@@ -451,11 +470,16 @@ export default function App() {
   }, [settings, mailIsReady])
 
   // The ↻ button: reload the CSV, then (when configured) ask the mail account.
-  // Order matters — load() clears staged edits, so syncing first would wipe them.
+  // Unsaved changes survive it: load() clears them, so they are taken aside
+  // first and put back on the lines they belong to (core/carryOver.js).
+  // Order matters — syncing before the load would stage against the old lines.
   const refreshAll = useCallback(async () => {
     checkUpdatesQuietly(settings, { pressed: true })
     if (mailIsReady) refreshDrafts()
-    await load()
+    const pending = pendingRef.current
+    const unsaved = Object.keys(pending.edits).length + pending.deletions.size + pending.additions.size > 0
+    const loaded = await load()
+    if (unsaved && loaded) restoreRef.current(pending, loaded)
     await runMailSync({ silent: true })
   }, [load, runMailSync, checkUpdatesQuietly, settings, mailIsReady])
 
@@ -1098,6 +1122,21 @@ export default function App() {
   useEffect(() => {
     if (matchedDrafts?.length) preloadMail(matchedDrafts.map(m => m.draft))
   }, [matchedDrafts])
+  // The emails of venues with a draft waiting are looked up in the background
+  // too, one address at a time after a short pause, so their panel opens with
+  // the list there (lib/mailHistory.js keeps it for the session, in memory).
+  useEffect(() => {
+    if (!mailIsReady || !matchedDrafts?.length) return undefined
+    const emails = [...new Set(matchedDrafts.flatMap(m => m.rows.map(r => String(r['Email'] || '').trim())).filter(Boolean))].slice(0, 50)
+    let alive = true
+    const timer = setTimeout(async () => {
+      for (const e of emails) {
+        if (!alive) return
+        await getHistory(e)
+      }
+    }, 3000)
+    return () => { alive = false; clearTimeout(timer) }
+  }, [matchedDrafts, mailIsReady])
 
   // Bands, venue types and countries the CSV uses that Settings doesn't list —
   // one banner each, minus what a banner's × already hid. Countries only matter
@@ -1621,7 +1660,7 @@ export default function App() {
           onClose={() => { setShowImport(false); setCameFromSettings(false) }}
         />
       )}
-      {showSave && <SaveModal rows={rows} edits={edits} deletions={deletions} additions={additions} adapter={adapter} onSuccess={handleSaveSuccess} onClose={() => setShowSave(false)} onEdit={handleEdit} onRevert={revertChange} onDiscard={handleDiscard} />}
+      {showSave && <SaveModal rows={rows} edits={edits} deletions={deletions} additions={additions} adapter={adapter} onSuccess={handleSaveSuccess} onClose={() => setShowSave(false)} onEdit={handleEdit} onRevert={revertChange} onDiscard={handleDiscard} onOpenVenue={idx => setVenueDetail(idx)} />}
       {mergeTarget && (
         <MergeModal
           rowA={mergeTarget.rowA}
@@ -1662,12 +1701,13 @@ export default function App() {
           onClose={() => setVenueDetail(null)}
           onOpenSettings={openSettings}
           onDelete={handleDelete}
-          onSave={() => setShowSave(true)}
+          // Opened from the save dialog: Save goes back to it.
+          onSave={() => { if (showSave) setVenueDetail(null); setShowSave(true) }}
           editCount={editCount}
           duplicatePartners={duplicatePartners[venueRep.get(rows.find(r => r._idx === venueDetail)?._venueId)] || []}
           multiBand
           entries={rows.filter(r => r._venueId === rows.find(x => x._idx === venueDetail)?._venueId && !deletions.has(r._idx))}
-          raised={showBulkDraft}
+          raised={showBulkDraft || showSave}
           onSelectEntry={setVenueDetail}
           onAddBand={band => setVenueDetail(handleAddBand(venueDetail, band))}
           onRemoveBand={() => setVenueDetail(handleRemoveBand(venueDetail))}

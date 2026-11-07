@@ -1093,4 +1093,7 @@ export default {
   'The mail sync reads this band’s replies in the account it sends as, and also in:': 'Der Mail-Abgleich liest die Antworten für diese Band im Konto, von dem sie sendet, und zusätzlich in:',
   'Click to change it': 'Klicken zum Ändern',
   'Click to change it for {band}': 'Klicken zum Ändern für {band}',
+  'Draft#mail': 'Entwurf',
+  'Reloaded. The unsaved changes to {n} venue couldn’t be kept — it was renamed or removed in the CSV meanwhile.|Reloaded. The unsaved changes to {n} venues couldn’t be kept — they were renamed or removed in the CSV meanwhile.': 'Neu geladen. Die ungesicherten Änderungen an {n} Venue ließen sich nicht übernehmen — es wurde in der CSV inzwischen umbenannt oder entfernt.|Neu geladen. Die ungesicherten Änderungen an {n} Venues ließen sich nicht übernehmen — sie wurden in der CSV inzwischen umbenannt oder entfernt.',
+  '{n} draft waiting in Mail|{n} drafts waiting in Mail': '{n} Entwurf wartet in Mail|{n} Entwürfe warten in Mail',
 }
