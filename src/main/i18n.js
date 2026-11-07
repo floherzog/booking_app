@@ -5,6 +5,8 @@ import { formatText } from '../core/tr.js'
 // The window tells us over `app:setLanguage`; until then, English.
 const DE = {
   'About {name}': 'Über {name}',
+  Help: 'Hilfe',
+  'Show Startup Log': 'Startprotokoll zeigen',
   'Check for Updates…': 'Nach Updates suchen …',
   Services: 'Dienste',
   'Hide {name}': '{name} ausblenden',

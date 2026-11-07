@@ -5,6 +5,7 @@ import { access, rename, rm } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { join, extname, basename } from 'node:path'
 import { replaceableBundle, stageUpdate, scheduleSwap } from './selfInstall.js'
+import { markUpdateLaunch } from '../startupLog.js'
 
 // The app is distributed as a file you hand someone, so there is no auto-update
 // feed. Instead we ask GitHub for the latest release of the public source repo
@@ -234,6 +235,8 @@ export function registerUpdatesIpc() {
       try {
         const stage = await stageUpdate({ dmg: downloaded, bundle, version: downloadedVersion })
         await scheduleSwap({ stage, bundle })
+        // The new copy logs how long it took from here to running (startupLog.js).
+        markUpdateLaunch(app.getPath('userData'), { from: app.getVersion(), to: downloadedVersion || '' })
         await shell.trashItem(downloaded).catch(() => {}) // in the Trash, not gone
         setTimeout(() => app.quit(), 200)
         return ''

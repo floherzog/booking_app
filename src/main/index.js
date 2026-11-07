@@ -6,6 +6,8 @@ import { migrateSecrets } from './secrets.js'
 import { checkForUpdates } from './ipc/updates.js'
 import { startScheduler } from './scheduler.js'
 import { tm, setMainLanguage } from './i18n.js'
+import { createStartupLog, startupLogPath } from './startupLog.js'
+import { existsSync, writeFileSync } from 'node:fs'
 
 const isDev = !app.isPackaged
 
@@ -13,6 +15,16 @@ const isDev = !app.isPackaged
 // settings, templates and caches, so it can be poked at without touching the
 // real ones.
 if (isDev && process.env.BOOKING_USER_DATA) app.setPath('userData', process.env.BOOKING_USER_DATA)
+
+// How long this launch took to get its window up (startupLog.js), written once
+// the window has loaded, or after a minute whatever happened.
+const boot = (() => {
+  const info = { version: app.getVersion(), arch: process.arch, rosetta: false, os: '' }
+  try { info.rosetta = !!app.runningUnderARM64Translation; info.os = process.getSystemVersion() } catch { /* best effort */ }
+  return createStartupLog({ dir: app.getPath('userData'), processStart: Date.now() - process.uptime() * 1000, info })
+})()
+setTimeout(() => boot.write(), 60_000).unref()
+const bootDone = () => { if (boot.has('shown') && boot.has('loaded')) boot.write() }
 
 // TipTap inline images live in userData/templates/assets and are served to the
 // renderer through this scheme (a plain file:// URL is blocked by the CSP).
@@ -147,6 +159,21 @@ function buildMenu() {
         { role: 'front', label: tm('Bring All to Front') },
       ],
     },
+    {
+      label: tm('Help'),
+      role: 'help',
+      submenu: [
+        {
+          // A text file with this Mac's launch times — only ever shown here.
+          label: tm('Show Startup Log'),
+          click: () => {
+            const path = startupLogPath(app.getPath('userData'))
+            try { if (!existsSync(path)) writeFileSync(path, '') } catch { /* shows the folder anyway */ }
+            shell.showItemInFolder(path)
+          },
+        },
+      ],
+    },
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
@@ -178,8 +205,11 @@ function createWindow() {
     },
   })
 
+  win.webContents.once('did-finish-load', () => { boot.mark('loaded'); bootDone() })
   win.on('ready-to-show', () => {
     win.show()
+    boot.mark('shown')
+    bootDone()
     // The automatic update check runs in the window (App.jsx) once settings
     // have loaded, so its banner can never miss a message sent too early.
   })
@@ -213,6 +243,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  boot.mark('ready')
   // Passwords stored by 0.23 and earlier move to the keychain key that doesn't
   // ask again after every update (secrets.js). Before the window, so the one
   // last keychain prompt comes first, not in the middle of a mail sync.
@@ -223,6 +254,7 @@ app.whenReady().then(() => {
   ipcMain.handle('app:setLanguage', (_e, lang) => { setMainLanguage(lang); buildMenu() })
   buildMenu()
   createWindow()
+  boot.mark('window')
   // Scheduled runs only fire while the app is open; this also picks up any that
   // came due while it was closed.
   startScheduler()
